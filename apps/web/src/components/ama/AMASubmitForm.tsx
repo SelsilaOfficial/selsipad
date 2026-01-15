@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { submitAMA, type AMAType } from '../actions';
+import { submitAMA, type AMAType } from '../../../app/ama/actions';
 import { useRouter } from 'next/navigation';
 
 interface AMASubmitFormProps {
