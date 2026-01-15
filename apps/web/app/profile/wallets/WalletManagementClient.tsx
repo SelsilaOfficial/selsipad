@@ -4,7 +4,12 @@ import { useState } from 'react';
 import { Card, CardContent, ConfirmModal, ActionMenu, useToast, Button } from '@/components/ui';
 import type { MenuItem } from '@/components/ui';
 import { PageHeader, PageContainer, BottomSheet } from '@/components/layout';
-import { setPrimaryWallet, removeWallet, addWallet, type Wallet } from '@/lib/data/profile';
+import {
+  setPrimaryWalletAction,
+  removeWalletAction,
+  addWalletAction,
+  type Wallet,
+} from './actions';
 
 interface WalletManagementClientProps {
   initialWallets: Wallet[];
@@ -22,7 +27,7 @@ export function WalletManagementClient({ initialWallets }: WalletManagementClien
 
   const handleSetPrimary = async (walletId: string) => {
     try {
-      await setPrimaryWallet(walletId);
+      await setPrimaryWalletAction(walletId);
       setWallets(
         wallets.map((w) => ({
           ...w,
@@ -40,7 +45,7 @@ export function WalletManagementClient({ initialWallets }: WalletManagementClien
 
     setIsSubmitting(true);
     try {
-      await removeWallet(selectedWallet.id);
+      await removeWalletAction(selectedWallet.id);
       setWallets(wallets.filter((w) => w.id !== selectedWallet.id));
       showToast('success', 'Wallet removed');
       setRemoveModalOpen(false);
@@ -60,7 +65,7 @@ export function WalletManagementClient({ initialWallets }: WalletManagementClien
 
     setIsSubmitting(true);
     try {
-      const newWallet = await addWallet(newWalletAddress, newWalletNetwork);
+      const newWallet = await addWalletAction(newWalletAddress, newWalletNetwork);
       setWallets([...wallets, newWallet]);
       showToast('success', 'Wallet added successfully');
       setAddSheetOpen(false);
