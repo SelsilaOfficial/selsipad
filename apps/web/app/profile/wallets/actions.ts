@@ -1,16 +1,16 @@
-import { getServerSession } from '@/lib/auth/session';
 'use server';
 
+import { getServerSession } from '@/lib/auth/session';
 import { createClient } from '@/lib/supabase/server';
 
 export interface Wallet {
   id: string;
   user_id: string;
   address: string;
-  network: 'SOL' | 'EVM';
+  chain: string;
   is_primary: boolean;
-  label?: string;
-  added_at: string;
+  wallet_role: 'PRIMARY' | 'SECONDARY';
+  created_at: string;
 }
 
 /**
@@ -20,29 +20,25 @@ export async function setPrimaryWalletAction(walletId: string): Promise<void> {
   const session = await getServerSession();
 
   if (!session) {
-    throw new Error('Authentication required');
+    throw new Error('Not authenticated');
   }
 
   const supabase = createClient();
 
-  // Verify wallet ownership
-  const { data: wallet } = await supabase
-    .from('wallets')
-    .select('user_id')
-    .eq('id', walletId)
-    .single();
-
-  if (!wallet || wallet.user_id !== session.userId) {
-    throw new Error('Wallet not found or access denied');
-  }
-
-  // Update all wallets for this user
+  // First, unset all primary wallets for this user
   await supabase.from('wallets').update({ is_primary: false }).eq('user_id', session.userId);
 
-  // Set new primary
-  const { error } = await supabase.from('wallets').update({ is_primary: true }).eq('id', walletId);
+  // Then set the new primary wallet
+  const { error } = await supabase
+    .from('wallets')
+    .update({ is_primary: true })
+    .eq('id', walletId)
+    .eq('user_id', session.userId); // Ensure user owns this wallet
 
-  if (error) throw error;
+  if (error) {
+    console.error('Error setting primary wallet:', error);
+    throw error;
+  }
 }
 
 /**
@@ -52,39 +48,56 @@ export async function removeWalletAction(walletId: string): Promise<void> {
   const session = await getServerSession();
 
   if (!session) {
-    throw new Error('Authentication required');
+    throw new Error('Not authenticated');
   }
 
   const supabase = createClient();
 
-  // Verify wallet ownership and not primary
+  // Check if this is the primary wallet
   const { data: wallet } = await supabase
     .from('wallets')
-    .select('user_id, is_primary')
+    .select('is_primary, wallet_role')
     .eq('id', walletId)
+    .eq('user_id', session.userId)
     .single();
 
-  if (!wallet || wallet.user_id !== session.userId) {
-    throw new Error('Wallet not found or access denied');
+  if (wallet?.is_primary) {
+    // Check if there are other wallets
+    const { count } = await supabase
+      .from('wallets')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', session.userId);
+
+    if (count && count > 1) {
+      throw new Error('Cannot remove primary wallet. Set another wallet as primary first.');
+    }
   }
 
-  if (wallet.is_primary) {
-    throw new Error('Cannot remove primary wallet');
+  // Delete the wallet
+  const { error } = await supabase
+    .from('wallets')
+    .delete()
+    .eq('id', walletId)
+    .eq('user_id', session.userId);
+
+  if (error) {
+    console.error('Error removing wallet:', error);
+    throw error;
   }
-
-  const { error } = await supabase.from('wallets').delete().eq('id', walletId);
-
-  if (error) throw error;
 }
 
 /**
- * Add Wallet
+ * Link Solana Wallet (for server actions)
  */
-export async function addWalletAction(address: string, network: 'SOL' | 'EVM'): Promise<Wallet> {
+export async function linkSolanaWalletAction(
+  address: string,
+  signature: string,
+  message: string
+): Promise<void> {
   const session = await getServerSession();
 
   if (!session) {
-    throw new Error('Authentication required');
+    throw new Error('Not authenticated');
   }
 
   const supabase = createClient();
@@ -93,33 +106,27 @@ export async function addWalletAction(address: string, network: 'SOL' | 'EVM'): 
   const { data: existing } = await supabase
     .from('wallets')
     .select('id')
+    .eq('user_id', session.userId)
+    .eq('chain', 'SOLANA')
     .eq('address', address)
     .single();
 
   if (existing) {
-    throw new Error('Wallet already registered');
+    throw new Error('Wallet already added');
   }
 
-  // Check user wallet count
-  const { count } = await supabase
-    .from('wallets')
-    .select('*', { count: 'exact', head: true })
-    .eq('user_id', session.userId);
+  // Insert new Solana wallet as SECONDARY
+  const { error } = await supabase.from('wallets').insert({
+    user_id: session.userId,
+    chain: 'SOLANA',
+    address,
+    is_primary: false,
+    wallet_role: 'SECONDARY',
+    verified_at: new Date().toISOString(),
+  });
 
-  const is_primary = (count || 0) === 0; // First wallet is primary
-
-  const { data: newWallet, error } = await supabase
-    .from('wallets')
-    .insert({
-      user_id: session.userId,
-      address,
-      network,
-      is_primary,
-    })
-    .select()
-    .single();
-
-  if (error) throw error;
-
-  return newWallet;
+  if (error) {
+    console.error('Error adding Solana wallet:', error);
+    throw error;
+  }
 }
