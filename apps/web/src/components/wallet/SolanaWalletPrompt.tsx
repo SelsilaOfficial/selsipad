@@ -1,12 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { useState, useEffect } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { Card, CardContent } from '@/components/ui';
 import { signMessageSolana } from '@/lib/wallet/signMessage';
-import { useRouter } from 'next/navigation'; // Assuming Next.js for useRouter
 
 interface SolanaWalletPromptProps {
   /** Feature name that requires Solana */
@@ -22,6 +20,17 @@ interface SolanaWalletPromptProps {
 export function SolanaWalletPrompt({ feature, onConnected }: SolanaWalletPromptProps) {
   const [isLinking, setIsLinking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const { publicKey, signMessage, connected } = useWallet();
+
+  const handleLink = async () => {
+    if (!publicKey || !signMessage) {
+      setError('Please connect your Solana wallet first');
+      return;
+    }
+
+    setIsLinking(true);
+    setError(null);
 
     try {
       // 1. Sign authentication message
@@ -41,12 +50,11 @@ export function SolanaWalletPrompt({ feature, onConnected }: SolanaWalletPromptP
       if (response.ok) {
         const data = await response.json();
         console.log('[SolanaWallet] Linked successfully:', data);
-        
+
         // Call callback or reload page
         if (onConnected) {
           onConnected();
         } else {
-          // Auto-reload page to show feature
           window.location.reload();
         }
       } else {
