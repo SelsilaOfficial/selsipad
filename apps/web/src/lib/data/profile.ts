@@ -74,7 +74,7 @@ export async function getUserProfile(): Promise<UserProfile | null> {
     // Map to frontend format
     return {
       id: profile.user_id, // Use user_id for ownership checks (matches post.author.id)
-      username: profile.username,
+      username: profile.nickname, // nickname is the database column name
       avatar_url: profile.avatar_url,
       bio: profile.bio,
       bluecheck_status: mapBlueCheckStatus(profile.bluecheck_status),
