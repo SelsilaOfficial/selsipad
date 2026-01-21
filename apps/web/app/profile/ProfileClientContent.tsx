@@ -159,7 +159,10 @@ export function ProfileClientContent({
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-caption text-text-secondary">Total Contributed</p>
-                  <p className="text-heading-md">{profile.total_contributions} SOL</p>
+                  <p className="text-heading-md">
+                    {profile.total_contributions}{' '}
+                    {profile.wallets.find((w) => w.is_primary)?.network === 'EVM' ? 'BNB' : 'SOL'}
+                  </p>
                 </div>
                 <div>
                   <p className="text-caption text-text-secondary">Tokens Claimed</p>
