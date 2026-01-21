@@ -124,12 +124,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Step 2: Create wallet entry
+    // Step 2: Create wallet entry with wallet_role PRIMARY
     const { error: walletError } = await supabase.from('wallets').insert({
       user_id: userId,
       address: normalizedAddress,
       chain: chain,
       is_primary: true,
+      wallet_role: 'PRIMARY', // Set as PRIMARY wallet for authentication
     });
 
     if (walletError) {
