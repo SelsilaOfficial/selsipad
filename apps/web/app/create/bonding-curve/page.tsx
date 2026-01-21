@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation';
 import { getServerSession } from '@/lib/auth/session';
 import { checkSolanaWallet } from '@/lib/wallet/check-wallet';
 import { SolanaWalletPrompt } from '@/components/wallet/SolanaWalletPrompt';
-import { BondingCurveWizard } from '@/features/BondingCurve';
+import { CreateBondingCurveWizard } from './CreateBondingCurveWizard';
 
 export const metadata = {
   title: 'Create Bonding Curve | SELSIPAD',
@@ -45,8 +45,10 @@ export default async function CreateBondingCurvePage() {
 
   // 4. Solana wallet exists, show bonding curve form
   return (
-    <div className="min-h-screen bg-bg-page">
-      <BondingCurveWizard solanaAddress={solanaAddress} />
+    <div className="min-h-screen bg-gray-950 py-8">
+      <div className="container mx-auto px-4">
+        <CreateBondingCurveWizard walletAddress={solanaAddress} />
+      </div>
     </div>
   );
 }
