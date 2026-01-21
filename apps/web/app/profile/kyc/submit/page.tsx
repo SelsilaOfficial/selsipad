@@ -1,10 +1,10 @@
+import { getServerSession } from '@/lib/auth/session';
 import { getUserProjects } from '../actions';
 import { KYCSubmitForm } from '@/components/kyc/KYCSubmitForm';
 import { PageHeader, PageContainer } from '@/components/layout';
 import { redirect } from 'next/navigation';
 
 export default async function KYCSubmitPage() {
-  import { getServerSession } from '@/lib/auth/session';
   const session = await getServerSession();
 
   if (!session) {

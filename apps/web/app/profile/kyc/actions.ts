@@ -1,3 +1,4 @@
+import { getServerSession } from '@/lib/auth/session';
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
@@ -24,7 +25,6 @@ export async function submitKYC(data: {
   documents_url: string; // Upload handled separately
   project_id?: string;
 }): Promise<KYCSubmission> {
-  import { getServerSession } from '@/lib/auth/session';
   const session = await getServerSession();
 
   if (!session) {
@@ -84,7 +84,6 @@ export async function submitKYC(data: {
  * Get User's KYC Status
  */
 export async function getKYCStatus(): Promise<KYCSubmission | null> {
-  import { getServerSession } from '@/lib/auth/session';
   const session = await getServerSession();
 
   if (!session) {
@@ -106,7 +105,6 @@ export async function getKYCStatus(): Promise<KYCSubmission | null> {
 }
 
 export async function uploadKYCDocuments(files: { name: string; data: string }[]): Promise<string> {
-  import { getServerSession } from '@/lib/auth/session';
   const session = await getServerSession();
 
   if (!session) {
@@ -146,7 +144,6 @@ export async function uploadKYCDocuments(files: { name: string; data: string }[]
  * Get User Projects (for KYC linking)
  */
 export async function getUserProjects(): Promise<Array<{ id: string; name: string }>> {
-  import { getServerSession } from '@/lib/auth/session';
   const session = await getServerSession();
 
   if (!session) {

@@ -1,3 +1,4 @@
+import { getServerSession } from '@/lib/auth/session';
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
@@ -16,7 +17,6 @@ export interface Wallet {
  * Set Primary Wallet
  */
 export async function setPrimaryWalletAction(walletId: string): Promise<void> {
-  import { getServerSession } from '@/lib/auth/session';
   const session = await getServerSession();
 
   if (!session) {
@@ -49,7 +49,6 @@ export async function setPrimaryWalletAction(walletId: string): Promise<void> {
  * Remove Wallet
  */
 export async function removeWalletAction(walletId: string): Promise<void> {
-  import { getServerSession } from '@/lib/auth/session';
   const session = await getServerSession();
 
   if (!session) {
@@ -82,7 +81,6 @@ export async function removeWalletAction(walletId: string): Promise<void> {
  * Add Wallet
  */
 export async function addWalletAction(address: string, network: 'SOL' | 'EVM'): Promise<Wallet> {
-  import { getServerSession } from '@/lib/auth/session';
   const session = await getServerSession();
 
   if (!session) {

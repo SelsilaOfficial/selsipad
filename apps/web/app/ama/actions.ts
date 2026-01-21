@@ -1,3 +1,4 @@
+import { getServerSession } from '@/lib/auth/session';
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
@@ -33,7 +34,6 @@ export async function submitAMA(data: {
   scheduled_at: string;
   payment_tx_hash?: string;
 }): Promise<AMASession> {
-  import { getServerSession } from '@/lib/auth/session';
   const session = await getServerSession();
 
   if (!session) {
@@ -150,7 +150,6 @@ export async function getLiveAMAs(): Promise<any[]> {
  * Get My AMAs (Developer)
  */
 export async function getMyAMAs(): Promise<any[]> {
-  import { getServerSession } from '@/lib/auth/session';
   const session = await getServerSession();
 
   if (!session) {
@@ -181,7 +180,6 @@ export async function getMyAMAs(): Promise<any[]> {
  * Change status to LIVE
  */
 export async function startAMA(amaId: string): Promise<void> {
-  import { getServerSession } from '@/lib/auth/session';
   const session = await getServerSession();
 
   if (!session) {
@@ -220,7 +218,6 @@ export async function startAMA(amaId: string): Promise<void> {
  * End AMA Session
  */
 export async function endAMA(amaId: string): Promise<void> {
-  import { getServerSession } from '@/lib/auth/session';
   const session = await getServerSession();
 
   if (!session) {
@@ -259,7 +256,6 @@ export async function endAMA(amaId: string): Promise<void> {
  * Cancel AMA
  */
 export async function cancelAMA(amaId: string): Promise<void> {
-  import { getServerSession } from '@/lib/auth/session';
   const session = await getServerSession();
 
   if (!session) {
