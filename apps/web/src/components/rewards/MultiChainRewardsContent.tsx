@@ -5,17 +5,43 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Card, CardContent, Button, EmptyState, EmptyIcon, useToast } from '@/components/ui';
 import { PageHeader, PageContainer } from '@/components/layout';
 import { ChainFilter } from '@/components/rewards/ChainFilter';
 import { formatChainName } from '@/lib/utils/chain';
-import {
-  getSourceTypeName,
-  type ChainRewards,
-  type RewardDetail,
-} from '@/lib/data/multi-chain-rewards';
 import { formatDistance } from 'date-fns';
+
+// Local type definitions (no server imports)
+interface RewardDetail {
+  id: string;
+  chain: string;
+  amount: number;
+  token: string;
+  sourceType: string;
+  sourceId: string;
+  createdAt: string;
+  usdEstimate?: number;
+}
+
+interface ChainRewards {
+  chain: string;
+  chainName: string;
+  rewards: RewardDetail[];
+  totalAmount: number;
+  totalUSD: number;
+}
+
+// Local helper function
+function getSourceTypeName(sourceType: string): string {
+  const mapping: Record<string, string> = {
+    PRESALE: 'Presale Referral',
+    FAIRLAUNCH: 'Fairlaunch Referral',
+    BONDING: 'Bonding Curve Referral',
+    BLUECHECK: 'Blue Check Subscription',
+  };
+  return mapping[sourceType] || sourceType;
+}
 
 interface MultiChainRewardsContentProps {
   initialRewards: ChainRewards[];
