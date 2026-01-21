@@ -1,7 +1,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
-import { getSession } from '@/lib/auth/session';
+import { getServerSession } from '@/lib/auth/session';
 import { revalidatePath } from 'next/cache';
 
 interface ActionResult {
@@ -15,7 +15,7 @@ interface ActionResult {
  */
 export async function approveAMA(sessionId: string): Promise<ActionResult> {
   try {
-    const session = await getSession();
+    const session = await getServerSession();
     if (!session) {
       return { success: false, error: 'Not authenticated' };
     }
@@ -78,7 +78,7 @@ export async function approveAMA(sessionId: string): Promise<ActionResult> {
  */
 export async function rejectAMA(sessionId: string, reason: string): Promise<ActionResult> {
   try {
-    const session = await getSession();
+    const session = await getServerSession();
     if (!session) {
       return { success: false, error: 'Not authenticated' };
     }
@@ -132,7 +132,7 @@ export async function rejectAMA(sessionId: string, reason: string): Promise<Acti
  */
 export async function toggleAMAPin(sessionId: string): Promise<ActionResult> {
   try {
-    const session = await getSession();
+    const session = await getServerSession();
     if (!session) {
       return { success: false, error: 'Not authenticated' };
     }
@@ -183,7 +183,7 @@ export async function toggleAMAPin(sessionId: string): Promise<ActionResult> {
  */
 export async function forceEndAMA(sessionId: string): Promise<ActionResult> {
   try {
-    const session = await getSession();
+    const session = await getServerSession();
     if (!session) {
       return { success: false, error: 'Not authenticated' };
     }

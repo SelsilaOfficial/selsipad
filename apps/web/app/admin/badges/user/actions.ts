@@ -1,7 +1,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
-import { getSession } from '@/lib/auth/session';
+import { getServerSession } from '@/lib/auth/session';
 import { revalidatePath } from 'next/cache';
 
 interface ActionResult {
@@ -19,7 +19,7 @@ export async function grantUserBadge(
   reason: string
 ): Promise<ActionResult> {
   try {
-    const session = await getSession();
+    const session = await getServerSession();
     if (!session) {
       return { success: false, error: 'Not authenticated' };
     }
@@ -94,7 +94,7 @@ export async function grantUserBadge(
  */
 export async function revokeUserBadge(instanceId: string, reason: string): Promise<ActionResult> {
   try {
-    const session = await getSession();
+    const session = await getServerSession();
     if (!session) {
       return { success: false, error: 'Not authenticated' };
     }

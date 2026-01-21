@@ -1,7 +1,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
-import { getSession } from '@/lib/auth/session';
+import { getServerSession } from '@/lib/auth/session';
 import { revalidatePath } from 'next/cache';
 import { validateComplianceGates } from '@/../../packages/shared/src/validators/presale-wizard';
 
@@ -30,7 +30,7 @@ export async function createFairlaunchDraft(
     const supabase = createClient();
 
     // Check authentication (Pattern 68: Wallet-Only Auth)
-    const session = await getSession();
+    const session = await getServerSession();
     if (!session) {
       return { success: false, error: 'Not authenticated' };
     }
@@ -98,7 +98,7 @@ export async function submitFairlaunch(
     const supabase = createClient();
 
     // Check authentication (Pattern 68: Wallet-Only Auth)
-    const session = await getSession();
+    const session = await getServerSession();
     if (!session) {
       return { success: false, error: 'Not authenticated' };
     }
@@ -205,7 +205,7 @@ export async function updateFairlaunchDraft(
     const supabase = createClient();
 
     // Check authentication (Pattern 68: Wallet-Only Auth)
-    const session = await getSession();
+    const session = await getServerSession();
     if (!session) {
       return { success: false, error: 'Not authenticated' };
     }
@@ -297,7 +297,7 @@ export async function deleteFairlaunchDraft(roundId: string): Promise<ActionResu
     const supabase = createClient();
 
     // Check authentication (Pattern 68: Wallet-Only Auth)
-    const session = await getSession();
+    const session = await getServerSession();
     if (!session) {
       return { success: false, error: 'Not authenticated' };
     }

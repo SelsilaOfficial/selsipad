@@ -1,7 +1,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
-import { getSession } from '@/lib/auth/session';
+import { getServerSession } from '@/lib/auth/session';
 import { revalidatePath } from 'next/cache';
 
 interface ActionResult<T = any> {
@@ -21,7 +21,7 @@ export async function startContractScan(
   idempotencyKey: string
 ): Promise<ActionResult<{ scan_run_id: string; status: string }>> {
   try {
-    const session = await getSession();
+    const session = await getServerSession();
     if (!session) {
       return { success: false, error: 'Not authenticated' };
     }
@@ -143,7 +143,7 @@ export async function getContractScanStatus(projectId: string): Promise<
   }>
 > {
   try {
-    const session = await getSession();
+    const session = await getServerSession();
     if (!session) {
       return { success: false, error: 'Not authenticated' };
     }
@@ -195,7 +195,7 @@ export async function submitAuditProof(
   }
 ): Promise<ActionResult<{ proof_id: string }>> {
   try {
-    const session = await getSession();
+    const session = await getServerSession();
     if (!session) {
       return { success: false, error: 'Not authenticated' };
     }
@@ -272,7 +272,7 @@ export async function submitAuditProof(
  */
 export async function getProjectAuditProofs(projectId: string): Promise<ActionResult> {
   try {
-    const session = await getSession();
+    const session = await getServerSession();
     if (!session) {
       return { success: false, error: 'Not authenticated' };
     }

@@ -1,7 +1,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
-import { getSession } from '@/lib/auth/session';
+import { getServerSession } from '@/lib/auth/session';
 import { revalidatePath } from 'next/cache';
 import type { FullPresaleConfig } from '@/../../packages/shared/src/validators/presale-wizard';
 import { validateComplianceGates } from '@/../../packages/shared/src/validators/presale-wizard';
@@ -24,7 +24,7 @@ export async function createPresaleDraft(
     const supabase = createClient();
 
     // Check authentication (Pattern 68: Wallet-Only Auth)
-    const session = await getSession();
+    const session = await getServerSession();
     if (!session) {
       return { success: false, error: 'Not authenticated' };
     }
@@ -135,7 +135,7 @@ export async function submitPresale(
     const supabase = createClient();
 
     // Check authentication (Pattern 68: Wallet-Only Auth)
-    const session = await getSession();
+    const session = await getServerSession();
     if (!session) {
       return { success: false, error: 'Not authenticated' };
     }
@@ -277,7 +277,7 @@ export async function updatePresaleDraft(
     const supabase = createClient();
 
     // Check authentication (Pattern 68: Wallet-Only Auth)
-    const session = await getSession();
+    const session = await getServerSession();
     if (!session) {
       return { success: false, error: 'Not authenticated' };
     }
@@ -367,7 +367,7 @@ export async function deletePresaleDraft(roundId: string): Promise<ActionResult>
     const supabase = createClient();
 
     // Check authentication (Pattern 68: Wallet-Only Auth)
-    const session = await getSession();
+    const session = await getServerSession();
     if (!session) {
       return { success: false, error: 'Not authenticated' };
     }
@@ -413,7 +413,7 @@ export async function checkUserHasDevKYC(
     const supabase = createClient();
 
     // Get session to get user ID
-    const session = await getSession();
+    const session = await getServerSession();
     if (!session) {
       return { success: false, error: 'Not authenticated' };
     }

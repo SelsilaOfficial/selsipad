@@ -3,8 +3,8 @@ import { WalletManagementClient } from './WalletManagementClient';
 import { redirect } from 'next/navigation';
 
 export default async function WalletManagementPage() {
-  const { getSession } = await import('@/lib/auth/session');
-  const session = await getSession();
+  import { getServerSession } from '@/lib/auth/session';
+  const session = await getServerSession();
 
   if (!session) {
     redirect('/');

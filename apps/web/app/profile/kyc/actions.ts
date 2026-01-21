@@ -24,8 +24,8 @@ export async function submitKYC(data: {
   documents_url: string; // Upload handled separately
   project_id?: string;
 }): Promise<KYCSubmission> {
-  const { getSession } = await import('@/lib/auth/session');
-  const session = await getSession();
+  import { getServerSession } from '@/lib/auth/session';
+  const session = await getServerSession();
 
   if (!session) {
     throw new Error('Authentication required');
@@ -84,8 +84,8 @@ export async function submitKYC(data: {
  * Get User's KYC Status
  */
 export async function getKYCStatus(): Promise<KYCSubmission | null> {
-  const { getSession } = await import('@/lib/auth/session');
-  const session = await getSession();
+  import { getServerSession } from '@/lib/auth/session';
+  const session = await getServerSession();
 
   if (!session) {
     return null;
@@ -106,8 +106,8 @@ export async function getKYCStatus(): Promise<KYCSubmission | null> {
 }
 
 export async function uploadKYCDocuments(files: { name: string; data: string }[]): Promise<string> {
-  const { getSession } = await import('@/lib/auth/session');
-  const session = await getSession();
+  import { getServerSession } from '@/lib/auth/session';
+  const session = await getServerSession();
 
   if (!session) {
     throw new Error('Authentication required');
@@ -146,8 +146,8 @@ export async function uploadKYCDocuments(files: { name: string; data: string }[]
  * Get User Projects (for KYC linking)
  */
 export async function getUserProjects(): Promise<Array<{ id: string; name: string }>> {
-  const { getSession } = await import('@/lib/auth/session');
-  const session = await getSession();
+  import { getServerSession } from '@/lib/auth/session';
+  const session = await getServerSession();
 
   if (!session) {
     return [];

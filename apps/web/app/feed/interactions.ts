@@ -7,8 +7,8 @@ import { createClient } from '@/lib/supabase/server';
  */
 export async function toggleLike(postId: string): Promise<{ liked: boolean; likeCount: number }> {
   try {
-    const { getSession } = await import('@/lib/auth/session');
-    const session = await getSession();
+    import { getServerSession } from '@/lib/auth/session';
+    const session = await getServerSession();
 
     if (!session) {
       throw new Error('User not authenticated');
@@ -65,8 +65,8 @@ export async function addComment(
   parentCommentId?: string
 ): Promise<any> {
   try {
-    const { getSession } = await import('@/lib/auth/session');
-    const session = await getSession();
+    import { getServerSession } from '@/lib/auth/session';
+    const session = await getServerSession();
 
     if (!session) {
       throw new Error('User not authenticated');
@@ -118,8 +118,8 @@ export async function reactToPost(
   reactionType: 'love' | 'haha' | 'wow' | 'sad' | 'angry'
 ): Promise<void> {
   try {
-    const { getSession } = await import('@/lib/auth/session');
-    const session = await getSession();
+    import { getServerSession } from '@/lib/auth/session';
+    const session = await getServerSession();
 
     if (!session) {
       throw new Error('User not authenticated');
@@ -149,8 +149,8 @@ export async function reactToPost(
  */
 export async function trackView(postId: string, sessionId?: string): Promise<void> {
   try {
-    const { getSession } = await import('@/lib/auth/session');
-    const session = await getSession();
+    import { getServerSession } from '@/lib/auth/session';
+    const session = await getServerSession();
 
     const supabase = createClient();
 
@@ -174,8 +174,8 @@ export async function trackView(postId: string, sessionId?: string): Promise<voi
  */
 export async function editPost(postId: string, content: string): Promise<void> {
   try {
-    const { getSession } = await import('@/lib/auth/session');
-    const session = await getSession();
+    import { getServerSession } from '@/lib/auth/session';
+    const session = await getServerSession();
 
     if (!session) {
       throw new Error('User not authenticated');
@@ -214,8 +214,8 @@ export async function editPost(postId: string, content: string): Promise<void> {
  */
 export async function deletePost(postId: string): Promise<void> {
   try {
-    const { getSession } = await import('@/lib/auth/session');
-    const session = await getSession();
+    import { getServerSession } from '@/lib/auth/session';
+    const session = await getServerSession();
 
     if (!session) {
       throw new Error('User not authenticated');
@@ -256,8 +256,8 @@ export async function sharePost(
   shareType: 'link' | 'repost' | 'quote'
 ): Promise<void> {
   try {
-    const { getSession } = await import('@/lib/auth/session');
-    const session = await getSession();
+    import { getServerSession } from '@/lib/auth/session';
+    const session = await getServerSession();
 
     if (!session) {
       throw new Error('User not authenticated');
@@ -346,8 +346,8 @@ export async function getReactions(postId: string): Promise<{
   userReaction?: string;
 }> {
   try {
-    const { getSession } = await import('@/lib/auth/session');
-    const session = await getSession();
+    import { getServerSession } from '@/lib/auth/session';
+    const session = await getServerSession();
 
     const supabase = createClient();
 
@@ -391,8 +391,8 @@ export async function getReactions(postId: string): Promise<{
  */
 export async function checkUserLiked(postId: string): Promise<boolean> {
   try {
-    const { getSession } = await import('@/lib/auth/session');
-    const session = await getSession();
+    import { getServerSession } from '@/lib/auth/session';
+    const session = await getServerSession();
 
     if (!session) return false;
 

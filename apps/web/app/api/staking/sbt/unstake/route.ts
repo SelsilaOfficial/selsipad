@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { getSession } from '@/lib/auth/session';
+import { getServerSession } from '@/lib/auth/session';
 
 /**
  * POST /api/staking/sbt/unstake
@@ -13,7 +13,7 @@ import { getSession } from '@/lib/auth/session';
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await getSession();
+    const session = await getServerSession();
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

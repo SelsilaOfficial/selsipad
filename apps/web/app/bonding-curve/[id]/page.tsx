@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
-import { getSession } from '@/lib/auth/session';
+import { getServerSession } from '@/lib/auth/session';
 import { redirect } from 'next/navigation';
 import { BondingCurveDetail } from './BondingCurveDetail';
 
@@ -21,7 +21,7 @@ export async function generateMetadata({ params }: { params: { id: string } }) {
 
 export default async function BondingCurveDetailPage({ params }: { params: { id: string } }) {
   const supabase = createClient();
-  const session = await getSession();
+  const session = await getServerSession();
 
   // Fetch pool detail
   const { data: pool, error } = await supabase

@@ -1,7 +1,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
-import { getSession } from '@/lib/auth/session';
+import { getServerSession } from '@/lib/auth/session';
 import { revalidatePath } from 'next/cache';
 
 interface ActionResult {
@@ -28,7 +28,7 @@ export async function createBondingCurveDraft(
     const supabase = createClient();
 
     // Check authentication (Pattern 68: Wallet-Only Auth)
-    const session = await getSession();
+    const session = await getServerSession();
     if (!session) {
       return { success: false, error: 'Not authenticated' };
     }
@@ -88,7 +88,7 @@ export async function submitBondingCurve(
     const supabase = createClient();
 
     // Check authentication (Pattern 68: Wallet-Only Auth)
-    const session = await getSession();
+    const session = await getServerSession();
     if (!session) {
       return { success: false, error: 'Not authenticated' };
     }
@@ -155,7 +155,7 @@ export async function updateBondingCurveDraft(
     const supabase = createClient();
 
     // Check authentication (Pattern 68: Wallet-Only Auth)
-    const session = await getSession();
+    const session = await getServerSession();
     if (!session) {
       return { success: false, error: 'Not authenticated' };
     }
@@ -236,7 +236,7 @@ export async function deleteBondingCurveDraft(poolId: string): Promise<ActionRes
     const supabase = createClient();
 
     // Check authentication (Pattern 68: Wallet-Only Auth)
-    const session = await getSession();
+    const session = await getServerSession();
     if (!session) {
       return { success: false, error: 'Not authenticated' };
     }

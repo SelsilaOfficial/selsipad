@@ -16,8 +16,8 @@ export interface Wallet {
  * Set Primary Wallet
  */
 export async function setPrimaryWalletAction(walletId: string): Promise<void> {
-  const { getSession } = await import('@/lib/auth/session');
-  const session = await getSession();
+  import { getServerSession } from '@/lib/auth/session';
+  const session = await getServerSession();
 
   if (!session) {
     throw new Error('Authentication required');
@@ -49,8 +49,8 @@ export async function setPrimaryWalletAction(walletId: string): Promise<void> {
  * Remove Wallet
  */
 export async function removeWalletAction(walletId: string): Promise<void> {
-  const { getSession } = await import('@/lib/auth/session');
-  const session = await getSession();
+  import { getServerSession } from '@/lib/auth/session';
+  const session = await getServerSession();
 
   if (!session) {
     throw new Error('Authentication required');
@@ -82,8 +82,8 @@ export async function removeWalletAction(walletId: string): Promise<void> {
  * Add Wallet
  */
 export async function addWalletAction(address: string, network: 'SOL' | 'EVM'): Promise<Wallet> {
-  const { getSession } = await import('@/lib/auth/session');
-  const session = await getSession();
+  import { getServerSession } from '@/lib/auth/session';
+  const session = await getServerSession();
 
   if (!session) {
     throw new Error('Authentication required');

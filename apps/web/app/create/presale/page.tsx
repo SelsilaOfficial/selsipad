@@ -1,4 +1,4 @@
-import { getSession } from '@/lib/auth/session';
+import { getServerSession } from '@/lib/auth/session';
 import { redirect } from 'next/navigation';
 import { CreatePresaleWizard } from './CreatePresaleWizard';
 import { createClient } from '@/lib/supabase/server';
@@ -12,7 +12,7 @@ export const metadata = {
 
 export default async function CreatePresalePage() {
   // Check authentication using custom session management (Pattern 68: Wallet-Only Auth)
-  const session = await getSession();
+  const session = await getServerSession();
 
   if (!session) {
     redirect('/');

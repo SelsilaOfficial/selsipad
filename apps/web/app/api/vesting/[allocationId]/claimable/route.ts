@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { getSession } from '@/lib/auth/session';
+import { getServerSession } from '@/lib/auth/session';
 import { calculateClaimableAmount } from '@/lib/vesting/claim-utils';
 import type { VestingAllocation, VestingSchedule } from '@/lib/vesting/claim-utils';
 
@@ -14,7 +14,7 @@ export async function GET(request: NextRequest, { params }: { params: { allocati
     const { allocationId } = params;
 
     // Validate session
-    const session = await getSession();
+    const session = await getServerSession();
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

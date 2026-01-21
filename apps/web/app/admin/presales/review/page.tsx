@@ -1,4 +1,4 @@
-import { getSession } from '@/lib/auth/session';
+import { getServerSession } from '@/lib/auth/session';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { AdminReviewQueue } from './AdminReviewQueue';
@@ -10,7 +10,7 @@ export const metadata = {
 
 export default async function AdminReviewPage() {
   // Check authentication (Pattern 68: Wallet-Only Auth)
-  const session = await getSession();
+  const session = await getServerSession();
 
   if (!session) {
     redirect('/');
