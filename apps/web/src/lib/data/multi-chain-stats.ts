@@ -46,9 +46,9 @@ export async function getUserStatsMultiChain(userId: string): Promise<UserStatsM
     // Get rewards grouped by chain
     const { data: rewardsData, error: rewardsError } = await supabase
       .from('referral_ledger')
-      .select('chain, amount, token')
+      .select('chain, amount, asset as token')
       .eq('referrer_id', userId)
-      .eq('status', 'PENDING'); // Only unclaimed rewards
+      .in('status', ['PENDING', 'CLAIMABLE']); // Only unclaimed rewards
 
     if (rewardsError) {
       console.error('Error fetching rewards:', rewardsError);
@@ -57,26 +57,22 @@ export async function getUserStatsMultiChain(userId: string): Promise<UserStatsM
     // Aggregate rewards by chain and token
     const rewardsByChain = (rewardsData || []).reduce((acc, reward) => {
       const chain = reward.chain || 'BSC';
-      const token = reward.reward_token || 'USDT';
-      const key = `${chain}-${token}`;
+      const token = reward.token || 'USDT';
 
       const existing = acc.find((r) => r.chain === chain && r.token === token);
 
       if (existing) {
-        existing.amount += parseFloat(reward.reward_amount || '0');
+        existing.amount += parseFloat(reward.amount || '0');
       } else {
         acc.push({
           chain,
-          amount: parseFloat(reward.reward_amount || '0'),
+          amount: parseFloat(reward.amount || '0'),
           token,
         });
       }
 
       return acc;
     }, [] as RewardStats[]);
-    */
-
-    const rewardsByChain: RewardStats[] = []; // Empty until referral_ledger exists
 
     return {
       contributions: contributionsByChain,
