@@ -142,6 +142,16 @@ export function WalletManagementClient({ initialWallets }: WalletManagementClien
                         Primary
                       </span>
                     )}
+                    {wallet.wallet_role === 'PRIMARY' && (
+                      <span className="px-2 py-0.5 bg-success-soft/20 text-success-main text-caption rounded-full border border-success-main/30 flex-shrink-0">
+                        Identity
+                      </span>
+                    )}
+                    {wallet.wallet_role === 'SECONDARY' && (
+                      <span className="px-2 py-0.5 bg-bg-elevated text-text-secondary text-caption rounded-full border border-border-subtle flex-shrink-0">
+                        Feature Wallet
+                      </span>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-2">
@@ -163,10 +173,16 @@ export function WalletManagementClient({ initialWallets }: WalletManagementClien
         {/* Info Note */}
         <Card variant="bordered" className="border-l-4 border-status-info-text">
           <CardContent>
-            <p className="text-body-sm text-text-secondary">
-              💡 Your primary wallet is used for all transactions and rewards. You cannot remove
-              your primary wallet.
-            </p>
+            <div className="space-y-2">
+              <p className="text-body-sm text-text-secondary">
+                💡 <strong>Identity Wallet (EVM):</strong> Your primary wallet for login, profile,
+                and transactions. Cannot be removed.
+              </p>
+              <p className="text-body-sm text-text-secondary">
+                💡 <strong>Feature Wallets (Solana):</strong> Additional wallets for chain-specific
+                features like Bonding Curve. Can be removed anytime.
+              </p>
+            </div>
           </CardContent>
         </Card>
       </PageContainer>
