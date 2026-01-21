@@ -15,7 +15,10 @@ interface ProfileClientContentProps {
   multiChainStats: UserStatsMultiChain | null;
 }
 
-export function ProfileClientContent({ initialProfile, multiChainStats }: ProfileClientContentProps) {
+export function ProfileClientContent({
+  initialProfile,
+  multiChainStats,
+}: ProfileClientContentProps) {
   const [profile] = useState<UserProfile>(initialProfile);
 
   const primaryWallet = profile.wallets.find((w) => w.is_primary);
@@ -78,14 +81,18 @@ export function ProfileClientContent({ initialProfile, multiChainStats }: Profil
                     <div className="w-8 h-8 bg-bg-elevated rounded-full flex items-center justify-center text-caption font-semibold">
                       {chainStat.nativeToken.slice(0, 1)}
                     </div>
-                    <span className="text-text-secondary text-body-sm">{formatChainName(chainStat.chain)}</span>
+                    <span className="text-text-secondary text-body-sm">
+                      {formatChainName(chainStat.chain)}
+                    </span>
                   </div>
                   <div className="text-right">
                     <p className="text-heading-sm font-semibold">
                       {chainStat.totalContributed.toFixed(4)} {chainStat.nativeToken}
                     </p>
                     {chainStat.usdEstimate && (
-                      <p className="text-caption text-text-tertiary">~${chainStat.usdEstimate.toFixed(2)}</p>
+                      <p className="text-caption text-text-tertiary">
+                        ~${chainStat.usdEstimate.toFixed(2)}
+                      </p>
                     )}
                   </div>
                 </div>
@@ -93,7 +100,9 @@ export function ProfileClientContent({ initialProfile, multiChainStats }: Profil
               {multiChainStats.totalContributedUSD > 0 && (
                 <div className="pt-3 border-t border-border-subtle flex justify-between">
                   <span className="text-text-secondary">Total (All Chains)</span>
-                  <span className="text-heading-md font-bold">~${multiChainStats.totalContributedUSD.toFixed(2)}</span>
+                  <span className="text-heading-md font-bold">
+                    ~${multiChainStats.totalContributedUSD.toFixed(2)}
+                  </span>
                 </div>
               )}
             </CardContent>
@@ -106,24 +115,34 @@ export function ProfileClientContent({ initialProfile, multiChainStats }: Profil
             <CardContent className="space-y-3">
               <div className="flex justify-between items-center">
                 <h3 className="text-heading-md">Claimable Rewards</h3>
-                <Link href="/rewards" className="text-primary-main text-body-sm font-medium hover:underline">
+                <Link
+                  href="/rewards"
+                  className="text-primary-main text-body-sm font-medium hover:underline"
+                >
                   View All
                 </Link>
               </div>
               {multiChainStats.rewards.map((rewardStat, idx) => (
-                <div key={`${rewardStat.chain}-${rewardStat.token}-${idx}`} className="flex justify-between items-center py-2">
+                <div
+                  key={`${rewardStat.chain}-${rewardStat.token}-${idx}`}
+                  className="flex justify-between items-center py-2"
+                >
                   <div className="flex items-center gap-2">
                     <div className="w-8 h-8 bg-success-subtle rounded-full flex items-center justify-center text-caption font-semibold text-success-main">
                       {rewardStat.token.slice(0, 1)}
                     </div>
-                    <span className="text-text-secondary text-body-sm">{formatChainName(rewardStat.chain)}</span>
+                    <span className="text-text-secondary text-body-sm">
+                      {formatChainName(rewardStat.chain)}
+                    </span>
                   </div>
                   <div className="text-right">
                     <p className="text-heading-sm font-semibold text-success-main">
                       {rewardStat.amount.toFixed(2)} {rewardStat.token}
                     </p>
                     {rewardStat.usdEstimate && (
-                      <p className="text-caption text-text-tertiary">~${rewardStat.usdEstimate.toFixed(2)}</p>
+                      <p className="text-caption text-text-tertiary">
+                        ~${rewardStat.usdEstimate.toFixed(2)}
+                      </p>
                     )}
                   </div>
                 </div>
@@ -133,7 +152,8 @@ export function ProfileClientContent({ initialProfile, multiChainStats }: Profil
         )}
 
         {/* Legacy Stats Card - Show if no multi-chain data */}
-        {(!multiChainStats || (multiChainStats.contributions.length === 0 && multiChainStats.rewards.length === 0)) && (
+        {(!multiChainStats ||
+          (multiChainStats.contributions.length === 0 && multiChainStats.rewards.length === 0)) && (
           <Card>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
@@ -146,8 +166,9 @@ export function ProfileClientContent({ initialProfile, multiChainStats }: Profil
                   <p className="text-heading-md">{profile.total_claimed.toLocaleString()}</p>
                 </div>
               </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Badge Collection */}
         <div className="space-y-3">
