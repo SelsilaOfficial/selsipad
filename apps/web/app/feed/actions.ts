@@ -1,4 +1,5 @@
 'use server';
+import { getServerSession } from '@/lib/auth/session';
 
 import { createClient } from '@/lib/supabase/server';
 import { type Post } from '@/lib/data/feed';
@@ -16,7 +17,6 @@ export async function createPost(
 ): Promise<Post> {
   try {
     // Get authenticated session (wallet-only auth)
-    import { getServerSession } from '@/lib/auth/session';
     const session = await getServerSession();
 
     if (!session) {
