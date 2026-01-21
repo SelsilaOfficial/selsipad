@@ -46,7 +46,7 @@ export async function getUserStatsMultiChain(userId: string): Promise<UserStatsM
     // Get rewards grouped by chain
     const { data: rewardsData, error: rewardsError } = await supabase
       .from('referral_ledger')
-      .select('chain, amount, asset as token')
+      .select('chain, amount, asset')
       .eq('referrer_id', userId)
       .in('status', ['PENDING', 'CLAIMABLE']); // Only unclaimed rewards
 
@@ -54,10 +54,10 @@ export async function getUserStatsMultiChain(userId: string): Promise<UserStatsM
       console.error('Error fetching rewards:', rewardsError);
     }
 
-    // Aggregate rewards by chain and token
+    // Aggregate rewards by chain and asset (token)
     const rewardsByChain = (rewardsData || []).reduce((acc, reward) => {
       const chain = reward.chain || 'BSC';
-      const token = reward.token || 'USDT';
+      const token = reward.asset || 'USDT';
 
       const existing = acc.find((r) => r.chain === chain && r.token === token);
 
