@@ -31,13 +31,19 @@ export function MultiChainConnectWallet() {
   useEffect(() => {
     const checkAndAuth = async () => {
       if (isConnected && address && !isAuthenticating) {
-        // Check if already authenticated
-        const res = await fetch('/api/auth/session');
-        const data = await res.json();
-
-        if (data.authenticated) {
-          console.log('[Wallet] Already authenticated, skipping signature');
-          return;
+        // Check if already authenticated (skip if error)
+        try {
+          const res = await fetch('/api/auth/session');
+          if (res.ok) {
+            const data = await res.json();
+            if (data.authenticated) {
+              console.log('[Wallet] Already authenticated, skipping signature');
+              return;
+            }
+          }
+        } catch (error) {
+          // Ignore errors, proceed with auth
+          console.log('[Wallet] Session check failed, proceeding with auth');
         }
 
         // Not authenticated - trigger sign
