@@ -2,12 +2,18 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { PageHeader, PageContainer } from '@/components/layout';
 import { getUserProfile } from '@/lib/data/profile';
+import { getUserStatsMultiChain } from '@/lib/data/multi-chain-stats';
+import { getServerSession } from '@/lib/auth/session';
 import { ProfileClientContent } from './ProfileClientContent';
 import { Card, CardContent } from '@/components/ui';
 
 export default async function ProfilePage() {
-  // Fetch data server-side
+  // Get session and fetch data server-side
+  const session = await getServerSession();
   const profile = await getUserProfile();
+
+  // Fetch multi-chain statistics if user is authenticated
+  const multiChainStats = session ? await getUserStatsMultiChain(session.userId) : null;
 
   // If user is not authenticated, show login prompt
   if (!profile) {
@@ -34,5 +40,5 @@ export default async function ProfilePage() {
     );
   }
 
-  return <ProfileClientContent initialProfile={profile} />;
+  return <ProfileClientContent initialProfile={profile} multiChainStats={multiChainStats} />;
 }

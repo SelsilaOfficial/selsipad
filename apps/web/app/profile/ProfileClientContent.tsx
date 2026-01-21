@@ -6,13 +6,16 @@ import Image from 'next/image';
 import { Card, CardContent, StatusBadge, Avatar } from '@/components/ui';
 import { PageHeader, PageContainer } from '@/components/layout';
 import type { UserProfile } from '@/lib/data/profile';
+import type { UserStatsMultiChain } from '@/types/multi-chain';
+import { formatChainName } from '@/lib/utils/chain';
 import { formatDistance } from 'date-fns';
 
 interface ProfileClientContentProps {
   initialProfile: UserProfile;
+  multiChainStats: UserStatsMultiChain | null;
 }
 
-export function ProfileClientContent({ initialProfile }: ProfileClientContentProps) {
+export function ProfileClientContent({ initialProfile, multiChainStats }: ProfileClientContentProps) {
   const [profile] = useState<UserProfile>(initialProfile);
 
   const primaryWallet = profile.wallets.find((w) => w.is_primary);
@@ -60,15 +63,89 @@ export function ProfileClientContent({ initialProfile }: ProfileClientContentPro
                 <p className="text-caption text-text-secondary">Following</p>
                 <p className="text-heading-md">{profile.following_count || 0}</p>
               </div>
-              <div>
-                <p className="text-caption text-text-secondary">Total Contributed</p>
-                <p className="text-heading-md">{profile.total_contributions} SOL</p>
-              </div>
-              <div>
-                <p className="text-caption text-text-secondary">Tokens Claimed</p>
-                <p className="text-heading-md">{profile.total_claimed.toLocaleString()}</p>
-              </div>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Multi-Chain Contributions */}
+        {multiChainStats && multiChainStats.contributions.length > 0 && (
+          <Card>
+            <CardContent className="space-y-3">
+              <h3 className="text-heading-md">Contributions</h3>
+              {multiChainStats.contributions.map((chainStat) => (
+                <div key={chainStat.chain} className="flex justify-between items-center py-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 bg-bg-elevated rounded-full flex items-center justify-center text-caption font-semibold">
+                      {chainStat.nativeToken.slice(0, 1)}
+                    </div>
+                    <span className="text-text-secondary text-body-sm">{formatChainName(chainStat.chain)}</span>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-heading-sm font-semibold">
+                      {chainStat.totalContributed.toFixed(4)} {chainStat.nativeToken}
+                    </p>
+                    {chainStat.usdEstimate && (
+                      <p className="text-caption text-text-tertiary">~${chainStat.usdEstimate.toFixed(2)}</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {multiChainStats.totalContributedUSD > 0 && (
+                <div className="pt-3 border-t border-border-subtle flex justify-between">
+                  <span className="text-text-secondary">Total (All Chains)</span>
+                  <span className="text-heading-md font-bold">~${multiChainStats.totalContributedUSD.toFixed(2)}</span>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Multi-Chain Rewards */}
+        {multiChainStats && multiChainStats.rewards.length > 0 && (
+          <Card>
+            <CardContent className="space-y-3">
+              <div className="flex justify-between items-center">
+                <h3 className="text-heading-md">Claimable Rewards</h3>
+                <Link href="/rewards" className="text-primary-main text-body-sm font-medium hover:underline">
+                  View All
+                </Link>
+              </div>
+              {multiChainStats.rewards.map((rewardStat, idx) => (
+                <div key={`${rewardStat.chain}-${rewardStat.token}-${idx}`} className="flex justify-between items-center py-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 bg-success-subtle rounded-full flex items-center justify-center text-caption font-semibold text-success-main">
+                      {rewardStat.token.slice(0, 1)}
+                    </div>
+                    <span className="text-text-secondary text-body-sm">{formatChainName(rewardStat.chain)}</span>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-heading-sm font-semibold text-success-main">
+                      {rewardStat.amount.toFixed(2)} {rewardStat.token}
+                    </p>
+                    {rewardStat.usdEstimate && (
+                      <p className="text-caption text-text-tertiary">~${rewardStat.usdEstimate.toFixed(2)}</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Legacy Stats Card - Show if no multi-chain data */}
+        {(!multiChainStats || (multiChainStats.contributions.length === 0 && multiChainStats.rewards.length === 0)) && (
+          <Card>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-caption text-text-secondary">Total Contributed</p>
+                  <p className="text-heading-md">{profile.total_contributions} SOL</p>
+                </div>
+                <div>
+                  <p className="text-caption text-text-secondary">Tokens Claimed</p>
+                  <p className="text-heading-md">{profile.total_claimed.toLocaleString()}</p>
+                </div>
+              </div>
           </CardContent>
         </Card>
 
