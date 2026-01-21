@@ -37,7 +37,6 @@ export interface UserProfile {
  */
 export async function getUserProfile(): Promise<UserProfile | null> {
   try {
-    const { getSession } = await import('@/lib/auth/session');
     const session = await getServerSession();
 
     if (!session) {
@@ -125,7 +124,6 @@ function mapKYCStatus(
  */
 export async function getUserWallets(): Promise<Wallet[]> {
   try {
-    const { getSession } = await import('@/lib/auth/session');
     const session = await getServerSession();
 
     if (!session) {
