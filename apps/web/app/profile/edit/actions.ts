@@ -100,7 +100,10 @@ export async function updateProfile(
       if (!validation.valid) {
         return { success: false, error: validation.error };
       }
-      updates.nickname = nickname || null;
+      // Update both nickname and username for compatibility
+      const nicknameValue = nickname || null;
+      updates.nickname = nicknameValue;
+      updates.username = nicknameValue; // Also update username column
     }
 
     // Handle avatar upload
