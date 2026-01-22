@@ -2,8 +2,8 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/security/Pausable.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
 
 /**
  * @title BlueCheckRegistry
@@ -104,7 +104,7 @@ contract BlueCheckRegistry is Ownable, ReentrancyGuard, Pausable {
         address _treasury,
         address _referralPool,
         uint256 _initialPriceBNB
-    ) {
+    ) Ownable(msg.sender) {
         if (_treasury == address(0) || _referralPool == address(0)) {
             revert InvalidAddress();
         }

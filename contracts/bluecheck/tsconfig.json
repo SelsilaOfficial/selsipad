@@ -1,0 +1,3 @@
+{
+  "extends": "../presale/tsconfig.json"
+}

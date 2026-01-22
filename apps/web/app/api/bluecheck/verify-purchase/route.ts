@@ -9,8 +9,8 @@ import { NextResponse } from 'next/server';
 import { createPublicClient, http } from 'viem';
 import { bscTestnet } from 'viem/chains';
 
-// TODO: Update with deployed contract address
-const BLUECHECK_CONTRACT_ADDRESS = '0x0000000000000000000000000000000000000000';
+// BlueCheckRegistry deployed to BSC Testnet
+const BLUECHECK_CONTRACT_ADDRESS = '0x57d4789062F3f2DbB504d11A98Fc9AeA390Be8E2';
 
 const BLUECHECK_ABI = [
   {
