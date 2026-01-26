@@ -32,7 +32,7 @@ export default async function FairlaunchReviewDetailPage({ params }: { params: {
   }
 
   // If already reviewed, redirect back to list
-  if (round.status !== 'SUBMITTED_FOR_REVIEW') {
+  if (!['SUBMITTED', 'SUBMITTED_FOR_REVIEW'].includes(round.status)) {
     redirect('/admin/fairlaunch/review');
   }
 

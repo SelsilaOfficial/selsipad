@@ -17,12 +17,12 @@ async function getAdminStats() {
         .from('launch_rounds')
         .select('id', { count: 'exact', head: true })
         .eq('sale_type', 'presale')
-        .eq('status', 'SUBMITTED_FOR_REVIEW'),
+        .eq('status', 'SUBMITTED'),
       supabase
         .from('launch_rounds')
         .select('id', { count: 'exact', head: true })
         .eq('sale_type', 'fairlaunch')
-        .eq('status', 'SUBMITTED_FOR_REVIEW'),
+        .eq('status', 'SUBMITTED'),
       supabase
         .from('ama_sessions')
         .select('id', { count: 'exact', head: true })

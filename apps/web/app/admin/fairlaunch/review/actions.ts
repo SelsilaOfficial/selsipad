@@ -45,7 +45,7 @@ export async function approveFairlaunch(roundId: string): Promise<ActionResult> 
       return { success: false, error: 'Fairlaunch round not found' };
     }
 
-    if (round.status !== 'SUBMITTED_FOR_REVIEW') {
+    if (!['SUBMITTED', 'SUBMITTED_FOR_REVIEW'].includes(round.status)) {
       return { success: false, error: 'Round not in review status' };
     }
 
@@ -121,7 +121,7 @@ export async function rejectFairlaunch(roundId: string, reason: string): Promise
       })
       .eq('id', roundId)
       .eq('sale_type', 'fairlaunch')
-      .eq('status', 'SUBMITTED_FOR_REVIEW');
+      .in('status', ['SUBMITTED', 'SUBMITTED_FOR_REVIEW']);
 
     if (updateError) {
       return { success: false, error: updateError.message };

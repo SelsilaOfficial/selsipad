@@ -129,7 +129,8 @@ export default async function KYCReviewPage() {
               <thead>
                 <tr className="border-b border-gray-800">
                   <th className="text-left p-4 text-gray-400 font-medium">Wallet Address</th>
-                  <th className="text-left p-4 text-gray-400 font-medium">Document Type</th>
+                  <th className="text-left p-4 text-gray-400 font-medium">Full Name</th>
+                  <th className="text-left p-4 text-gray-400 font-medium">Country</th>
                   <th className="text-left p-4 text-gray-400 font-medium">Submitted</th>
                   <th className="text-left p-4 text-gray-400 font-medium">Status</th>
                   <th className="text-right p-4 text-gray-400 font-medium">Actions</th>
@@ -148,7 +149,8 @@ export default async function KYCReviewPage() {
                           : submission.wallet_address || 'N/A'}
                       </span>
                     </td>
-                    <td className="p-4 text-gray-300 capitalize">{submission.document_type}</td>
+                    <td className="p-4 text-gray-300">{submission.full_name}</td>
+                    <td className="p-4 text-gray-300">{submission.country}</td>
                     <td className="p-4 text-gray-400">
                       {new Date(submission.created_at).toLocaleDateString()}
                     </td>
@@ -181,7 +183,8 @@ export default async function KYCReviewPage() {
               <thead>
                 <tr className="border-b border-gray-800">
                   <th className="text-left p-4 text-gray-400 font-medium">Wallet Address</th>
-                  <th className="text-left p-4 text-gray-400 font-medium">Document Type</th>
+                  <th className="text-left p-4 text-gray-400 font-medium">Full Name</th>
+                  <th className="text-left p-4 text-gray-400 font-medium">Country</th>
                   <th className="text-left p-4 text-gray-400 font-medium">Reviewed</th>
                   <th className="text-left p-4 text-gray-400 font-medium">Reviewed By</th>
                   <th className="text-left p-4 text-gray-400 font-medium">Status</th>
@@ -200,7 +203,8 @@ export default async function KYCReviewPage() {
                           : submission.wallet_address || 'N/A'}
                       </span>
                     </td>
-                    <td className="p-4 text-gray-300 capitalize">{submission.document_type}</td>
+                    <td className="p-4 text-gray-300">{submission.full_name}</td>
+                    <td className="p-4 text-gray-300">{submission.country}</td>
                     <td className="p-4 text-gray-400">
                       {submission.reviewed_at
                         ? new Date(submission.reviewed_at).toLocaleDateString()

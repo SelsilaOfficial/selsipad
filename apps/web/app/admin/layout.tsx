@@ -1,9 +1,16 @@
+'use client';
+
+import { EVMWalletProvider } from '@/lib/wallet/EVMWalletProvider';
+
 export default function AdminLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // Admin layout - no BottomNav, just wrapper
-  // Root layout handles html/body tags
-  return <div className="min-h-screen bg-black p-6">{children}</div>;
+  // Admin layout with EVM wallet provider for RainbowKit
+  return (
+    <EVMWalletProvider>
+      <div className="min-h-screen bg-black p-6">{children}</div>
+    </EVMWalletProvider>
+  );
 }

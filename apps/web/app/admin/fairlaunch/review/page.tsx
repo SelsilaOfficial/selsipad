@@ -7,13 +7,9 @@ async function getFairlaunchSubmissions() {
 
   const { data: rounds, error } = await supabase
     .from('launch_rounds')
-    .select(
-      `
-      *,
-      profiles(wallet_address, username)
-    `
-    )
+    .select('*')
     .eq('sale_type', 'fairlaunch')
+    .in('status', ['SUBMITTED', 'SUBMITTED_FOR_REVIEW', 'APPROVED_TO_DEPLOY', 'REJECTED'])
     .order('created_at', { ascending: true });
 
   if (error) {
@@ -56,7 +52,7 @@ export default async function FairlaunchReviewPage() {
   const rounds = await getFairlaunchSubmissions();
 
   // Separate into pending and reviewed
-  const pending = rounds.filter((r) => r.status === 'SUBMITTED_FOR_REVIEW');
+  const pending = rounds.filter((r) => ['SUBMITTED', 'SUBMITTED_FOR_REVIEW'].includes(r.status));
   const reviewed = rounds.filter((r) => ['APPROVED_TO_DEPLOY', 'REJECTED'].includes(r.status));
 
   return (
@@ -139,15 +135,15 @@ export default async function FairlaunchReviewPage() {
                     >
                       <td className="p-4">
                         <div>
-                          <p className="text-white font-medium">{round.name || 'Unnamed'}</p>
+                          <p className="text-white font-medium">{round.params?.project_name || 'Unnamed'}</p>
                           <p className="text-gray-500 text-sm">
                             by {round.created_by?.slice(0, 6)}...
                           </p>
                         </div>
                       </td>
-                      <td className="p-4 text-gray-300 capitalize">{round.network}</td>
+                      <td className="p-4 text-gray-300 capitalize">{round.chain || round.chain_id}</td>
                       <td className="p-4 text-gray-300">
-                        {round.params?.sale_params?.softcap || 'N/A'}
+                        {round.params?.softcap || 'N/A'}
                       </td>
                       <td className="p-4">
                         <span className={isLiquidityValid ? 'text-green-400' : 'text-red-400'}>
@@ -198,9 +194,9 @@ export default async function FairlaunchReviewPage() {
                 {reviewed.map((round) => (
                   <tr key={round.id} className="border-b border-gray-800">
                     <td className="p-4">
-                      <p className="text-white font-medium">{round.name || 'Unnamed'}</p>
+                      <p className="text-white font-medium">{round.params?.project_name || 'Unnamed'}</p>
                     </td>
-                    <td className="p-4 text-gray-300 capitalize">{round.network}</td>
+                    <td className="p-4 text-gray-300 capitalize">{round.chain || round.chain_id}</td>
                     <td className="p-4 text-gray-400">
                       {round.reviewed_at ? new Date(round.reviewed_at).toLocaleDateString() : '-'}
                     </td>

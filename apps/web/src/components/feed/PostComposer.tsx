@@ -27,6 +27,15 @@ export function PostComposer({ userProfile, isEligible, onSubmit }: PostComposer
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
 
+  // Extract hashtags for counting
+  const extractHashtags = (text: string): string[] => {
+    const matches = text.match(/#\w+/g);
+    return matches ? [...new Set(matches.map(tag => tag.toLowerCase()))] : [];
+  };
+
+  const hashtags = extractHashtags(content);
+  const hashtagCount = hashtags.length;
+
   // Close emoji picker when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -244,30 +253,37 @@ export function PostComposer({ userProfile, isEligible, onSubmit }: PostComposer
         const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
         const filePath = `posts/${fileName}`;
 
-        console.log('Uploading file:', { fileName, filePath, size: file.size, type: file.type });
+        console.log('[Upload] Starting upload:', { fileName, filePath, size: file.size, type: file.type });
 
-        const { data, error } = await supabase.storage.from('public-files').upload(filePath, file);
+        const { data, error } = await supabase.storage.from('public-files').upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
 
         if (error) {
-          console.error('Storage upload error:', error);
+          console.error('[Upload] Storage upload error:', error);
+          console.error('[Upload] Error details:', JSON.stringify(error, null, 2));
           throw error;
         }
 
-        console.log('Upload success:', data);
+        console.log('[Upload] Upload success:', data);
 
         // Get public URL
         const {
           data: { publicUrl },
         } = supabase.storage.from('public-files').getPublicUrl(filePath);
 
-        console.log('Public URL:', publicUrl);
+        console.log('[Upload] Public URL:', publicUrl);
         uploadedUrls.push(publicUrl);
       }
 
       setImages([...images, ...uploadedUrls]);
     } catch (error: any) {
-      console.error('Error uploading images:', error);
-      alert(`Failed to upload images: ${error.message || 'Unknown error'}`);
+      console.error('[Upload] Error uploading images:', error);
+      console.error('[Upload] Error name:', error?.name);
+      console.error('[Upload] Error message:', error?.message);
+      console.error('[Upload] Error details:', error?.details);
+      alert(`Failed to upload images: ${error.message || 'Unknown error'}. Check console for details.`);
     } finally {
       setUploading(false);
       if (fileInputRef.current) {
@@ -298,7 +314,8 @@ export function PostComposer({ userProfile, isEligible, onSubmit }: PostComposer
   const maxLength = 500;
   const charCount = content.length;
   const isOverLimit = charCount > maxLength;
-  const canPost = (content.trim() || images.length > 0) && !isOverLimit && isEligible;
+  const hasEnoughHashtags = hashtagCount >= 20;
+  const canPost = (content.trim() || images.length > 0) && !isOverLimit && isEligible && hasEnoughHashtags;
 
   return (
     <div className="bg-bg-elevated rounded-xl shadow-sm border border-border-subtle p-4">
@@ -405,6 +422,19 @@ export function PostComposer({ userProfile, isEligible, onSubmit }: PostComposer
 
             {/* Character Count and Post Button */}
             <div className="flex items-center gap-3">
+              {/* Hashtag Counter */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-text-secondary">#</span>
+                <span
+                  className={`text-sm font-semibold ${
+                    hashtagCount >= 20
+                      ? 'text-green-500'
+                      : 'text-status-warning-text'
+                  }`}
+                >
+                  {hashtagCount}/20
+                </span>
+              </div>
               {charCount > 0 && (
                 <span
                   className={`text-sm ${
@@ -418,6 +448,7 @@ export function PostComposer({ userProfile, isEligible, onSubmit }: PostComposer
                 onClick={handleSubmit}
                 disabled={!canPost || submitting}
                 className="px-5 py-2 bg-primary-main text-primary-text text-sm font-semibold rounded-full hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                title={!hasEnoughHashtags ? 'Add at least 20 hashtags to post' : ''}
               >
                 {submitting ? 'Posting...' : 'Posting'}
               </button>

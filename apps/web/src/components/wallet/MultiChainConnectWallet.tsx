@@ -27,18 +27,37 @@ export function MultiChainConnectWallet() {
   useEffect(() => {
     setMounted(true);
   }, []);
-  // Auto sign-in when EVM wallet connects (only if not already authenticated)
+  // DISABLED: Auto sign-in was causing signature popups on every page navigation
+  // Users must now manually click "Sign In" after connecting wallet
+  /*
   useEffect(() => {
     const checkAndAuth = async () => {
       if (isConnected && address && !isAuthenticating) {
-        // Check if already authenticated (skip if error)
+        // Check if already authenticated AND wallet matches
         try {
           const res = await fetch('/api/auth/session');
           if (res.ok) {
             const data = await res.json();
             if (data.authenticated) {
-              console.log('[Wallet] Already authenticated, skipping signature');
-              return;
+              // IMPORTANT: Check if authenticated wallet matches connected wallet
+              const sessionWallet = data.user?.address?.toLowerCase();
+              const connectedWallet = address.toLowerCase();
+
+              if (sessionWallet === connectedWallet) {
+                console.log('[Wallet] Already authenticated with same wallet, skipping signature');
+                return;
+              } else {
+                // Different wallet detected! Clear old session
+                console.log('[Wallet] Different wallet detected, clearing old session');
+                console.log('[Wallet] Session wallet:', sessionWallet);
+                console.log('[Wallet] Connected wallet:', connectedWallet);
+
+                // Logout old session
+                await fetch('/api/auth/logout', { method: 'POST' });
+
+                // Proceed with new auth
+                console.log('[Wallet] Proceeding with new wallet authentication');
+              }
             }
           }
         } catch (error) {
@@ -46,12 +65,14 @@ export function MultiChainConnectWallet() {
           console.log('[Wallet] Session check failed, proceeding with auth');
         }
 
-        // Not authenticated - trigger sign
+        // Not authenticated OR different wallet - trigger sign
         handleEVMAuth();
       }
     };
     checkAndAuth();
   }, [isConnected, address]);
+  */
+
 
   const handleEVMAuth = async () => {
     if (!address) return;
@@ -67,8 +88,9 @@ export function MultiChainConnectWallet() {
       const result = await verifyAndCreateSession('evm', signResult);
 
       if (result.success) {
-        // Redirect to profile or refresh
-        router.push('/profile');
+        // Success! Don't auto-redirect, let user stay on current page
+        console.log('[Wallet] Authentication successful');
+        // Optionally refresh to update UI
         router.refresh();
       } else {
         setAuthError(result.error || 'Authentication failed');
@@ -125,9 +147,27 @@ export function MultiChainConnectWallet() {
           : 'Connect Wallet'}
       </button>
 
-      {/* Status Messages */}
-      {isAuthenticating && <p className="text-xs text-text-secondary">🔐 Signing...</p>}
+      {/* Manual Sign In Button - appears after wallet is connected */}
+      {isConnected && address && (
+        <button
+          onClick={handleEVMAuth}
+          disabled={isAuthenticating}
+          style={{
+            backgroundColor: 'hsl(var(--success-main))',
+            color: 'white',
+            borderRadius: '0.375rem',
+            padding: '0.5rem 1rem',
+            fontSize: '0.875rem',
+            fontWeight: 500,
+            height: '2.5rem',
+            transition: 'background-color 0.2s',
+          }}
+        >
+          {isAuthenticating ? '🔐 Signing...' : '🔓 Sign In'}
+        </button>
+      )}
 
+      {/* Status Messages */}
       {authError && <p className="text-xs text-error">❌ {authError}</p>}
     </div>
   );
