@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { usePublicClient, useWalletClient } from 'wagmi';
 import { decodeEventLog, parseEther, parseUnits, type Address } from 'viem';
@@ -90,7 +90,11 @@ export function CreateFairlaunchWizard({ walletAddress }: CreateFairlaunchWizard
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [isDeploying, setIsDeploying] = useState(false);
+  const [hasDeployedSuccessfully, setHasDeployedSuccessfully] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  
+  // 🔒 CRITICAL: useRef for SYNCHRONOUS blocking (state updates are async!)
+  const deploymentLock = useRef(false);
 
   // Wagmi hooks for blockchain interaction
   const { data: walletClient } = useWalletClient();
@@ -257,14 +261,25 @@ export function CreateFairlaunchWizard({ walletAddress }: CreateFairlaunchWizard
 
   // Deploy handler
   const handleDeploy = async () => {
-    // Prevent duplicate submissions  
-    if (isDeploying) {
-      console.warn('Deployment already in progress');
-      return;
+    // 🔒 SYNCHRONOUS CHECK: Use ref, not state! (state updates are async)
+    if (deploymentLock.current) {
+      console.warn('🛑 DEPLOYMENT LOCKED! Another call already in progress or completed.');
+      return {
+        success: false,
+        error: 'Deployment already in progress or completed',
+      };
     }
+    
+    // 🔒 IMMEDIATELY lock (synchronous, blocks concurrent calls!)
+    deploymentLock.current = true;
+    console.log('🔐 Deployment lock acquired!');
+    
+    // Set state for UI feedback
+    setIsDeploying(true);
+    
+    console.log('🚀 Starting deployment...');
 
     try {
-      setIsDeploying(true);
       
       // Step 1: Prepare deployment params via server action
       const prepareResult = await prepareFairlaunchDeployment(wizardData);
@@ -507,6 +522,9 @@ export function CreateFairlaunchWizard({ walletAddress }: CreateFairlaunchWizard
 
       // Clear draft after successful deployment
       localStorage.removeItem(STORAGE_KEY);
+      
+      // ✅ Mark as successfully deployed (ONLY on success!)
+      setHasDeployedSuccessfully(true);
 
       return {
         success: true,
@@ -517,6 +535,11 @@ export function CreateFairlaunchWizard({ walletAddress }: CreateFairlaunchWizard
       };
     } catch (error: any) {
       console.error('Deployment error:', error);
+      
+      // 🔓 UNLOCK on error to allow retry!
+      deploymentLock.current = false;
+      console.log('🔓 Lock released due to error');
+      
       return {
         success: false,
         error: error.message || 'Deployment failed',

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { DeploymentProgress } from '@/components/fairlaunch/DeploymentProgress';
 import { ExternalLink, CheckCircle2, Home } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -41,6 +41,9 @@ export function DeployStep({ wizardData, onDeploy, explorerUrl }: DeployStepProp
   const [hasDeployed, setHasDeployed] = useState(false); // ✅ Prevent multiple calls
   const [deploymentComplete, setDeploymentComplete] = useState(false);
   const [error, setError] = useState<string | undefined>();
+  
+  // 🔒 Synchronous lock for preventing double calls at DeployStep level
+  const deploymentLock = useRef(false);
 
   const updateStep = (stepId: string, status: DeploymentStep['status'], message?: string) => {
     setSteps((prev) =>
@@ -57,6 +60,22 @@ export function DeployStep({ wizardData, onDeploy, explorerUrl }: DeployStepProp
   }, []); // Empty array is correct - only run on mount
 
   const handleDeploy = async () => {
+    // 🔒 SYNCHRONOUS lock check (DeployStep level)
+    if (deploymentLock.current) {
+      console.warn('⚠️ DeployStep: Deployment already triggered, ignoring duplicate call');
+      return;
+    }
+    
+    // 🔒 Lock immediately
+    deploymentLock.current = true;
+    console.log('🔐 DeployStep: Lock acquired');
+    
+    // ✅ Prevent calling again if already successfully deployed
+    if (deploymentComplete || hasDeployed) {
+      console.warn('⚠️ Deployment already completed, ignoring duplicate call');
+      return;
+    }
+    
     setIsDeploying(true);
     setError(undefined);
 
@@ -132,7 +151,7 @@ export function DeployStep({ wizardData, onDeploy, explorerUrl }: DeployStepProp
           <p className="text-red-300/90 text-sm mb-4">{error}</p>
           <button
             onClick={handleDeploy}
-            disabled={isDeploying}
+            disabled={isDeploying || deploymentComplete}
             className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isDeploying ? 'Deploying...' : 'Retry Deployment'}
