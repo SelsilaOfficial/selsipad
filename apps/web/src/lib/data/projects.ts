@@ -196,6 +196,7 @@ export async function getAllProjects(filters?: {
           chain,
           start_at,
           end_at,
+          contract_address,
           params
         )
       `)

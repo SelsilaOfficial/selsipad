@@ -1,10 +1,9 @@
-'use client';
-
 import { useState } from 'react';
 import { AmountInput, Button, ConfirmModal, useToast } from '@/components/ui';
 import { Card, CardContent } from '@/components/ui';
 import { useFairlaunchContribute } from '@/hooks/useFairlaunchContribute';
 import { useAccount, useBalance } from 'wagmi';
+import { formatUnits } from 'viem';
 
 interface ParticipationFormProps {
   projectId: string;
@@ -33,11 +32,14 @@ export function ParticipationForm({
   const { data: balanceData } = useBalance({ address });
   const { contribute, isContributing } = useFairlaunchContribute();
 
-  const userBalance = balanceData ? parseFloat(balanceData.formatted) : 0;
+  const userBalance = balanceData ? parseFloat(formatUnits(balanceData.value, balanceData.decimals)) : 0;
 
   const amountNum = parseFloat(amount) || 0;
-  const isValid =
+  const isAmountValid =
     amountNum >= minContribution && amountNum <= maxContribution && amountNum <= userBalance;
+  
+  // Button is enabled only if: wallet connected, contract exists, and amount is valid
+  const canParticipate = !!address && !!contractAddress && isAmountValid;
 
   const handleMaxClick = () => {
     const maxValue = Math.min(maxContribution, userBalance);
@@ -45,7 +47,7 @@ export function ParticipationForm({
   };
 
   const handleSubmit = async () => {
-    if (!isValid || !contractAddress) return;
+    if (!canParticipate) return;
 
     try {
       const result = await contribute({
@@ -63,6 +65,17 @@ export function ParticipationForm({
     } catch (error) {
       showToast('error', 'Transaksi gagal, coba lagi');
     }
+  };
+
+  // Determine button text based on state
+  const getButtonText = () => {
+    if (!address) return 'Connect Wallet';
+    if (!contractAddress) return 'Contract Not Available';
+    if (!amount || amountNum === 0) return 'Enter Amount';
+    if (amountNum < minContribution) return `Minimum ${minContribution} ${network}`;
+    if (amountNum > maxContribution) return `Maximum ${maxContribution} ${network}`;
+    if (amountNum > userBalance) return 'Insufficient Balance';
+    return 'Participate';
   };
 
   return (
@@ -94,16 +107,8 @@ export function ParticipationForm({
             </span>
           </div>
 
-          <Button className="w-full" onClick={() => setConfirmOpen(true)} disabled={!isValid}>
-            {!amount || amountNum === 0
-              ? 'Enter Amount'
-              : amountNum < minContribution
-                ? `Minimum ${minContribution} ${network}`
-                : amountNum > maxContribution
-                  ? `Maximum ${maxContribution} ${network}`
-                  : amountNum > userBalance
-                    ? 'Insufficient Balance'
-                    : 'Participate'}
+          <Button className="w-full" onClick={() => setConfirmOpen(true)} disabled={!canParticipate}>
+            {getButtonText()}
           </Button>
         </CardContent>
       </Card>
