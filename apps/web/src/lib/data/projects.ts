@@ -18,6 +18,7 @@ export interface Project {
   kyc_verified: boolean;
   audit_status: 'pass' |'pending' | null;
   lp_lock: boolean;
+  contract_address?: string; // Fairlaunch/Presale contract address
 }
 
 /**
@@ -225,12 +226,13 @@ export async function getAllProjects(filters?: {
           type: round.type?.toLowerCase() as 'presale' | 'fairlaunch',
           network: mapChainToNetwork(round.chain),
           chain: round.chain, // Add specific chain ID
-          status: mapLaunchRoundStatus(round.status),
+          status: calculateRealTimeStatus(round),
           raised: params.total_raised || 0,
           target: params.softcap || params.hardcap || 1000,
           kyc_verified: !!project.kyc_submission_id,
           audit_status: project.scan_result_id ? 'pass' : null,
           lp_lock: params.lp_lock || false,
+          contract_address: round.contract_address, // Add contract address
         };
       });
     });
@@ -330,5 +332,39 @@ function mapLaunchRoundStatus(dbStatus: string): 'live' | 'upcoming' | 'ended' {
       return 'ended';
     default:
       return 'upcoming';
+  }
+}
+
+/**
+ * Calculate Real-Time Status
+ * 
+ * This function determines the ACTUAL status of a launch round by checking
+ * the current time against start_at and end_at timestamps.
+ * 
+ * Priority:
+ * 1. If current time >= end_at → ENDED
+ * 2. If current time >= start_at && current time < end_at → LIVE
+ * 3. If current time < start_at → UPCOMING
+ * 
+ * This OVERRIDES the database status field when necessary to ensure
+ * the UI always reflects the real-time state.
+ */
+function calculateRealTimeStatus(round: any): 'live' | 'upcoming' | 'ended' {
+  const now = new Date();
+  const startAt = round.start_at ? new Date(round.start_at) : null;
+  const endAt = round.end_at ? new Date(round.end_at) : null;
+
+  // If timestamps are missing, fall back to database status
+  if (!startAt || !endAt) {
+    return mapLaunchRoundStatus(round.status);
+  }
+
+  // Time-based status calculation
+  if (now >= endAt) {
+    return 'ended';
+  } else if (now >= startAt && now < endAt) {
+    return 'live';
+  } else {
+    return 'upcoming';
   }
 }

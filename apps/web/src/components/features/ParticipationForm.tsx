@@ -3,12 +3,15 @@
 import { useState } from 'react';
 import { AmountInput, Button, ConfirmModal, useToast } from '@/components/ui';
 import { Card, CardContent } from '@/components/ui';
+import { useFairlaunchContribute } from '@/hooks/useFairlaunchContribute';
+import { useAccount, useBalance } from 'wagmi';
 
 interface ParticipationFormProps {
   projectId: string;
   projectName: string;
   projectSymbol: string;
   network: string;
+  contractAddress?: string;
   minContribution?: number;
   maxContribution?: number;
 }
@@ -18,16 +21,19 @@ export function ParticipationForm({
   projectName,
   projectSymbol,
   network,
+  contractAddress,
   minContribution = 0.1,
   maxContribution = 10,
 }: ParticipationFormProps) {
   const [amount, setAmount] = useState('');
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const { showToast } = useToast();
+  
+  const { address } = useAccount();
+  const { data: balanceData } = useBalance({ address });
+  const { contribute, isContributing } = useFairlaunchContribute();
 
-  // TODO: Get from wallet connection
-  const userBalance = 5.0;
+  const userBalance = balanceData ? parseFloat(balanceData.formatted) : 0;
 
   const amountNum = parseFloat(amount) || 0;
   const isValid =
@@ -39,27 +45,23 @@ export function ParticipationForm({
   };
 
   const handleSubmit = async () => {
-    if (!isValid) return;
-
-    setIsSubmitting(true);
+    if (!isValid || !contractAddress) return;
 
     try {
-      // TODO: Call real API endpoint
-      // await fetch(`/api/rounds/${projectId}/contribute/intent`, {
-      //   method: 'POST',
-      //   body: JSON.stringify({ amount: amountNum }),
-      // });
+      const result = await contribute({
+        fairlaunchAddress: contractAddress as `0x${string}`,
+        amount,
+      });
 
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-
-      showToast('success', `Berhasil participate ${amount} ${network}`);
-      setConfirmOpen(false);
-      setAmount('');
+      if (result.success) {
+        showToast('success', `Berhasil participate ${amount} ${network}`);
+        setConfirmOpen(false);
+        setAmount('');
+      } else {
+        showToast('error', result.error || 'Transaksi gagal, coba lagi');
+      }
     } catch (error) {
       showToast('error', 'Transaksi gagal, coba lagi');
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -115,7 +117,7 @@ export function ParticipationForm({
         description={`You are about to contribute ${amount} ${network} to ${projectName}. This transaction cannot be reversed.`}
         confirmText="Confirm & Submit"
         variant="primary"
-        isLoading={isSubmitting}
+        isLoading={isContributing}
       />
     </div>
   );
