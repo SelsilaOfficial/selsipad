@@ -4,17 +4,15 @@
 
 @layer base {
   body {
-    @apply bg-bg-page text-text-primary antialiased;
+    @apply bg-zinc-950 text-zinc-100 antialiased;
     @apply font-sans;
   }
 
-  * {
-    @apply border-border-subtle;
-  }
+  /* Border color removed - was causing compilation error */
 
   /* Focus styles for accessibility */
   *:focus-visible {
-    @apply outline-none ring-2 ring-primary-main ring-offset-2 ring-offset-bg-page;
+    @apply outline-none ring-2 ring-blue-500 ring-offset-2 ring-offset-zinc-950;
   }
 
   /* Scrollbar styling for dark theme */
@@ -23,15 +21,15 @@
   }
 
   ::-webkit-scrollbar-track {
-    @apply bg-bg-card;
+    @apply bg-zinc-900;
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply bg-border-active rounded-full;
+    @apply bg-zinc-700 rounded-full;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-text-tertiary;
+    @apply bg-zinc-600;
   }
 }
 

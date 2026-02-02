@@ -50,7 +50,10 @@ export function SaleParamsStep({ data, network, paymentSymbol, onChange, errors 
   // Set default DEX if not selected
   useEffect(() => {
     if (!data.dexPlatform && dexOptions.length > 0) {
-      onChange({ dexPlatform: dexOptions[0].id });
+      const firstDex = dexOptions[0];
+      if (firstDex) {
+        onChange({ dexPlatform: firstDex.id });
+      }
     }
   }, [network, dexOptions]);
 

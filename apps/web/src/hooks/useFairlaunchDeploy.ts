@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useState } from 'react';
-import { useContractWrite, useWaitForTransaction } from 'wagmi';
+import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { parseEther, decodeEventLog, type Address } from 'viem';
 import {
   FAIRLAUNCH_FACTORY_ADDRESS,
@@ -51,18 +51,14 @@ export function useFairlaunchDeploy(chainId: number) {
   const factoryAddress = FAIRLAUNCH_FACTORY_ADDRESS[chainId];
   const deploymentFee = DEPLOYMENT_FEE[chainId];
 
-  const { write, data: txData, isLoading: isWriting, error: writeError } = useContractWrite({
-    address: factoryAddress,
-    abi: FAIRLAUNCH_FACTORY_ABI,
-    functionName: 'createFairlaunch',
-  });
+  const { writeContract, data: hash, isPending: isWriting, error: writeError, reset: resetWrite } = useWriteContract();
 
   const {
     data: receipt,
     isLoading: isWaiting,
     error: waitError,
-  } = useWaitForTransaction({
-    hash: txData?.hash,
+  } = useWaitForTransactionReceipt({
+    hash,
   });
 
   /**
@@ -70,6 +66,10 @@ export function useFairlaunchDeploy(chainId: number) {
    */
   const deploy = async (params: DeploymentParams): Promise<DeploymentResult> => {
     try {
+      if (!factoryAddress) {
+        throw new Error(`Factory address not found for chain ID ${chainId}`);
+      }
+
       // Prepare contract arguments
       const createParams = {
         projectToken: params.projectToken,
@@ -98,7 +98,10 @@ export function useFairlaunchDeploy(chainId: number) {
       };
 
       // Call createFairlaunch with deployment fee
-      write?.({
+      writeContract({
+        address: factoryAddress,
+        abi: FAIRLAUNCH_FACTORY_ABI,
+        functionName: 'createFairlaunch',
         args: [createParams, vestingParams, lpPlan],
         value: deploymentFee,
       });
@@ -123,48 +126,60 @@ export function useFairlaunchDeploy(chainId: number) {
     if (receipt && receipt.logs) {
       try {
         // Find FairlaunchCreated event
-        const fairlaunchCreatedLog = receipt.logs.find((log) => {
+        // We iterate specifically to look for the event
+        let fairlaunchCreatedLog;
+        
+        for (const log of receipt.logs) {
           try {
-            const decoded = decodeEventLog({
+             // Try decoding log
+             const decoded = decodeEventLog({
               abi: FAIRLAUNCH_FACTORY_ABI,
               data: log.data,
               topics: log.topics,
             });
-            return decoded.eventName === 'FairlaunchCreated';
+            
+            if (decoded.eventName === 'FairlaunchCreated') {
+              fairlaunchCreatedLog = {...log, decoded};
+              break;
+            }
           } catch {
-            return false;
+            // Ignore logs that don't match
+            continue;
           }
-        });
+        }
 
-        if (fairlaunchCreatedLog) {
-          const decoded = decodeEventLog({
-            abi: FAIRLAUNCH_FACTORY_ABI,
-            data: fairlaunchCreatedLog.data,
-            topics: fairlaunchCreatedLog.topics,
-          }) as {
-            eventName: 'FairlaunchCreated';
-            args: {
+        if (fairlaunchCreatedLog && fairlaunchCreatedLog.decoded) {
+          const args = fairlaunchCreatedLog.decoded.args as {
               fairlaunchId: bigint;
               fairlaunch: Address;
               vesting: Address;
               projectToken: Address;
             };
-          };
 
           const result: DeploymentResult = {
             success: true,
-            fairlaunchAddress: decoded.args.fairlaunch,
-            vestingAddress: decoded.args.vesting,
+            fairlaunchAddress: args.fairlaunch,
+            vestingAddress: args.vesting,
             transactionHash: receipt.transactionHash,
-            fairlaunchId: decoded.args.fairlaunchId,
+            fairlaunchId: args.fairlaunchId,
           };
 
           setDeploymentResult(result);
         } else {
-          setDeploymentResult({
-            success: false,
-            error: 'FairlaunchCreated event not found in transaction logs',
-          });
+           // Fallback if we can't find the event but TX succeeded
+           if (receipt.status === 'success') {
+             // Maybe we shouldn't error out if we can't find logs but TX passed?
+             // But we need the address.
+             setDeploymentResult({
+               success: false,
+               error: 'FairlaunchCreated event not found in transaction logs',
+             });
+           } else {
+             setDeploymentResult({
+               success: false,
+               error: 'Transaction reverted',
+             });
+           }
         }
       } catch (error: any) {
         setDeploymentResult({
@@ -178,6 +193,7 @@ export function useFairlaunchDeploy(chainId: number) {
   // Handle errors
   React.useEffect(() => {
     if (writeError || waitError) {
+      console.error('Deployment error:', writeError || waitError);
       setDeploymentResult({
         success: false,
         error: writeError?.message || waitError?.message || 'Transaction failed',
@@ -189,8 +205,11 @@ export function useFairlaunchDeploy(chainId: number) {
     deploy,
     isLoading: isWriting || isWaiting,
     result: deploymentResult,
-    transactionHash: txData?.hash,
-    reset: () => setDeploymentResult(null),
+    transactionHash: hash,
+    reset: () => {
+      setDeploymentResult(null);
+      resetWrite();
+    },
   };
 }
 

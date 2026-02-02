@@ -81,9 +81,10 @@ export function calculateDistribution(params: {
   const platformFee = raised * 0.05;
   const netRaised = raised - platformFee;
   
-  // Liquidity allocation
-  const liquidityFunds = netRaised * (liquidityPercent / 100);
+  // CRITICAL: Factory contract calculates liquidity tokens as percentage of tokensForSale
+  // NOT from raised funds!
   const liquidityTokens = tokens * (liquidityPercent / 100);
+  const liquidityFunds = netRaised * (liquidityPercent / 100);
   
   // Project owner gets remainder
   const ownerFunds = netRaised - liquidityFunds;
@@ -106,6 +107,28 @@ export function calculateDistribution(params: {
       percent: 100 - liquidityPercent,
     },
   };
+}
+
+/**
+ * Calculate total tokens required for escrow deposit
+ * Includes: tokensForSale + liquidityTokens + teamVestingTokens
+ */
+export function calculateTotalTokensRequired(params: {
+  tokensForSale: string;
+  teamVestingTokens: string;
+  softcap: string;
+  liquidityPercent: number;
+  listingPremiumBps?: number;
+}): number {
+  const tokensForSale = parseFloat(params.tokensForSale);
+  const teamVesting = parseFloat(params.teamVestingTokens) || 0;
+  
+  // CRITICAL: Factory contract calculates liquidity as percentage of tokensForSale
+  // liquidityTokens = tokensForSale * (liquidityPercent / 100)
+  // NOT from raised funds!
+  const liquidityTokens = tokensForSale * (params.liquidityPercent / 100);
+  
+  return tokensForSale + Math.ceil(liquidityTokens) + teamVesting;
 }
 
 /**

@@ -26,7 +26,10 @@ export default async function FairlaunchDetailPage({ params }: { params: { id: s
   // Fetch fairlaunch detail
   const { data: fairlaunch, error } = await supabase
     .from('launch_rounds')
-    .select('*')
+    .select(`
+      *,
+      project:projects (*)
+    `)
     .eq('id', params.id)
     .eq('type', 'FAIRLAUNCH')
     .single();

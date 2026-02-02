@@ -7,7 +7,7 @@ async function getFairlaunchSubmissions() {
 
   const { data: rounds, error } = await supabase
     .from('launch_rounds')
-    .select('*')
+    .select('*, projects(name, symbol, logo_url)')
     .eq('sale_type', 'fairlaunch')
     .in('status', ['SUBMITTED', 'SUBMITTED_FOR_REVIEW', 'APPROVED_TO_DEPLOY', 'REJECTED'])
     .order('created_at', { ascending: true });
@@ -135,7 +135,7 @@ export default async function FairlaunchReviewPage() {
                     >
                       <td className="p-4">
                         <div>
-                          <p className="text-white font-medium">{round.params?.project_name || 'Unnamed'}</p>
+                          <p className="text-white font-medium">{round.projects?.name || 'Unnamed'}</p>
                           <p className="text-gray-500 text-sm">
                             by {round.created_by?.slice(0, 6)}...
                           </p>
@@ -188,13 +188,14 @@ export default async function FairlaunchReviewPage() {
                   {reviewed.some((r) => r.status === 'REJECTED') && (
                     <th className="text-left p-4 text-gray-400 font-medium">Reason</th>
                   )}
+                  <th className="text-right p-4 text-gray-400 font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {reviewed.map((round) => (
-                  <tr key={round.id} className="border-b border-gray-800">
+                  <tr key={round.id} className="border-b border-gray-800 hover:bg-gray-800/50 transition-colors">
                     <td className="p-4">
-                      <p className="text-white font-medium">{round.params?.project_name || 'Unnamed'}</p>
+                      <p className="text-white font-medium">{round.projects?.name || 'Unnamed'}</p>
                     </td>
                     <td className="p-4 text-gray-300 capitalize">{round.chain || round.chain_id}</td>
                     <td className="p-4 text-gray-400">
@@ -204,6 +205,35 @@ export default async function FairlaunchReviewPage() {
                     {reviewed.some((r) => r.status === 'REJECTED') && (
                       <td className="p-4 text-gray-400 text-sm">{round.rejection_reason || '-'}</td>
                     )}
+                    <td className="p-4 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        {round.status === 'APPROVED_TO_DEPLOY' && (
+                          <>
+                            <Link
+                              href={`/admin/fairlaunch/review/${round.id}`}
+                              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm"
+                            >
+                              View Details
+                            </Link>
+                            <Link
+                              href={`/fairlaunch/${round.id}`}
+                              target="_blank"
+                              className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors text-sm"
+                            >
+                              Live Page
+                            </Link>
+                          </>
+                        )}
+                        {round.status === 'REJECTED' && (
+                          <Link
+                            href={`/admin/fairlaunch/review/${round.id}`}
+                            className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors text-sm"
+                          >
+                            View
+                          </Link>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>

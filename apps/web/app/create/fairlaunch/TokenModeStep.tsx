@@ -26,9 +26,9 @@ export function TokenModeStep({
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const factoryAvailable = isTokenFactoryAvailable(network);
 
-  const handleTokenCreated = (address: string) => {
-    onTokenCreated(address);
-    onTokenAddressChange(address);
+  const handleTokenCreated = (data: { address: string; name: string; symbol: string; decimals: number; totalSupply: string }) => {
+    onTokenCreated(data.address);
+    onTokenAddressChange(data.address);
     setShowCreateDialog(false);
   };
 
@@ -74,8 +74,8 @@ export function TokenModeStep({
       {/* Create Token Dialog */}
       <CreateTokenDialog
         network={network}
-        isOpen={showCreateDialog}
-        onClose={() => setShowCreateDialog(false)}
+        open={showCreateDialog}
+        onOpenChange={setShowCreateDialog}
         onTokenCreated={handleTokenCreated}
       />
     </div>

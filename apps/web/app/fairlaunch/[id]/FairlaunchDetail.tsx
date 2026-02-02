@@ -1,23 +1,45 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useWalletClient, usePublicClient } from 'wagmi';
 import { ArrowLeft, ExternalLink, Globe, Twitter, Send, MessageCircle, Shield, CheckCircle, Copy, Clock, TrendingUp, Lock, Users } from 'lucide-react';
 import { NetworkBadge } from '@/components/presale/NetworkBadge';
 import { StatusPill } from '@/components/presale/StatusPill';
+import { TokenFundingModal } from '@/components/fairlaunch/TokenFundingModal';
+import { useRouter } from 'next/navigation';
 import { Countdown } from '@/components/ui/Countdown';
 
 interface Fairlaunch {
   id: string;
   status: string;
-  network: string;
+  chain: string; // Used to be network
+  chain_id: number;
   params: any;
   start_at: string;
   end_at: string;
   total_raised: number;
   total_participants: number;
   created_by: string;
+  // Added fields
+  contract_address?: string;
+  deployment_status?: string;
+  project?: {
+    id: string;
+    name: string;
+    symbol: string;
+    description: string;
+    logo_url: string;
+    token_address: string;
+    token_decimals: number;
+    token_total_supply: number;
+    chain_id?: number;
+    website_url: string;
+    twitter_url: string;
+    telegram_url: string;
+    discord_url: string;
+    metadata?: any;
+  };
 }
 
 interface FairlaunchDetailProps {
@@ -26,21 +48,15 @@ interface FairlaunchDetailProps {
 }
 
 // Helper to get display network name from chain ID or network name
-function getNetworkDisplay(networkName?: string, chainId?: string): string {
-  if (networkName) {
-    const nameMap: Record<string, string> = {
-      'bsc_testnet': 'BSC Testnet',
-      'sepolia': 'Sepolia',
-      'base_sepolia': 'Base Sepolia',
-      'ethereum': 'Ethereum',
-      'bnb': 'BNB Chain',
-      'base': 'Base',
-    };
-    return nameMap[networkName] || networkName;
-  }
-  
-  // Fallback to chain ID mapping
-  const chainMap: Record<string, string> = {
+function getNetworkDisplay(chain?: string, chainId?: string | number): string {
+  // Map standard chain keys to display names
+  const keyMap: Record<string, string> = {
+    'bsc_testnet': 'BSC Testnet',
+    'sepolia': 'Sepolia',
+    'base_sepolia': 'Base Sepolia',
+    'ethereum': 'Ethereum',
+    'bnb': 'BNB Chain',
+    'base': 'Base',
     '97': 'BSC Testnet',
     '56': 'BNB Chain',
     '11155111': 'Sepolia',
@@ -48,30 +64,93 @@ function getNetworkDisplay(networkName?: string, chainId?: string): string {
     '8453': 'Base',
     '84532': 'Base Sepolia',
   };
-  return chainMap[chainId || ''] || 'Unknown';
+
+  if (chain && keyMap[chain]) return keyMap[chain];
+  if (chainId) {
+    const mapped = keyMap[chainId.toString()];
+    if (mapped) return mapped;
+  }
+  
+  return chain || 'Unknown Network';
 }
 
-// Helper to get native currency symbol from network name
-function getNativeCurrency(networkName?: string, chainId?: string): string {
-  if (networkName?.includes('bsc') || networkName?.includes('bnb') || chainId === '97' || chainId === '56') {
-    return 'BNB';
-  }
-  if (networkName?.includes('base') || chainId === '8453' || chainId === '84532') {
-    return 'ETH';
-  }
+// Helper to get native currency symbol
+function getNativeCurrency(chain?: string, chainId?: string | number): string {
+  const c = chain?.toLowerCase() || '';
+  const cid = chainId?.toString() || '';
+  
+  if (c.includes('bsc') || c.includes('bnb') || cid === '97' || cid === '56') return 'BNB';
+  if (c.includes('base') || c.includes('eth') || cid === '8453' || cid === '84532' || cid === '1' || cid === '11155111') return 'ETH';
+  
   return 'ETH'; // Default
 }
+
 type TabType = 'overview' | 'contribute' | 'claim' | 'refund' | 'transactions';
 
 export function FairlaunchDetail({ fairlaunch, userAddress }: FairlaunchDetailProps) {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabType>('overview');
+  const [showFundingModal, setShowFundingModal] = useState(false);
 
-  const projectName = fairlaunch.params?.project_name || 'Unnamed Project';
-  const softcap = fairlaunch.params?.softcap || 0;
+  // Consolidate data access with robust fallbacks
+  // Network logic: prefer explicit chain_id, fall back to chain string
+  const chainId = fairlaunch.chain_id || fairlaunch.project?.chain_id || fairlaunch.params?.chain_id;
+  const chainKey = fairlaunch.chain || '';
+  const networkName = getNetworkDisplay(chainKey, chainId);
+  const nativeCurrency = getNativeCurrency(chainKey, chainId);
+  
+  // Token Data
+  const tokenDecimals = parseInt(
+    fairlaunch.project?.metadata?.token_decimals || 
+    fairlaunch.project?.token_decimals || 
+    fairlaunch.params?.token_decimals || 
+    '18'
+  );
+
+  const tokensForSale = parseFloat(fairlaunch.params?.tokens_for_sale || '0');
+  const liquidityTokens = parseFloat(fairlaunch.params?.liquidity_tokens || '0');
+  const teamTokens = parseFloat(
+    fairlaunch.params?.team_vesting_tokens || 
+    fairlaunch.params?.team_allocation || 
+    '0'
+  );
+
+  // Calculate Total Supply if not provided
+  let tokenSupply = parseFloat(
+    fairlaunch.project?.metadata?.token_total_supply || 
+    fairlaunch.project?.token_total_supply || 
+    fairlaunch.params?.token_total_supply || 
+    '0'
+  );
+
+  // Fallback calculation: if supply is 0 but we have component parts, sum them up
+  // This is a heuristic: Sale + Liquidity + Team is usually the bulk of it.
+  if (tokenSupply === 0 && tokensForSale > 0) {
+      // If we can't get exact, we assume these components make up the supply or at least display them
+      // But usually Total Supply >= Sale + Liquidity + Team
+      tokenSupply = tokensForSale + liquidityTokens + teamTokens;
+  }
+
+  // State calculations
+  // Priority: Project Table > Launch Params > Defaults
+  const projectName = fairlaunch.project?.name || fairlaunch.params?.project_name || 'Unnamed Project';
+  const projectSymbol = fairlaunch.project?.symbol || fairlaunch.params?.token_symbol || 'TBD';
+  const projectDesc = fairlaunch.project?.description || fairlaunch.params?.project_description || 'No description';
+  const projectLogo = fairlaunch.project?.logo_url || fairlaunch.params?.logo_url;
+  
+  const softcap = parseFloat(fairlaunch.params?.softcap || '0');
   const raised = fairlaunch.total_raised || 0;
-  const tokensForSale = fairlaunch.params?.tokens_for_sale || 0;
+  
   const finalPrice = tokensForSale > 0 ? raised / tokensForSale : 0;
   const progress = softcap > 0 ? (raised / softcap) * 100 : 0;
+
+  // Tokenomics Percentages
+  // Use 1 as fallback denominator to prevent division by zero/NaN
+  const calculationSupply = tokenSupply > 0 ? tokenSupply : 1;
+  const presalePercent = (tokensForSale / calculationSupply) * 100;
+  const teamPercent = (teamTokens / calculationSupply) * 100;
+  // Ensure we don't show negative unlocked if data is bad
+  const unlockedPercent = Math.max(0, 100 - presalePercent - teamPercent);
 
   const tabs: { key: TabType; label: string; enabled: boolean }[] = [
     { key: 'overview', label: 'Overview', enabled: true },
@@ -85,24 +164,73 @@ export function FairlaunchDetail({ fairlaunch, userAddress }: FairlaunchDetailPr
     { key: 'transactions', label: 'Transactions', enabled: !!userAddress },
   ];
 
+  // Helper for funding check
+  const isPendingFunding = fairlaunch.params?.funding_state === 'PENDING_FUNDING' || 
+                          fairlaunch.deployment_status === 'PENDING_FUNDING';
+
+  // Helper for explorer URL
+  const getExplorerUrl = (id: string) => {
+    // Simplified map
+    if (id === '97' || id.includes('bsc')) return 'https://testnet.bscscan.com';
+    if (id === '8453' || id.includes('base')) return 'https://basescan.org';
+    return '#';
+  };
+
+  const handleOpenFunding = () => setShowFundingModal(true);
+
   return (
-    <div className="max-w-6xl mx-auto">
-      {/* Back Button */}
-      <Link
-        href="/fairlaunch"
-        className="inline-flex items-center gap-2 text-gray-400 hover:text-white mb-6 transition-colors"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        Back to Fairlaunches
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <Link href="/fairlaunch/list" className="inline-flex items-center text-gray-400 hover:text-white mb-6">
+        <ArrowLeft className="w-4 h-4 mr-2" />
+        Back to Fairlaunch List
       </Link>
 
-      {/* Header */}
+       {/* Pending Funding Alert */}
+       {isPendingFunding && (
+        <div className="mb-6 bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-yellow-500/20 rounded-lg">
+              <Shield className="w-5 h-5 text-yellow-400" />
+            </div>
+            <div>
+              <h3 className="text-white font-semibold">Action Required: Fund Contract</h3>
+              <p className="text-sm text-gray-400">
+                You need to send the required tokens to the contract to start the sale.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleOpenFunding}
+            className="px-4 py-2 bg-yellow-500 hover:bg-yellow-400 text-black font-medium rounded-lg transition-colors"
+          >
+            Fund Contract
+          </button>
+        </div>
+      )}
+
+      {/* Funding Modal */}
+      {isPendingFunding && (
+        <TokenFundingModal
+          open={showFundingModal}
+          onOpenChange={setShowFundingModal}
+          contractAddress={fairlaunch.contract_address || fairlaunch.params?.contract_address || ''}
+          tokenAddress={fairlaunch.params?.token_address}
+          tokenSymbol={fairlaunch.params?.token_symbol}
+          tokenDecimals={fairlaunch.params?.token_decimals}
+          requiredTokens={fairlaunch.params?.token_total_supply || fairlaunch.params?.tokens_for_sale} // simplified
+          explorerUrl={getExplorerUrl(String(chainId || chainKey))}
+          onFundingComplete={async () => {
+             window.location.reload();
+          }}
+        />
+      )}
+
       <div className="bg-gray-900 border border-gray-800 rounded-lg p-6 mb-6">
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-start gap-4">
-            {fairlaunch.params?.logo_url && (
+            {projectLogo && (
               <img
-                src={fairlaunch.params.logo_url}
+                src={projectLogo}
                 alt={projectName}
                 className="w-16 h-16 rounded-lg object-cover"
               />
@@ -110,7 +238,7 @@ export function FairlaunchDetail({ fairlaunch, userAddress }: FairlaunchDetailPr
             <div>
               <h1 className="text-3xl font-bold text-white mb-2">{projectName}</h1>
               <p className="text-gray-400 mb-3">
-                {fairlaunch.params?.project_description || 'No description'}
+                {projectDesc}
               </p>
               <div className="flex items-center gap-3 flex-wrap">
                 {/* Security Badges */}
@@ -131,22 +259,21 @@ export function FairlaunchDetail({ fairlaunch, userAddress }: FairlaunchDetailPr
                   </>
                 )}
 
-                {fairlaunch.params?.token_symbol && (
+                {projectSymbol && (
                   <span className="text-sm text-gray-500">
                     Token:{' '}
                     <span className="text-white font-semibold">
-                      {fairlaunch.params.token_symbol}
+                      {projectSymbol}
                     </span>
                   </span>
                 )}
               </div>
               
-              {/* Social Media Links */}
-              {fairlaunch.params?.social_links && Object.keys(fairlaunch.params.social_links).length > 0 && (
-                <div className="flex items-center gap-2 mt-3">
-                  {fairlaunch.params.social_links.website && (
+              {/* Social Media Links from Project Table or Params */}
+              <div className="flex items-center gap-2 mt-3">
+                  {(fairlaunch.project?.website_url || fairlaunch.params?.social_links?.website) && (
                     <a
-                      href={fairlaunch.params.social_links.website}
+                      href={fairlaunch.project?.website_url || fairlaunch.params?.social_links?.website}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
@@ -155,9 +282,9 @@ export function FairlaunchDetail({ fairlaunch, userAddress }: FairlaunchDetailPr
                       <Globe className="w-4 h-4 text-gray-400" />
                     </a>
                   )}
-                  {fairlaunch.params.social_links.twitter && (
+                  {(fairlaunch.project?.twitter_url || fairlaunch.params?.social_links?.twitter) && (
                     <a
-                      href={fairlaunch.params.social_links.twitter}
+                      href={fairlaunch.project?.twitter_url || fairlaunch.params?.social_links?.twitter}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
@@ -166,9 +293,9 @@ export function FairlaunchDetail({ fairlaunch, userAddress }: FairlaunchDetailPr
                       <Twitter className="w-4 h-4 text-gray-400" />
                     </a>
                   )}
-                  {fairlaunch.params.social_links.telegram && (
+                  {(fairlaunch.project?.telegram_url || fairlaunch.params?.social_links?.telegram) && (
                     <a
-                      href={fairlaunch.params.social_links.telegram}
+                      href={fairlaunch.project?.telegram_url || fairlaunch.params?.social_links?.telegram}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
@@ -177,9 +304,9 @@ export function FairlaunchDetail({ fairlaunch, userAddress }: FairlaunchDetailPr
                       <Send className="w-4 h-4 text-gray-400" />
                     </a>
                   )}
-                  {fairlaunch.params.social_links.discord && (
+                  {(fairlaunch.project?.discord_url || fairlaunch.params?.social_links?.discord) && (
                     <a
-                      href={fairlaunch.params.social_links.discord}
+                      href={fairlaunch.project?.discord_url || fairlaunch.params?.social_links?.discord}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
@@ -188,8 +315,7 @@ export function FairlaunchDetail({ fairlaunch, userAddress }: FairlaunchDetailPr
                       <MessageCircle className="w-4 h-4 text-gray-400" />
                     </a>
                   )}
-                </div>
-              )}
+              </div>
             </div>
           </div>
         </div>
@@ -314,7 +440,21 @@ export function FairlaunchDetail({ fairlaunch, userAddress }: FairlaunchDetailPr
       {/* Tab Content */}
       <div className="bg-gray-900 border border-gray-800 rounded-lg p-6">
         {activeTab === 'overview' && (
-          <OverviewTab fairlaunch={fairlaunch} finalPrice={finalPrice} />
+          <OverviewTab 
+             fairlaunch={fairlaunch} 
+             finalPrice={finalPrice}
+             projectSymbol={projectSymbol}
+             tokenSupply={tokenSupply}
+             tokenDecimals={tokenDecimals}
+             networkName={networkName}
+             nativeCurrency={nativeCurrency}
+             tokensForSale={tokensForSale}
+             softcap={softcap}
+             presalePercent={presalePercent}
+             teamPercent={teamPercent}
+             unlockedPercent={unlockedPercent}
+             teamTokens={teamTokens}
+          />
         )}
         {activeTab === 'contribute' && <ContributeTab userAddress={userAddress} fairlaunch={fairlaunch} />}
         {activeTab === 'claim' && <ClaimTab />}
@@ -325,8 +465,36 @@ export function FairlaunchDetail({ fairlaunch, userAddress }: FairlaunchDetailPr
   );
 }
 
-function OverviewTab({ fairlaunch, finalPrice }: { fairlaunch: Fairlaunch; finalPrice: number }) {
-  const tokensForSale = fairlaunch.params?.tokens_for_sale || 0;
+// Updated OverviewTab to accept prepared props
+function OverviewTab({ 
+  fairlaunch, 
+  finalPrice,
+  projectSymbol,
+  tokenSupply,
+  tokenDecimals,
+  networkName,
+  nativeCurrency,
+  tokensForSale,
+  softcap,
+  presalePercent,
+  teamPercent,
+  unlockedPercent,
+  teamTokens
+}: { 
+  fairlaunch: Fairlaunch; 
+  finalPrice: number;
+  projectSymbol: string;
+  tokenSupply: number;
+  tokenDecimals: number;
+  networkName: string;
+  nativeCurrency: string;
+  tokensForSale: number;
+  softcap: number;
+  presalePercent: number;
+  teamPercent: number;
+  unlockedPercent: number;
+  teamTokens: number;
+}) {
 
   return (
     <div className="space-y-6">
@@ -371,19 +539,19 @@ function OverviewTab({ fairlaunch, finalPrice }: { fairlaunch: Fairlaunch; final
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="p-4 bg-gray-800 rounded-lg">
             <div className="text-sm text-gray-400 mb-1">Token Name</div>
-            <div className="text-white font-medium">{fairlaunch.params?.token_name || 'N/A'}</div>
+            <div className="text-white font-medium">{fairlaunch.project?.name || fairlaunch.params?.token_name || 'N/A'}</div>
           </div>
           <div className="p-4 bg-gray-800 rounded-lg">
             <div className="text-sm text-gray-400 mb-1">Symbol</div>
-            <div className="text-white font-medium">{fairlaunch.params?.token_symbol || 'N/A'}</div>
+            <div className="text-white font-medium">{projectSymbol}</div>
           </div>
           <div className="p-4 bg-gray-800 rounded-lg col-span-full">
             <div className="text-sm text-gray-400 mb-1">Contract Address</div>
             <div className="flex items-center gap-2">
-              <code className="text-white font-mono text-sm">{fairlaunch.params?.token_address || 'N/A'}</code>
-              {fairlaunch.params?.token_address && (
+              <code className="text-white font-mono text-sm">{fairlaunch.project?.token_address || fairlaunch.params?.token_address || 'N/A'}</code>
+              {(fairlaunch.project?.token_address || fairlaunch.params?.token_address) && (
                 <button
-                  onClick={() => navigator.clipboard.writeText(fairlaunch.params.token_address)}
+                  onClick={() => navigator.clipboard.writeText(fairlaunch.project?.token_address || fairlaunch.params.token_address)}
                   className="p-1 hover:bg-gray-700 rounded transition-colors"
                   title="Copy address"
                 >
@@ -394,15 +562,18 @@ function OverviewTab({ fairlaunch, finalPrice }: { fairlaunch: Fairlaunch; final
           </div>
           <div className="p-4 bg-gray-800 rounded-lg">
             <div className="text-sm text-gray-400 mb-1">Decimals</div>
-            <div className="text-white font-medium">{fairlaunch.params?.token_decimals || 18}</div>
+            <div className="text-white font-medium">{tokenDecimals}</div>
           </div>
           <div className="p-4 bg-gray-800 rounded-lg">
             <div className="text-sm text-gray-400 mb-1">Total Supply</div>
-            <div className="text-white font-medium">{(fairlaunch.params?.token_total_supply || 0).toLocaleString()}</div>
+            <div className="text-white font-medium">{tokenSupply.toLocaleString()}</div>
           </div>
           <div className="p-4 bg-gray-800 rounded-lg">
             <div className="text-sm text-gray-400 mb-1">Network</div>
-            <div className="text-white font-medium">{getNetworkDisplay(fairlaunch.params?.network_name, fairlaunch.network)}</div>
+            <div className="flex items-center gap-2">
+                <NetworkBadge chainId={fairlaunch.chain_id?.toString() || ''} network={fairlaunch.chain || ''} />
+               <span className="text-white font-medium">{networkName}</span>
+            </div>
           </div>
           <div className="p-4 bg-gray-800 rounded-lg">
             <div className="text-sm text-gray-400 mb-1">Tokens for Sale</div>
@@ -417,7 +588,7 @@ function OverviewTab({ fairlaunch, finalPrice }: { fairlaunch: Fairlaunch; final
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="p-4 bg-gray-800 rounded-lg">
             <div className="text-sm text-gray-400 mb-1">Softcap</div>
-            <div className="text-white font-medium">{fairlaunch.params?.softcap || 0} {getNativeCurrency(fairlaunch.params?.network_name, fairlaunch.network)}</div>
+            <div className="text-white font-medium">{softcap} {nativeCurrency}</div>
           </div>
           <div className="p-4 bg-gray-800 rounded-lg">
             <div className="text-sm text-gray-400 mb-1">Hardcap</div>
@@ -425,11 +596,11 @@ function OverviewTab({ fairlaunch, finalPrice }: { fairlaunch: Fairlaunch; final
           </div>
           <div className="p-4 bg-gray-800 rounded-lg">
             <div className="text-sm text-gray-400 mb-1">Min Contribution</div>
-            <div className="text-white font-medium">{fairlaunch.params?.min_contribution || 0} {getNativeCurrency(fairlaunch.params?.network_name, fairlaunch.network)}</div>
+            <div className="text-white font-medium">{fairlaunch.params?.min_contribution || 0} {nativeCurrency}</div>
           </div>
           <div className="p-4 bg-gray-800 rounded-lg">
             <div className="text-sm text-gray-400 mb-1">Max Contribution</div>
-            <div className="text-white font-medium">{fairlaunch.params?.max_contribution || 0} {getNativeCurrency(fairlaunch.params?.network_name, fairlaunch.network)}</div>
+            <div className="text-white font-medium">{fairlaunch.params?.max_contribution || 0} {nativeCurrency}</div>
           </div>
           <div className="p-4 bg-gray-800 rounded-lg">
             <div className="text-sm text-gray-400 mb-1">Listing On</div>
@@ -447,12 +618,6 @@ function OverviewTab({ fairlaunch, finalPrice }: { fairlaunch: Fairlaunch; final
             <div className="relative w-48 h-48 flex-shrink-0">
               <svg viewBox="0 0 100 100" className="transform -rotate-90">
                 {(() => {
-                  const totalSupply = fairlaunch.params?.token_total_supply || 1;
-                  const presalePercent = ((tokensForSale / totalSupply) * 100);
-                  const teamPercent = ((parseFloat(fairlaunch.params?.team_allocation || '0') / totalSupply) * 100);
-                  const unlockedPercent = 100 - presalePercent - teamPercent;
-                  
-                  // Calculate segments
                   const radius = 40;
                   const circumference = 2 * Math.PI * radius;
                   
@@ -496,7 +661,7 @@ function OverviewTab({ fairlaunch, finalPrice }: { fairlaunch: Fairlaunch; final
                         cy="50"
                         r={radius}
                         fill="none"
-                        stroke="#6b7280"
+                        stroke="#4b5563"
                         strokeWidth="16"
                         strokeDasharray={`${unlockedLength} ${circumference}`}
                         strokeDashoffset={-(offset + presaleLength + teamLength)}
@@ -506,295 +671,52 @@ function OverviewTab({ fairlaunch, finalPrice }: { fairlaunch: Fairlaunch; final
                   );
                 })()}
               </svg>
+              
               {/* Center text */}
               <div className="absolute inset-0 flex flex-col items-center justify-center">
                 <div className="text-2xl font-bold text-white">
-                  {fairlaunch.params?.token_total_supply ? (fairlaunch.params.token_total_supply / 1000000).toFixed(1) : 0}M
+                  {(tokenSupply / 1000000).toFixed(1)}M
                 </div>
                 <div className="text-xs text-gray-400">Total Supply</div>
               </div>
             </div>
 
-            {/* Legend */}
-            <div className="flex-1 space-y-3 w-full">
-              {/* Presale */}
+            <div className="flex-1 space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                  <div className="w-3 h-3 rounded-full bg-green-500" />
                   <span className="text-gray-400">Presale</span>
                 </div>
-                <span className="text-white font-semibold">
-                  {tokensForSale.toLocaleString()} ({fairlaunch.params?.token_total_supply ? ((tokensForSale / fairlaunch.params.token_total_supply) * 100).toFixed(1) : 0}%)
+                <span className="text-white font-medium">
+                  {tokensForSale.toLocaleString()} ({presalePercent.toFixed(1)}%)
                 </span>
               </div>
-
-              {/* Team */}
-              {parseFloat(fairlaunch.params?.team_allocation || '0') > 0 && (
+              
+              {teamPercent > 0 && (
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                    <span className="text-gray-400">Team</span>
+                    <div className="w-3 h-3 rounded-full bg-blue-500" />
+                    <span className="text-gray-400">Team Vesting</span>
                   </div>
-                  <span className="text-white font-semibold">
-                    {parseFloat(fairlaunch.params.team_allocation).toLocaleString()} ({fairlaunch.params?.token_total_supply ? ((parseFloat(fairlaunch.params.team_allocation) / fairlaunch.params.token_total_supply) * 100).toFixed(1) : 0}%)
+                  <span className="text-white font-medium">
+                    {teamTokens.toLocaleString()} ({teamPercent.toFixed(1)}%)
                   </span>
                 </div>
               )}
 
-              {/* Unlocked/Burned */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-gray-500"></div>
+                  <div className="w-3 h-3 rounded-full bg-gray-600" />
                   <span className="text-gray-400">Unlocked</span>
                 </div>
-                <span className="text-white font-semibold">
-                  {fairlaunch.params?.token_total_supply ? (
-                    (fairlaunch.params.token_total_supply - tokensForSale - parseFloat(fairlaunch.params?.team_allocation || '0')).toLocaleString()
-                  ) : 0} ({fairlaunch.params?.token_total_supply ? (((fairlaunch.params.token_total_supply - tokensForSale - parseFloat(fairlaunch.params?.team_allocation || '0')) / fairlaunch.params.token_total_supply) * 100).toFixed(1) : 0}%)
+                <span className="text-white font-medium">
+                  {(tokenSupply - tokensForSale - teamTokens).toLocaleString()} ({unlockedPercent.toFixed(1)}%)
                 </span>
               </div>
-
-
-              {/* Pool Contract Address */}
-              <div className="pt-3 border-t border-gray-700">
-                <div className="text-xs text-gray-500 mb-1">Pool Contract</div>
-                {fairlaunch.params?.round_address ? (
-                  <div className="flex items-center gap-2">
-                    <code className="text-sm text-blue-400 font-mono flex-1 truncate">
-                      {fairlaunch.params.round_address}
-                    </code>
-                    <button
-                      onClick={() => navigator.clipboard.writeText(fairlaunch.params.round_address)}
-                      className="p-1.5 hover:bg-gray-700 rounded transition-colors flex-shrink-0"
-                      title="Copy pool address"
-                    >
-                      <Copy className="w-4 h-4 text-gray-400" />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="text-sm text-gray-500 italic">
-                    Contract address not available
-                  </div>
-                )}
-              </div>
             </div>
           </div>
         </div>
       </div>
-
-      {/* DEX Listing */}
-      <div className="bg-gray-800 border border-gray-700 rounded-lg p-5">
-        <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-          <TrendingUp className="w-5 h-5 text-green-400" />
-          DEX Listing
-        </h3>
-
-        <div className="space-y-3">
-          {/* Platform */}
-          <div className="flex justify-between items-center">
-            <span className="text-gray-400">Platform</span>
-            <div className="flex items-center gap-2">
-              <span className="text-white font-medium capitalize">
-                {getDexName(fairlaunch.params?.dex_platform || 'pancakeswap')}
-              </span>
-            </div>
-          </div>
-
-          {/* Listing Price */}
-          {fairlaunch.params?.listing_price && (
-            <div className="flex justify-between items-center">
-              <span className="text-gray-400">Listing Price</span>
-              <span className="text-white font-semibold">
-                {fairlaunch.params.listing_price} {getNativeCurrency(fairlaunch.params?.network_name, fairlaunch.network)}
-              </span>
-            </div>
-          )}
-
-          {/* Premium */}
-          {fairlaunch.params?.listing_premium_bps && (
-            <div className="flex justify-between items-center">
-              <span className="text-gray-400">Price Premium</span>
-              <span className="text-green-400 font-semibold">
-                +{fairlaunch.params.listing_premium_bps / 100}%
-              </span>
-            </div>
-          )}
-
-          {/* Liquidity */}
-          <div className="flex justify-between items-center">
-            <span className="text-gray-400">Liquidity</span>
-            <span className="text-white font-semibold">
-              {fairlaunch.params?.liquidity_percent || 0}%
-            </span>
-          </div>
-
-          {/* TGE Date */}
-          {fairlaunch.params?.tge_timestamp && (
-            <div className="flex justify-between items-center">
-              <span className="text-gray-400">TGE Date</span>
-              <span className="text-white" suppressHydrationWarning>
-                {new Date(fairlaunch.params.tge_timestamp * 1000).toLocaleString()}
-              </span>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* LP Lock */}
-      <div className="bg-gray-800 border border-gray-700 rounded-lg p-5">
-        <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-          <Lock className="w-5 h-5 text-yellow-400" />
-          Liquidity Lock
-        </h3>
-
-        <div className="space-y-4">
-          {/* Lock Duration */}
-          <div className="bg-gray-900 rounded-lg p-4">
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-gray-400">Lock Duration</span>
-              <span className="text-2xl font-bold text-white">
-                {fairlaunch.params?.lp_lock_months || 0} months
-              </span>
-            </div>
-
-            {/* Unlock Date */}
-            {fairlaunch.params?.tge_timestamp && fairlaunch.params?.lp_lock_months && (
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Unlock Date</span>
-                <span className="text-green-400 font-medium" suppressHydrationWarning>
-                  {new Date(
-                    (fairlaunch.params.tge_timestamp + fairlaunch.params.lp_lock_months * 30 * 24 * 3600) * 1000
-                  ).toLocaleString()}
-                </span>
-              </div>
-            )}
-          </div>
-
-          {/* Countdown to Unlock (if LP is locked) */}
-          {fairlaunch.status === "FINALIZED_SUCCESS" && fairlaunch.params?.tge_timestamp && fairlaunch.params?.lp_lock_months && (
-            <div className="text-center p-3 bg-yellow-500/10 border border-yellow-500/30 rounded">
-              <div className="text-xs text-yellow-400 mb-1">Unlocks in</div>
-              <div className="text-lg font-bold text-yellow-300">
-                <Countdown targetDate={new Date((fairlaunch.params.tge_timestamp + fairlaunch.params.lp_lock_months * 30 * 24 * 3600) * 1000)} />
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Team Vesting */}
-      <div className="bg-gray-800 border border-gray-700 rounded-lg p-5">
-        <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-          <Users className="w-5 h-5 text-blue-400" />
-          Team Vesting
-        </h3>
-
-        {parseFloat(fairlaunch.params?.team_allocation || '0') > 0 ? (
-          <div className="space-y-4">
-            {/* Allocation */}
-            <div className="flex justify-between items-center">
-              <span className="text-gray-400">Team Allocation</span>
-              <span className="text-white font-semibold">
-                {parseFloat(fairlaunch.params.team_allocation).toLocaleString()} tokens
-              </span>
-            </div>
-
-            {/* Vesting Schedule */}
-            {fairlaunch.params?.team_vesting && (
-              <>
-                <div className="bg-gray-900 rounded-lg p-4 space-y-3">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-400">TGE Unlock</span>
-                    <span className="text-green-400 font-medium">
-                      {fairlaunch.params.team_vesting.tge_percent}%
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-400">Cliff Period</span>
-                    <span className="text-white">
-                      {fairlaunch.params.team_vesting.cliff_months} months
-                    </span>
-                  </div>
-
-                  {fairlaunch.params.team_vesting.linear_months && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-400">Vesting Period</span>
-                      <span className="text-white">
-                        {fairlaunch.params.team_vesting.linear_months} months (linear)
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Visual Timeline */}
-                <div className="relative h-16 bg-gray-900 rounded-lg p-3">
-                  <div className="flex items-center justify-between h-full">
-                    {/* TGE */}
-                    <div className="flex flex-col items-center">
-                      <div className="w-3 h-3 rounded-full bg-green-500" />
-                      <span className="text-xs text-gray-400 mt-1">TGE</span>
-                      <span className="text-xs text-green-400">
-                        {fairlaunch.params.team_vesting.tge_percent}%
-                      </span>
-                    </div>
-
-                    {/* Cliff */}
-                    <div className="flex-1 h-0.5 bg-gray-700 mx-2" />
-                    <div className="flex flex-col items-center">
-                      <div className="w-3 h-3 rounded-full bg-yellow-500" />
-                      <span className="text-xs text-gray-400 mt-1">Cliff End</span>
-                      <span className="text-xs text-yellow-400">
-                        {fairlaunch.params.team_vesting.cliff_months}m
-                      </span>
-                    </div>
-
-                    {/* Vesting */}
-                    {fairlaunch.params.team_vesting.linear_months && (
-                      <>
-                        <div className="flex-1 h-0.5 bg-gradient-to-r from-yellow-500 to-blue-500 mx-2" />
-                        <div className="flex flex-col items-center">
-                          <div className="w-3 h-3 rounded-full bg-blue-500" />
-                          <span className="text-xs text-gray-400 mt-1">Fully Vested</span>
-                          <span className="text-xs text-blue-400">100%</span>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </>
-            )}
-
-            {/* Contract Address */}
-            {fairlaunch.params?.vesting_vault_address && (
-              <div className="pt-3 border-t border-gray-700">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-400 text-sm">Vesting Contract</span>
-                  <div className="flex items-center gap-2">
-                    <code className="text-xs text-blue-400 font-mono">
-                      {fairlaunch.params.vesting_vault_address.slice(0, 6)}...
-                      {fairlaunch.params.vesting_vault_address.slice(-4)}
-                    </code>
-                    <button
-                      onClick={() => navigator.clipboard.writeText(fairlaunch.params.vesting_vault_address)}
-                      className="p-1 hover:bg-gray-700 rounded transition-colors"
-                      title="Copy address"
-                    >
-                      <Copy className="w-4 h-4 text-gray-400" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="text-center py-6 text-gray-500">
-            No team vesting configured
-          </div>
-        )}
-      </div>
-
-      {/* Remove old Timeline section - now in header */}
     </div>
   );
 }
@@ -813,7 +735,7 @@ function ContributeTab({ userAddress, fairlaunch }: { userAddress?: string; fair
   const fairlaunchAddress = fairlaunch.params?.round_address as `0x${string}` | undefined;
   const minContribution = Number(fairlaunch.params?.min_contribution || 0);
   const maxContribution = Number(fairlaunch.params?.max_contribution || 0);
-  const nativeCurrency = getNativeCurrency(fairlaunch.network, fairlaunch.params?.chain_id);
+  const nativeCurrency = getNativeCurrency(fairlaunch.chain, String(fairlaunch.params?.chain_id || ''));
   
   const handleContribute = async () => {
     if (!userAddress) {
@@ -889,7 +811,7 @@ function ContributeTab({ userAddress, fairlaunch }: { userAddress?: string; fair
         roundId: fairlaunch.id,
         amount: valueInWei.toString(),
         txHash,
-        chain: fairlaunch.params?.chain_id || fairlaunch.network,
+        chain: fairlaunch.params?.chain_id || fairlaunch.chain,
       });
       
       if (!saveResult.success) {
@@ -1093,7 +1015,6 @@ function calculateTimeProgress(start: string, end: string): number {
   
   return ((now - startTime) / (endTime - startTime)) * 100;
 }
-
 function getDexLogo(platform: string): string {
   const logos: Record<string, string> = {
     pancakeswap: '/dex/pancakeswap.png',
@@ -1101,6 +1022,18 @@ function getDexLogo(platform: string): string {
     sushiswap: '/dex/sushiswap.png',
   };
   return logos[platform.toLowerCase()] || '/dex/default.png';
+}
+
+function getExplorerUrl(chainId?: string): string {
+  const urls: Record<string, string> = {
+    '97': 'https://testnet.bscscan.com',
+    '56': 'https://bscscan.com',
+    '8453': 'https://basescan.org',
+    '84532': 'https://sepolia.basescan.org',
+    '11155111': 'https://sepolia.etherscan.io',
+    '1': 'https://etherscan.io',
+  };
+  return urls[chainId || ''] || 'https://bscscan.com';
 }
 
 function getDexName(platform: string): string {
@@ -1111,3 +1044,4 @@ function getDexName(platform: string): string {
   };
   return names[platform.toLowerCase()] || platform;
 }
+

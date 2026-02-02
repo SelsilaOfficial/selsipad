@@ -2,8 +2,6 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { usePublicClient, useWalletClient } from 'wagmi';
-import { decodeEventLog, parseEther, parseUnits, type Address } from 'viem';
 import { ArrowLeft, ArrowRight, Rocket } from 'lucide-react';
 import { NetworkTokenStep } from './steps/NetworkTokenStep';
 import { ProjectInfoStep } from './steps/ProjectInfoStep';
@@ -11,15 +9,10 @@ import { SaleParamsStep } from './steps/SaleParamsStep';
 import { LiquidityPlanStep } from './steps/LiquidityPlanStep';
 import { TeamVestingStep } from './steps/TeamVestingStep';
 import { ReviewStep } from './steps/ReviewStep';
-import { DeployStep } from './steps/DeployStep';
+import { SubmitStep } from './steps/SubmitStep';
 import { VestingScheduleUI } from '@/lib/fairlaunch/helpers';
-import { prepareFairlaunchDeployment, saveFairlaunch } from '@/actions/fairlaunch';
-import { 
-  FAIRLAUNCH_FACTORY_ABI, 
-  FAIRLAUNCH_FACTORY_ADDRESS,
-  FEE_SPLITTER_ADDRESS,
-  DEPLOYMENT_FEE 
-} from '@/contracts/FairlaunchFactory';
+import { saveFairlaunch } from '@/actions/fairlaunch';
+import { createClient } from '@/lib/supabase/client';
 
 interface CreateFairlaunchWizardProps {
   walletAddress: string;
@@ -96,10 +89,7 @@ export function CreateFairlaunchWizard({ walletAddress }: CreateFairlaunchWizard
   // 🔒 CRITICAL: useRef for SYNCHRONOUS blocking (state updates are async!)
   const deploymentLock = useRef(false);
 
-  // Wagmi hooks for blockchain interaction
-  const { data: walletClient } = useWalletClient();
-  const publicClient = usePublicClient();
-
+  
   // Initialize wizard data with defaults
   const [wizardData, setWizardData] = useState<WizardData>({
     network: '',
@@ -259,7 +249,7 @@ export function CreateFairlaunchWizard({ walletAddress }: CreateFairlaunchWizard
     alert('Draft saved successfully!');
   };
 
-  // Deploy handler
+  // Deploy handler - NEW: Uses backend API instead of Factory
   const handleDeploy = async () => {
     // 🔒 SYNCHRONOUS CHECK: Use ref, not state! (state updates are async)
     if (deploymentLock.current) {
@@ -277,261 +267,105 @@ export function CreateFairlaunchWizard({ walletAddress }: CreateFairlaunchWizard
     // Set state for UI feedback
     setIsDeploying(true);
     
-    console.log('🚀 Starting deployment...');
+    console.log('🚀 Starting deployment via backend API...');
+    console.log('[Wizard] Using wallet address for auth:', walletAddress);
 
     try {
-      
-      // Step 1: Prepare deployment params via server action
-      const prepareResult = await prepareFairlaunchDeployment(wizardData);
-
-      if (!prepareResult.success || !prepareResult.params) {
-        throw new Error(prepareResult.error || 'Failed to prepare deployment');
-      }
-
-      console.log('✅ Deployment params prepared:', prepareResult.params);
-      console.log('Factory:', prepareResult.factoryAddress);
-      console.log('Chain ID:', prepareResult.chainId);
-
-      // Step 2: Verify wallet client is available
-      if (!walletClient) {
-        throw new Error('Wallet not connected. Please connect your wallet to deploy.');
-      }
-
-      if (!publicClient) {
-        throw new Error('Public client not available');
-      }
-
-      const chainId = prepareResult.chainId || 97;
-      const factoryAddress = FAIRLAUNCH_FACTORY_ADDRESS[chainId];
-      const deploymentFee = DEPLOYMENT_FEE[chainId];
-
-      if (!factoryAddress) {
-        throw new Error(`FairlaunchFactory not deployed on chain ${chainId}`);
-      }
-
-      if (!deploymentFee) {
-        throw new Error(`Deployment fee not configured for chain ${chainId}`);
-      }
-
-      // Step 3: Get token decimals FIRST (needed for contract args)
-      const tokenDecimals = prepareResult.params.tokenDecimals || 18;
-      const tokensForSaleWithDecimals = parseUnits(prepareResult.params.tokensForSale, tokenDecimals);
-      
-      // Step 3.5: Prepare contract arguments
-      // Convert decimal values (like "0.1") to wei using parseEther
-      const createFairlaunchParams = {
-        projectToken: prepareResult.params.tokenAddress as Address,
-        paymentToken: '0x0000000000000000000000000000000000000000' as Address, // Native BNB
-        softcap: parseEther(prepareResult.params.softcap),
-        tokensForSale: tokensForSaleWithDecimals, // ✅ Now uses proper decimals!
-        minContribution: parseEther(prepareResult.params.minContribution),
-        maxContribution: parseEther(prepareResult.params.maxContribution),
-        startTime: BigInt(prepareResult.params.startTime),
-        endTime: BigInt(prepareResult.params.endTime),
-        projectOwner: walletAddress as Address,
-        listingPremiumBps: prepareResult.params.listingPremiumBps,
+      // Get chain ID from network
+      const chainIdMap: Record<string, number> = {
+        bsc_testnet: 97,
+        bnb: 56,
+        sepolia: 11155111,
+        ethereum: 1,
+        base_sepolia: 84532,
+        base: 8453,
       };
 
-      const vestingParams = {
-        beneficiary: (prepareResult.params.vestingParams.beneficiary || walletAddress) as Address,
-        startTime: BigInt(prepareResult.params.vestingParams.startTime || prepareResult.params.endTime),
-        durations: prepareResult.params.vestingParams.durations?.map((d: any) => BigInt(d)) || [],
-        amounts: prepareResult.params.vestingParams.amounts?.map((a: any) => BigInt(a)) || [],
-      };
+      const chainId = chainIdMap[wizardData.network] || 97;
 
-      const lpPlan = {
-        lockMonths: BigInt(prepareResult.params.lpLockMonths),
-        liquidityPercent: BigInt(prepareResult.params.liquidityPercent),
-        dexId: prepareResult.params.dexId as `0x${string}`,
-      };
-
-      console.log('📝 Contract args prepared');
-      console.log('Deployment fee:', deploymentFee.toString(), 'wei');
-      console.log('Token decimals:', tokenDecimals);
-      console.log('Tokens for sale (human):', prepareResult.params.tokensForSale);
-      console.log('Tokens for sale (base units):', tokensForSaleWithDecimals.toString());
-
-      // Step 3.6: Calculate total tokens needed and approve Factory
-      console.log('💰 Calculating token requirements...');
-      
-      // Calculate liquidity tokens (same formula as contract)
-      const liquidityPercent = BigInt(prepareResult.params.liquidityPercent);
-      const liquidityTokens = (tokensForSaleWithDecimals * liquidityPercent) / 10000n;
-      const totalFairlaunchTokens = tokensForSaleWithDecimals + liquidityTokens;
-      
-      // Calculate vesting tokens (also need to convert)
-      const vestingAmounts = vestingParams.amounts;
-      const totalVestingTokens = vestingAmounts.reduce((sum: bigint, amount: bigint) => sum + amount, 0n);
-      
-      // Total tokens to approve
-      const totalTokensNeeded = totalFairlaunchTokens + totalVestingTokens;
-      
-      console.log('💰 Token calculation:');
-      console.log('  - For sale:', tokensForSaleWithDecimals.toString());
-      console.log('  - For liquidity:', liquidityTokens.toString());
-      console.log('  - For vesting:', totalVestingTokens.toString());
-      console.log('  - TOTAL:', totalTokensNeeded.toString());
-      
-      // Approve Factory to spend tokens
-      console.log('🔐 Requesting token approval... (confirm in wallet)');
-      
-      const ERC20_ABI = [
-        {
-          inputs: [
-            { name: 'spender', type: 'address' },
-            { name: 'amount', type: 'uint256' }
-          ],
-          name: 'approve',
-          outputs: [{ name: '', type: 'bool' }],
-          stateMutability: 'nonpayable',
-          type: 'function',
-        },
-      ] as const;
-      
-      const approveTxHash = await walletClient.writeContract({
-        address: prepareResult.params.tokenAddress as Address,
-        abi: ERC20_ABI,
-        functionName: 'approve',
-        args: [factoryAddress, totalTokensNeeded],
-      });
-      
-      console.log('📤 Approval transaction sent:', approveTxHash);
-      console.log('⏳ Waiting for approval confirmation...');
-      
-      await publicClient.waitForTransactionReceipt({
-        hash: approveTxHash,
-        confirmations: 2,
-      });
-      
-      console.log('✅ Token approval confirmed!');
-      console.log(`Factory ${factoryAddress} can now spend ${totalTokensNeeded.toString()} tokens`);
-      
-      console.log('📋 LP Plan parameters:');
-      console.log('  - Liquidity Percent (BPS):', lpPlan.liquidityPercent);
-      console.log('  - LP Lock Months:', lpPlan.lockMonths);
-      console.log('  - DEX ID:', lpPlan.dexId);
-      
-      console.log('🚀 Deploying Fairlaunch... (confirm in wallet)');
-
-      // Step 4: Deploy via wagmi writeContract
-      const txHash = await walletClient.writeContract({
-        address: factoryAddress as Address,
-        abi: FAIRLAUNCH_FACTORY_ABI,
-        functionName: 'createFairlaunch',
-        args: [createFairlaunchParams, vestingParams, lpPlan],
-        value: deploymentFee,
-      });
-
-      console.log('📤 Transaction sent:', txHash);
-
-      // Step 5: Wait for transaction confirmation
-      const txReceipt = await publicClient.waitForTransactionReceipt({
-        hash: txHash,
-        confirmations: 2, // Wait for 2 confirmations for security
-      });
-
-      console.log('✅ Transaction confirmed:', txReceipt.transactionHash);
-
-      // Step 6: Parse event logs to get deployed addresses
-      let fairlaunchAddress: string | undefined;
-      let vestingAddress: string | undefined;
-
-      console.log('📋 Parsing transaction logs...');
-      console.log('Total logs:', txReceipt.logs.length);
-
-      for (const log of txReceipt.logs) {
-        try {
-          const decoded = decodeEventLog({
-            abi: FAIRLAUNCH_FACTORY_ABI,
-            data: log.data,
-            topics: log.topics,
-          });
-
-          console.log('Decoded event:', decoded.eventName);
-
-          if (decoded.eventName === 'FairlaunchCreated') {
-            const args = decoded.args as {
-              fairlaunchId: bigint;
-              fairlaunch: Address;
-              vesting: Address;
-              projectToken: Address; // ✅ Added missing parameter
-            };
-            
-            fairlaunchAddress = args.fairlaunch;
-            vestingAddress = args.vesting;
-            
-            console.log('🎉 Fairlaunch deployed!');
-            console.log('Fairlaunch address:', fairlaunchAddress);
-            console.log('Vesting address:', vestingAddress);
-            break;
-          }
-        } catch (e: any) {
-          // Skip logs that don't match our ABI
-          console.log('Skipping log (not from our contract):', e.message);
-          continue;
-        }
-      }
-
-      if (!fairlaunchAddress) {
-        console.error('❌ Failed to find FairlaunchCreated event in logs');
-        console.error('Transaction receipt:', txReceipt);
-        throw new Error('Failed to parse FairlaunchCreated event from transaction logs. The deployment may have succeeded - check BSCScan: ' + txReceipt.transactionHash);
-      }
-
-      // Step 7: Save to database with REAL addresses
-      const saveResult = await saveFairlaunch({
-        network: wizardData.network,
-        tokenAddress: wizardData.tokenAddress,
-        tokenSource: wizardData.tokenMode as 'factory' | 'existing',
-        securityBadges: wizardData.securityBadges,
+      // Prepare deployment payload
+      const deployPayload = {
+        // Token configuration
+        projectToken: wizardData.tokenAddress,
+        tokenDecimals: wizardData.tokenDecimals || 18,
         
-        // Token metadata
-        tokenName: wizardData.tokenName,
-        tokenSymbol: wizardData.tokenSymbol,
-        tokenDecimals: wizardData.tokenDecimals,
-        tokenTotalSupply: wizardData.tokenTotalSupply,
-        
-        projectName: wizardData.projectName,
-        description: wizardData.description,
-        logoUrl: wizardData.logoUrl,
-        socialLinks: wizardData.socialLinks,
-        tokensForSale: wizardData.tokensForSale,
+        // Sale parameters
         softcap: wizardData.softcap,
-        startTime: wizardData.startTime,
-        endTime: wizardData.endTime,
+        tokensForSale: wizardData.tokensForSale,
         minContribution: wizardData.minContribution,
         maxContribution: wizardData.maxContribution,
-        dexPlatform: wizardData.dexPlatform,
-        listingPremiumBps: wizardData.listingPremiumBps,
-        liquidityPercent: wizardData.liquidityPercent,
-        lpLockMonths: wizardData.lpLockMonths,
-        teamAllocation: wizardData.teamAllocation,
-        vestingBeneficiary: wizardData.vestingBeneficiary,
-        vestingSchedule: wizardData.vestingSchedule,
         
-        // REAL deployed addresses from blockchain
-        fairlaunchAddress,
-        vestingAddress,
-        feeSplitterAddress: FEE_SPLITTER_ADDRESS[chainId],
-        transactionHash: txReceipt.transactionHash,
-      });
+        // Timing
+        startTime: new Date(wizardData.startTime).toISOString(),
+        endTime: new Date(wizardData.endTime).toISOString(),
+        
+        // Liquidity settings
+        liquidityPercent: wizardData.liquidityPercent || 70,
+        lpLockMonths: wizardData.lpLockMonths || 24,
+        listingPremiumBps: wizardData.listingPremiumBps || 0,
+        dexPlatform: wizardData.dexPlatform || 'PancakeSwap',
+        
+        // Team vesting (optional)
+        teamVestingAddress: parseFloat(wizardData.teamAllocation) > 0 ? wizardData.vestingBeneficiary : null,
+        
+        // Creator and network
+        creatorWallet: walletAddress,
+        chainId: chainId,
+      };
 
-      if (!saveResult.success) {
-        throw new Error(saveResult.error || 'Failed to save fairlaunch to database');
+      console.log('[Wizard] Deploying via API:', deployPayload);
+
+      // Get session token from cookie (custom session management)
+      const getSessionToken = (): string | null => {
+        if (typeof document === 'undefined') return null;
+        const cookies = document.cookie.split(';');
+        const sessionCookie = cookies.find(c => c.trim().startsWith('session_token='));
+        if (!sessionCookie) return null;
+        const token = sessionCookie.split('=')[1];
+        return token || null; // Ensure we return null, not undefined
+      };
+
+      const sessionToken = getSessionToken();
+      
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'X-Wallet-Address': walletAddress, // Fallback for wallet-only auth
+      };
+      
+      // Add session token if available (preferred)
+      if (sessionToken) {
+        headers['X-Session-Token'] = sessionToken; // Send as custom header
+        console.log('[Wizard] Using session token auth');
+      } else {
+        console.warn('[Wizard] No session token, using wallet-only auth');
       }
 
-      // Clear draft after successful deployment
-      localStorage.removeItem(STORAGE_KEY);
-      
-      // ✅ Mark as successfully deployed (ONLY on success!)
+      // Call backend deployment API
+      const response = await fetch('/api/fairlaunch/deploy', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(deployPayload),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || data.details?.join(', ') || 'Deployment failed');
+      }
+
+      console.log('[Wizard] Deployment successful:', data);
+
+      // 5. Success!
+      // ✅ Mark as successfully deployed for UI state
       setHasDeployedSuccessfully(true);
 
       return {
         success: true,
-        fairlaunchAddress,
-        vestingAddress,
-        transactionHash: txReceipt.transactionHash,
-        fairlaunchId: saveResult.fairlaunchId,
+        fairlaunchAddress: data.contractAddress,
+        transactionHash: data.txHash,
+        launchRoundId: data.launchRoundId, // UUID from backend
+        tokenInfo: data.tokenInfo,
+        nextStep: data.nextStep,
       };
     } catch (error: any) {
       console.error('Deployment error:', error);
@@ -548,6 +382,7 @@ export function CreateFairlaunchWizard({ walletAddress }: CreateFairlaunchWizard
       setIsDeploying(false);
     }
   };
+
 
   // Get network symbol
   const getNetworkSymbol = (network: string) => {
@@ -731,10 +566,9 @@ export function CreateFairlaunchWizard({ walletAddress }: CreateFairlaunchWizard
           )}
 
           {currentStep === 7 && (
-            <DeployStep
-              wizardData={wizardData}
-              onDeploy={handleDeploy}
-              explorerUrl={getExplorerUrl(wizardData.network)}
+            <SubmitStep
+              formData={wizardData}
+              onBack={() => setCurrentStep(6)}
             />
           )}
         </div>

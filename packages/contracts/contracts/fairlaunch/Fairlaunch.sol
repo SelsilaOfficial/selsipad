@@ -253,7 +253,10 @@ contract Fairlaunch is AccessControl, ReentrancyGuard {
 
         // Calculate liquidity amounts
         uint256 liquidityFunds = (netRaised * liquidityPercent) / BPS_BASE;
-        uint256 liquidityTokens = (tokensForSale * liquidityPercent) / BPS_BASE;
+        
+        // Calculate LP tokens based on listing price
+        uint256 listingPrice = (finalTokenPrice * (BPS_BASE + listingPremiumBps)) / BPS_BASE;
+        uint256 liquidityTokens = (liquidityFunds * 1e18) / listingPrice;
 
         // Add liquidity to DEX
         address lpToken = _addLiquidity(liquidityTokens, liquidityFunds);

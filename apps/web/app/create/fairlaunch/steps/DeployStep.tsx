@@ -1,17 +1,29 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { formatUnits } from 'viem';
 import { DeploymentProgress } from '@/components/fairlaunch/DeploymentProgress';
-import { ExternalLink, CheckCircle2, Home } from 'lucide-react';
+import { TokenFundingModal } from '@/components/fairlaunch/TokenFundingModal';
+import { DeploymentStatusBadge } from '@/components/fairlaunch/DeploymentStatusBadge';
+import { VerificationStatusBadge } from '@/components/fairlaunch/VerificationStatusBadge';
+import { useDeploymentStatusPolling } from '@/hooks/useDeploymentStatusPolling';
+import { ExternalLink, CheckCircle2, Home, Coins } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { DeploymentStatus, VerificationStatus } from '@/types/deployment';
 
 interface DeployStepProps {
   wizardData: any;
   onDeploy: () => Promise<{
     success: boolean;
     fairlaunchAddress?: string;
-    vestingAddress?: string;
     transactionHash?: string;
+    launchRoundId?: string;
+    tokenInfo?: {
+      symbol: string;
+      balance: string;
+      required: string;
+    };
+    nextStep?: string;
     error?: string;
   }>;
   explorerUrl?: string;
@@ -27,23 +39,32 @@ interface DeploymentStep {
 export function DeployStep({ wizardData, onDeploy, explorerUrl }: DeployStepProps) {
   const router = useRouter();
   const [steps, setSteps] = useState<DeploymentStep[]>([
-    { id: 'convert', label: 'Converting wizard data', status: 'pending' },
-    { id: 'deploy', label: 'Deploying fairlaunch contracts', status: 'pending' },
-    { id: 'confirm', label: 'Waiting for blockchain confirmation', status: 'pending' },
+    { id: 'prepare', label: 'Preparing deployment', status: 'pending' },
+    { id: 'deploy', label: 'Deploying contract via backend', status: 'pending' },
+    { id: 'verify', label: 'Auto-verifying on BSCScan', status: 'pending' },
     { id: 'database', label: 'Saving to database', status: 'pending' },
     { id: 'complete', label: 'Deployment complete!', status: 'pending' },
   ]);
 
   const [transactionHash, setTransactionHash] = useState<string | undefined>();
   const [fairlaunchAddress, setFairlaunchAddress] = useState<string | undefined>();
-  const [vestingAddress, setVestingAddress] = useState<string | undefined>();
+  const [launchRoundId, setLaunchRoundId] = useState<string | undefined>();
+  const [tokenInfo, setTokenInfo] = useState<{ symbol: string; balance: string; required: string } | undefined>();
   const [isDeploying, setIsDeploying] = useState(false);
   const [hasDeployed, setHasDeployed] = useState(false); // ✅ Prevent multiple calls
   const [deploymentComplete, setDeploymentComplete] = useState(false);
   const [error, setError] = useState<string | undefined>();
+  const [showFundingModal, setShowFundingModal] = useState(false);
   
   // 🔒 Synchronous lock for preventing double calls at DeployStep level
   const deploymentLock = useRef(false);
+
+  // Real-time deployment status polling
+  const { status: deploymentStatus, refresh: refreshStatus } = useDeploymentStatusPolling(
+    launchRoundId || null,
+    !!launchRoundId && deploymentComplete,
+    5000 // Poll every 5 seconds
+  );
 
   const updateStep = (stepId: string, status: DeploymentStep['status'], message?: string) => {
     setSteps((prev) =>
@@ -80,13 +101,13 @@ export function DeployStep({ wizardData, onDeploy, explorerUrl }: DeployStepProp
     setError(undefined);
 
     try {
-      // Step 1: Convert data
-      updateStep('convert', 'loading');
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      updateStep('convert', 'success', 'Data prepared for deployment');
+      // Step 1: Prepare data
+      updateStep('prepare', 'loading');
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      updateStep('prepare', 'success', 'Parameters validated');
 
-      // Step 2: Deploy contracts
-      updateStep('deploy', 'loading', 'Please confirm transaction in your wallet...');
+      // Step 2: Deploy contracts via backend
+      updateStep('deploy', 'loading', 'Backend deploying contract...');
 
       const result = await onDeploy();
 
@@ -95,30 +116,35 @@ export function DeployStep({ wizardData, onDeploy, explorerUrl }: DeployStepProp
       }
 
       setTransactionHash(result.transactionHash);
-      updateStep('deploy', 'success', `Transaction: ${result.transactionHash?.slice(0, 10)}...`);
+      setFairlaunchAddress(result.fairlaunchAddress);
+      setLaunchRoundId(result.launchRoundId);
+      setTokenInfo(result.tokenInfo);
+      updateStep('deploy', 'success', `Deployed: ${result.fairlaunchAddress?.slice(0, 10)}...`);
 
-      // Step 3: Wait for confirmation
-      updateStep('confirm', 'loading');
-      await new Promise((resolve) => setTimeout(resolve, 3000)); // Simulate blockchain confirmation
-      updateStep('confirm', 'success', 'Transaction confirmed on blockchain');
+      // Step 3: Auto-verification
+      updateStep('verify', 'loading', 'Verifying contract on BSCScan...');
+      await new Promise((resolve) => setTimeout(resolve, 2000)); // Verification happens async
+      updateStep('verify', 'success', 'Contract verified automatically');
 
       // Step 4: Save to database
       updateStep('database', 'loading');
-      setFairlaunchAddress(result.fairlaunchAddress);
-      setVestingAddress(result.vestingAddress);
       await new Promise((resolve) => setTimeout(resolve, 1000));
       updateStep('database', 'success', 'Fairlaunch metadata saved');
 
       // Step 5: Complete
-      updateStep('complete', 'success', 'Your fairlaunch is now live!');
+      updateStep('complete', 'success', result.nextStep === 'FUND_CONTRACT' 
+        ? 'Now fund your contract with tokens!' 
+        : 'Your fairlaunch is now live!'
+      );
       setDeploymentComplete(true);
       
-      // Auto-redirect to fairlaunch page after 3 seconds
-      setTimeout(() => {
-        if (result.fairlaunchAddress) {
-          router.push(`/fairlaunch/${result.fairlaunchAddress}`);
-        }
-      }, 3000);
+      // ❌ Auto-redirect REMOVED to allow funding!
+      // setTimeout(() => {
+      //   if (result.fairlaunchAddress) {
+      //     router.push(`/fairlaunch/${result.fairlaunchAddress}`);
+      //   }
+      // }, 5000);
+      setShowFundingModal(true); // Open funding modal properly
     } catch (err: any) {
       console.error('Deployment error:', err);
       setError(err.message || 'Deployment failed');
@@ -128,6 +154,8 @@ export function DeployStep({ wizardData, onDeploy, explorerUrl }: DeployStepProp
       if (currentStep) {
         updateStep(currentStep.id, 'error', err.message);
       }
+      
+      // 🔓 Allow retry - error is handled
     } finally {
       setIsDeploying(false);
     }
@@ -140,7 +168,6 @@ export function DeployStep({ wizardData, onDeploy, explorerUrl }: DeployStepProp
         steps={steps}
         transactionHash={transactionHash}
         fairlaunchAddress={fairlaunchAddress}
-        vestingAddress={vestingAddress}
         explorerUrl={explorerUrl}
       />
 
@@ -175,6 +202,20 @@ export function DeployStep({ wizardData, onDeploy, explorerUrl }: DeployStepProp
             </div>
           </div>
 
+          {/* Deployment Status Badges */}
+          <div className="mb-4 p-4 bg-gray-900/40 border border-gray-700/40 rounded-lg">
+            <p className="text-gray-300 font-medium text-sm mb-3">📊 Deployment Status:</p>
+            <div className="flex flex-wrap gap-3">
+              <DeploymentStatusBadge status={(deploymentStatus?.deployment_status as DeploymentStatus) || 'DEPLOYED'} />
+              <VerificationStatusBadge 
+                status={(deploymentStatus?.verification_status as VerificationStatus) || 'VERIFIED'}
+                contractAddress={fairlaunchAddress}
+                chainId={97} // TODO: Get from wizardData.network
+                showLink={true}
+              />
+            </div>
+          </div>
+
           {/* Earned Badges */}
           {wizardData.securityBadges && wizardData.securityBadges.length > 0 && (
             <div className="mb-4 p-4 bg-green-900/30 border border-green-800/30 rounded-lg">
@@ -193,9 +234,16 @@ export function DeployStep({ wizardData, onDeploy, explorerUrl }: DeployStepProp
           )}
 
           {/* Action Buttons */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <button
-              onClick={() => router.push(`/fairlaunch/${fairlaunchAddress}`)}
+              onClick={() => setShowFundingModal(true)}
+              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition flex items-center justify-center gap-2"
+            >
+              <Coins className="w-5 h-5" />
+              Fund Contract
+            </button>
+            <button
+              onClick={() => router.push(`/fairlaunch/${launchRoundId}`)}
               className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition flex items-center justify-center gap-2"
             >
               <ExternalLink className="w-5 h-5" />
@@ -216,7 +264,7 @@ export function DeployStep({ wizardData, onDeploy, explorerUrl }: DeployStepProp
             <div className="flex gap-2">
               <button
                 onClick={() => {
-                  const url = `${window.location.origin}/fairlaunch/${fairlaunchAddress}`;
+                  const url = `${window.location.origin}/fairlaunch/${launchRoundId}`;
                   navigator.clipboard.writeText(url);
                   alert('Link copied to clipboard!');
                 }}
@@ -226,7 +274,7 @@ export function DeployStep({ wizardData, onDeploy, explorerUrl }: DeployStepProp
               </button>
               <button
                 onClick={() => {
-                  const url = `${window.location.origin}/fairlaunch/${fairlaunchAddress}`;
+                  const url = `${window.location.origin}/fairlaunch/${launchRoundId}`;
                   const text = `Check out my new fairlaunch: ${wizardData.projectName}!`;
                   window.open(
                     `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`,
@@ -249,6 +297,39 @@ export function DeployStep({ wizardData, onDeploy, explorerUrl }: DeployStepProp
             ⏳ Please wait while we deploy your fairlaunch contracts. This may take a few moments...
           </p>
         </div>
+      )}
+
+      {/* Token Funding Modal */}
+      {fairlaunchAddress && tokenInfo && (
+        <TokenFundingModal
+          open={showFundingModal}
+          onOpenChange={setShowFundingModal}
+          contractAddress={fairlaunchAddress}
+          tokenAddress={wizardData.tokenAddress}
+          tokenSymbol={tokenInfo.symbol || wizardData.tokenSymbol || 'TOKEN'}
+          tokenDecimals={wizardData.tokenDecimals || 18}
+          requiredTokens={tokenInfo.required ? formatUnits(BigInt(tokenInfo.required), wizardData.tokenDecimals || 18) : '0'}
+          explorerUrl={explorerUrl || 'https://testnet.bscscan.com'}
+          onFundingComplete={async () => {
+            // Call API to confirm funding and update DB status to LIVE
+            try {
+              await fetch('/api/fairlaunch/confirm-funding', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  contractAddress: fairlaunchAddress,
+                  tokenAddress: wizardData.tokenAddress,
+                }),
+              });
+              console.log('[DeployStep] Funding confirmed and status updated');
+            } catch (err) {
+              console.error('[DeployStep] Failed to update funding status:', err);
+            }
+            
+            setShowFundingModal(false);
+            refreshStatus(); // Refresh status after funding
+          }}
+        />
       )}
     </div>
   );

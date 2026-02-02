@@ -16,7 +16,7 @@ export const FACTORY_ADDRESSES: Record<string, Address> = {
   bnb: '0x0000000000000000000000000000000000000000',      // TBD
   base: '0x0000000000000000000000000000000000000000',     // TBD
   sepolia: '0x6eA1044Caf6CEdf36A9F7D978384a634a3f04FbE',  // ✅ Deployed 2026-01-29
-  bsc_testnet: '0x723fbc908ebd1d13D755a7aC1fA96eFB79964698', // ✅ Deployed 2026-01-28
+  bsc_testnet: '0x10250DAee0baB6bf0f776Ad17b11E09dA9dB2B81', // ✅ Deployed 2026-02-01 (Fixed LP calc)
   base_sepolia: '0x6eA1044Caf6CEdf36A9F7D978384a634a3f04FbE', // ✅ Deployed 2026-01-29
 } as const;
 
@@ -124,7 +124,7 @@ export function getDexId(platform: string): `0x${string}` {
   
   if (!dexId) {
     // Default to pancakeswap
-    return DEX_IDS.pancakeswap;
+    return DEX_IDS.pancakeswap!;
   }
   
   return dexId;

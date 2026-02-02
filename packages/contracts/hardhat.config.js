@@ -1,5 +1,8 @@
-require('@nomicfoundation/hardhat-toolbox');
-require('dotenv').config();
+import '@nomicfoundation/hardhat-toolbox';
+import '@nomicfoundation/hardhat-verify';
+import  { config as dotenvConfig } from 'dotenv';
+
+dotenvConfig();
 
 const DEPLOYER_PRIVATE_KEY =
   process.env.DEPLOYER_PRIVATE_KEY ||
@@ -14,7 +17,7 @@ function getValidAccounts(...keys) {
 }
 
 /** @type import('hardhat/config').HardhatUserConfig */
-module.exports = {
+export default {
   solidity: {
     version: '0.8.20',
     settings: {
@@ -34,7 +37,7 @@ module.exports = {
       accounts: getValidAccounts(DEPLOYER_PRIVATE_KEY, ADMIN_PRIVATE_KEY),
       chainId: 11155111,
     },
-    bsc_testnet: {
+    bscTestnet: {
       url: process.env.BSC_TESTNET_RPC_URL || 'https://data-seed-prebsc-1-s1.binance.org:8545',
       accounts: getValidAccounts(DEPLOYER_PRIVATE_KEY, ADMIN_PRIVATE_KEY),
       chainId: 97,
@@ -64,6 +67,19 @@ module.exports = {
       baseSepolia: process.env.BASESCAN_API_KEY || '',
       base: process.env.BASESCAN_API_KEY || '',
     },
+    customChains: [
+      {
+        network: 'bscTestnet',
+        chainId: 97,
+        urls: {
+          apiURL: 'https://api-testnet.bscscan.com/api',
+          browserURL: 'https://testnet.bscscan.com',
+        },
+      },
+    ],
+  },
+  sourcify: {
+    enabled: false,
   },
   paths: {
     sources: './contracts',

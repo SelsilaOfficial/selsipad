@@ -1,27 +1,31 @@
 'use client';
 
 import * as React from 'react';
-import { useNetwork } from 'wagmi';
+
 import { type Address } from 'viem';
-import { useFairlaunchDeploy, type DeploymentParams } from '@/hooks/useFairlaunchDeploy';
-import { prepareFairlaunchDeployment } from '@/actions/fairlaunch/prepare-fairlaunch-deployment';
 
 export interface FairlaunchDeploymentOrchestratorProps {
   wizardData: any;
   onDeploymentStart?: () => void;
   onDeploymentComplete?: (result: {
     success: boolean;
-    fairlaunchAddress?: Address;
-    vestingAddress?: Address;
-    transactionHash?: `0x${string}`;
+    launchRoundId?: string;
+    contractAddress?: Address;
+    transactionHash?: string;
+    nextStep?: string;
     error?: string;
+    tokenInfo?: {
+      symbol: string;
+      balance: string;
+      required: string;
+    };
   }) => void;
   children: (deployFn: () => Promise<any>) => React.ReactNode;
 }
 
 /**
- * Orchestrates real blockchain deployment via wagmi
- * Bridges the gap between wizard callback pattern and wagmi hooks
+ * Orchestrates Fairlaunch deployment via backend API
+ * New architecture: Direct deployment (no Factory, auto-verified)
  */
 export function FairlaunchDeploymentOrchestrator({
   wizardData,
@@ -29,98 +33,115 @@ export function FairlaunchDeploymentOrchestrator({
   onDeploymentComplete,
   children,
 }: FairlaunchDeploymentOrchestratorProps) {
-  const { chain } = useNetwork();
-  const chainId = chain?.id || 97; // Default to BSC Testnet
-  
-  const { deploy, isLoading, result, transactionHash } = useFairlaunchDeploy(chainId);
 
-  // Watch for deployment result
-  React.useEffect(() => {
-    if (result && onDeploymentComplete) {
-      onDeploymentComplete({
-        success: result.success,
-        fairlaunchAddress: result.fairlaunchAddress,
-        vestingAddress: result.vestingAddress,
-        transactionHash: result.transactionHash,
-        error: result.error,
-      });
-    }
-  }, [result, onDeploymentComplete]);
+  const [isDeploying, setIsDeploying] = React.useState(false);
 
   /**
-   * Main deployment function that follows wizard pattern
+   * Main deployment function - calls backend API
    */
   const handleDeploy = async (): Promise<{
     success: boolean;
-    fairlaunchAddress?: string;
-    vestingAddress?: string;
+    launchRoundId?: string;
+    contractAddress?: string;
     transactionHash?: string;
     error?: string;
   }> => {
     try {
+      setIsDeploying(true);
       onDeploymentStart?.();
 
-      // Step 1: Prepare deployment parameters via backend
-      const prepareResult = await prepareFairlaunchDeployment({
-        network: wizardData.network,
-        tokenAddress: wizardData.tokenAddress as Address,
-        tokenDecimals: wizardData.tokenDecimals,
-        tokensForSale: wizardData.tokensForSale,
-        softcap: wizardData.softcap,
-        startTime: wizardData.startTime,
-        endTime: wizardData.endTime,
-        minContribution: wizardData.minContribution,
-        maxContribution: wizardData.maxContribution,
-        dexPlatform: wizardData.dexPlatform,
-        listingPremiumBps: wizardData.listingPremiumBps || 1000,
-        liquidityPercent: wizardData.liquidityPercent,
-        lpLockMonths: wizardData.lpLockMonths,
-        teamAllocation: wizardData.teamAllocation || 0,
-        vestingBeneficiary: (wizardData.vestingBeneficiary as Address) || wizardData.account,
-        vestingSchedule: wizardData.vestingSchedule || [],
-        userAddress: wizardData.account as Address,
-      });
-
-      if (!prepareResult.success || !prepareResult.params) {
-        throw new Error(prepareResult.error || 'Failed to prepare deployment parameters');
+      // Get auth token from Supabase
+      // We assume supabase client is available or we use the browser client
+      const { createBrowserClient } = await import('@supabase/ssr');
+      const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      );
+      
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError || !session) {
+         throw new Error('Not authenticated. Please sign in.');
       }
 
-      // Step 2: Deploy via wagmi
-      const deploymentParams: DeploymentParams = {
-        projectToken: prepareResult.params.projectToken,
-        paymentToken: prepareResult.params.paymentToken,
-        softcap: prepareResult.params.softcap,
-        tokensForSale: prepareResult.params.tokensForSale,
-        minContribution: prepareResult.params.minContribution,
-        maxContribution: prepareResult.params.maxContribution,
-        startTime: prepareResult.params.startTime,
-        endTime: prepareResult.params.endTime,
-        projectOwner: prepareResult.params.projectOwner,
-        listingPremiumBps: prepareResult.params.listingPremiumBps,
-        vestingBeneficiary: prepareResult.params.vestingParams.beneficiary,
-        vestingStartTime: prepareResult.params.vestingParams.startTime,
-        vestingDurations: prepareResult.params.vestingParams.durations,
-        vestingAmounts: prepareResult.params.vestingParams.amounts,
-        lockMonths: prepareResult.params.lpPlan.lockMonths,
-        liquidityPercent: prepareResult.params.lpPlan.liquidityPercent,
-        dexId: prepareResult.params.lpPlan.dexId,
+      const token = session.access_token;
+
+      // Prepare deployment payload
+      const deployPayload = {
+        // Token configuration
+        projectToken: wizardData.tokenAddress,
+        tokenDecimals: wizardData.tokenDecimals || 18,
+        
+        // Sale parameters
+        softcap: wizardData.softcap,
+        tokensForSale: wizardData.tokensForSale,
+        minContribution: wizardData.minContribution,
+        maxContribution: wizardData.maxContribution,
+        
+        // Timing
+        startTime: wizardData.startTime,
+        endTime: wizardData.endTime,
+        
+        // Liquidity settings
+        liquidityPercent: wizardData.liquidityPercent || 70,
+        lpLockMonths: wizardData.lpLockMonths || 24,
+        listingPremiumBps: wizardData.listingPremiumBps || 0,
+        dexPlatform: wizardData.dexPlatform || 'PancakeSwap',
+        
+        // Team vesting
+        teamVestingAddress: wizardData.vestingAddress || null,
+        
+        // Creator and network
+        creatorWallet: wizardData.account,
+        chainId: wizardData.chainId || 97,
       };
 
-      const deployResult = await deploy(deploymentParams);
+      console.log('[Orchestrator] Deploying via API:', deployPayload);
 
-      // Note: The actual deployment happens asynchronously
-      // Result will be picked up by useEffect above and passed to onDeploymentComplete
-      
-      return {
+      // Call backend deployment API
+      const response = await fetch('/api/fairlaunch/deploy', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(deployPayload),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || data.details?.join(', ') || 'Deployment failed');
+      }
+
+      console.log('[Orchestrator] Deployment successful:', data);
+
+      // Notify completion
+      const result = {
         success: true,
-        // These will be populated once transaction completes
+        launchRoundId: data.launchRoundId,
+        contractAddress: data.contractAddress as Address,
+        transactionHash: data.txHash,
+        nextStep: data.nextStep,
+        tokenInfo: data.tokenInfo,
       };
+
+      onDeploymentComplete?.(result);
+
+      return result;
     } catch (error: any) {
-      console.error('[FairlaunchDeploymentOrchestrator] Error:', error);
-      return {
+      console.error('[Orchestrator] Deployment error:', error);
+      
+      const errorResult = {
         success: false,
         error: error.message || 'Deployment failed',
       };
+
+      onDeploymentComplete?.(errorResult);
+
+      return errorResult;
+    } finally {
+      setIsDeploying(false);
     }
   };
 

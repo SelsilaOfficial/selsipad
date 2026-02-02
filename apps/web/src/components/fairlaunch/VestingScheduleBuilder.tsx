@@ -30,14 +30,20 @@ export function VestingScheduleBuilder({
 
   const updatePeriod = (index: number, field: 'month' | 'percentage', value: number) => {
     const updated = [...schedule];
-    updated[index] = { ...updated[index], [field]: value };
+    const item = { ...updated[index] } as VestingScheduleUI;
+    if (field === 'month') {
+      item.month = value;
+    } else {
+      item.percentage = value;
+    }
+    updated[index] = item;
     onChange(updated);
   };
 
   const applyPreset = (presetName: string) => {
     const preset = getVestingPreset(presetName);
     if (preset.length > 0) {
-      onChange(preset);
+      onChange(preset as VestingScheduleUI[]);
     }
   };
 
