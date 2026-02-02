@@ -24,6 +24,7 @@ interface Fairlaunch {
   // Added fields
   contract_address?: string;
   deployment_status?: string;
+  vesting_vault_address?: string;
   project?: {
     id: string;
     name: string;
@@ -557,6 +558,58 @@ function OverviewTab({
                 >
                   <Copy className="w-4 h-4 text-gray-400" />
                 </button>
+              )}
+            </div>
+          </div>
+          <div className="p-4 bg-gray-800 rounded-lg col-span-full">
+            <div className="text-sm text-gray-400 mb-1">Pool Contract Address</div>
+            <div className="flex items-center gap-2">
+              <code className="text-white font-mono text-sm">{fairlaunch.contract_address || fairlaunch.params?.contract_address || 'Not deployed yet'}</code>
+              {(fairlaunch.contract_address || fairlaunch.params?.contract_address) && (
+                <>
+                  <button
+                    onClick={() => navigator.clipboard.writeText(fairlaunch.contract_address || fairlaunch.params.contract_address)}
+                    className="p-1 hover:bg-gray-700 rounded transition-colors"
+                    title="Copy address"
+                  >
+                    <Copy className="w-4 h-4 text-gray-400" />
+                  </button>
+                  <a
+                    href={`${getExplorerUrl(String(fairlaunch.chain_id || fairlaunch.chain))}/address/${fairlaunch.contract_address || fairlaunch.params?.contract_address}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-1 hover:bg-gray-700 rounded transition-colors"
+                    title="View on explorer"
+                  >
+                    <ExternalLink className="w-4 h-4 text-gray-400" />
+                  </a>
+                </>
+              )}
+            </div>
+          </div>
+          <div className="p-4 bg-gray-800 rounded-lg col-span-full">
+            <div className="text-sm text-gray-400 mb-1">Vesting Vault Address</div>
+            <div className="flex items-center gap-2">
+              <code className="text-white font-mono text-sm">{fairlaunch.vesting_vault_address || 'Not deployed yet'}</code>
+              {fairlaunch.vesting_vault_address && (
+                <>
+                  <button
+                    onClick={() => navigator.clipboard.writeText(fairlaunch.vesting_vault_address)}
+                    className="p-1 hover:bg-gray-700 rounded transition-colors"
+                    title="Copy address"
+                  >
+                    <Copy className="w-4 h-4 text-gray-400" />
+                  </button>
+                  <a
+                    href={`${getExplorerUrl(String(fairlaunch.chain_id || fairlaunch.chain))}/address/${fairlaunch.vesting_vault_address}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-1 hover:bg-gray-700 rounded transition-colors"
+                    title="View on explorer"
+                  >
+                    <ExternalLink className="w-4 h-4 text-gray-400" />
+                  </a>
+                </>
               )}
             </div>
           </div>

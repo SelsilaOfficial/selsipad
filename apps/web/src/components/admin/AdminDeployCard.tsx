@@ -1,4 +1,5 @@
 import { Rocket, ExternalLink, Clock, DollarSign } from 'lucide-react';
+import { VerificationBadge, type VerificationStatus } from '@/components/shared/VerificationBadge';
 
 interface AdminDeployCardProps {
   project: {
@@ -20,6 +21,10 @@ interface AdminDeployCardProps {
       escrow_tx_hash?: string;
       escrow_amount?: string;
       creation_fee_paid?: string;
+      contract_address?: string;
+      verification_status?: VerificationStatus;
+      vesting_vault_address?: string;
+      vesting_verification_status?: VerificationStatus;
     }[];
   };
   onDeploy?: (launchRoundId: string) => void;
@@ -63,7 +68,33 @@ export function AdminDeployCard({ project, onDeploy, onPause, isLive }: AdminDep
               <span className="px-2 py-1 bg-blue-500/20 text-blue-300 rounded">
                 {getNetworkName(project.chain_id)}
               </span>
+              {launchRound?.contract_address && (
+                <span className="text-gray-400 font-mono">
+                  {launchRound.contract_address.slice(0, 6)}...{launchRound.contract_address.slice(-4)}
+                </span>
+              )}
             </div>
+            
+            {/* Verification Status */}
+            {launchRound?.verification_status && (
+              <div className="flex items-center gap-2 mt-2">
+                <VerificationBadge
+                  status={launchRound.verification_status}
+                  contractAddress={launchRound.contract_address}
+                  chainId={project.chain_id}
+                />
+                {launchRound.vesting_vault_address && launchRound.vesting_verification_status && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-gray-500">Vesting:</span>
+                    <VerificationBadge
+                      status={launchRound.vesting_verification_status}
+                      contractAddress={launchRound.vesting_vault_address}
+                      chainId={project.chain_id}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>

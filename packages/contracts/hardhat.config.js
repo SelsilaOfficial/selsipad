@@ -1,8 +1,6 @@
-import '@nomicfoundation/hardhat-toolbox';
-import '@nomicfoundation/hardhat-verify';
-import  { config as dotenvConfig } from 'dotenv';
-
-dotenvConfig();
+require('@nomicfoundation/hardhat-toolbox');
+require('@nomicfoundation/hardhat-verify');
+require('dotenv').config();
 
 const DEPLOYER_PRIVATE_KEY =
   process.env.DEPLOYER_PRIVATE_KEY ||
@@ -17,7 +15,7 @@ function getValidAccounts(...keys) {
 }
 
 /** @type import('hardhat/config').HardhatUserConfig */
-export default {
+module.exports = {
   solidity: {
     version: '0.8.20',
     settings: {
@@ -60,23 +58,8 @@ export default {
     },
   },
   etherscan: {
-    apiKey: {
-      sepolia: process.env.ETHERSCAN_API_KEY || '',
-      bscTestnet: process.env.BSCSCAN_API_KEY || '',
-      bsc: process.env.BSCSCAN_API_KEY || '',
-      baseSepolia: process.env.BASESCAN_API_KEY || '',
-      base: process.env.BASESCAN_API_KEY || '',
-    },
-    customChains: [
-      {
-        network: 'bscTestnet',
-        chainId: 97,
-        urls: {
-          apiURL: 'https://api-testnet.bscscan.com/api',
-          browserURL: 'https://testnet.bscscan.com',
-        },
-      },
-    ],
+    // Use V2 API format with single API key
+    apiKey: process.env.BSCSCAN_API_KEY || '',
   },
   sourcify: {
     enabled: false,

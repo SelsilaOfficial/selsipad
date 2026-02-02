@@ -423,7 +423,7 @@ export function FairlaunchReviewClient({ round }: FairlaunchReviewClientProps) {
             {round.deployed_at && (
               <div>
                 <p className="text-gray-400 text-sm">Deployed At</p>
-                <p className="text-white">{new Date(round.deployed_at).toLocaleString()}</p>
+                <p className="text-white" suppressHydrationWarning>{new Date(round.deployed_at).toLocaleString()}</p>
               </div>
             )}
           </div>

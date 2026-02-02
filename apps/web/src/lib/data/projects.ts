@@ -207,6 +207,18 @@ export async function getAllProjects(filters?: {
       return [];
     }
 
+    console.log('[Explore Debug] Total projects from DB:', data?.length || 0);
+    console.log('[Explore Debug] Sample project with rounds:', data?.[0] ? {
+      projectName: data[0].name,
+      projectStatus: data[0].status,
+      roundsCount: data[0].launch_rounds?.length || 0,
+      rounds: data[0].launch_rounds?.map((r: any) => ({
+        id: r.id,
+        status: r.status,
+        type: r.type,
+      }))
+    } : 'No projects');
+
     // Map each project with its launch_round data
     let projects = (data || []).flatMap((project: any) => {
       // If project has no launch_rounds, skip it
@@ -215,7 +227,15 @@ export async function getAllProjects(filters?: {
       }
 
       // Map each launch_round to a project entry
-      return project.launch_rounds.map((round: any) => {
+      // Filter: Only show rounds that are ready for public viewing
+      return project.launch_rounds
+        .filter((round: any) => {
+          const status = round.status?.toUpperCase();
+          console.log('[Explore Debug] Round status:', status, 'for project:', project.name);
+          // Show if: APPROVED_TO_DEPLOY (approved by admin), DEPLOYED, LIVE, or ACTIVE
+          return status === 'APPROVED_TO_DEPLOY' || status === 'APPROVED' || status === 'DEPLOYED' || status === 'LIVE' || status === 'ACTIVE';
+        })
+        .map((round: any) => {
         const params = round.params || {};
         
         return {
@@ -237,6 +257,15 @@ export async function getAllProjects(filters?: {
         };
       });
     });
+
+    console.log('[Explore Debug] Projects after filtering:', projects.length);
+    if (projects.length > 0) {
+      console.log('[Explore Debug] Sample filtered project:', {
+        name: projects[0].name,
+        status: projects[0].status,
+        type: projects[0].type,
+      });
+    }
 
     // Client-side filtering
     if (filters?.network) {

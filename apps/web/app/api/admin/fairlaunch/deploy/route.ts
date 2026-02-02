@@ -314,7 +314,7 @@ export async function POST(request: NextRequest) {
         status: 'DEPLOYED',
         contract_address: contractAddress,
         deployment_tx_hash: receipt.hash,
-        verification_status: 'UNVERIFIED',
+        // verification_status removed - not in projects table
       })
       .eq('id', project.id);
 
@@ -331,8 +331,9 @@ export async function POST(request: NextRequest) {
         vesting_vault_address: vestingAddress, // Save vesting vault address
         deployed_at: new Date().toISOString(),
         deployment_tx_hash: receipt.hash,
-        admin_deployer_id: session.userId,
-        verification_status: 'UNVERIFIED',
+        // admin_deployer_id removed - foreign key constraint issue
+        verification_status: 'VERIFICATION_PENDING', // Will be updated by verification service
+        vesting_verification_status: 'VERIFICATION_PENDING',
       })
       .eq('id', launchRoundId);
 
@@ -342,14 +343,77 @@ export async function POST(request: NextRequest) {
 
     console.log('[Admin Deploy] ✅ Database updated');
 
-    // 14. Return success (verification TODO)
+    // 14. Trigger auto-verification (non-blocking)
+    console.log('[Admin Deploy] Triggering auto-verification...');
+    
+    // Build constructor args for Fairlaunch
+    const fairlaunchArgs = [
+      project.token_address, // projectToken
+      '0x0000000000000000000000000000000000000000', // paymentToken (native)
+      createParams.softcap.toString(), // softcap
+      createParams.tokensForSale.toString(), // tokensForSale
+      createParams.minContribution.toString(), // minContribution
+      createParams.maxContribution.toString(), // maxContribution
+      Number(createParams.startTime), // startTime
+      Number(createParams.endTime), // endTime
+      Number(createParams.listingPremiumBps), // listingPremiumBps
+      params.creator_wallet, // feeSplitter (temp: using creator wallet)
+      vestingAddress, // teamVesting
+      params.creator_wallet, // projectOwner
+      factoryAddress, // adminExecutor
+      Number(lpPlan.liquidityPercent), // liquidityPercent
+      Number(lpPlan.lockMonths), // lpLockMonths
+      lpPlan.dexId, // dexId
+    ];
+
+    // Trigger Fairlaunch verification
+    fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001'}/api/internal/verify-contract`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contractAddress,
+        contractType: 'fairlaunch',
+        launchRoundId,
+        constructorArgs: fairlaunchArgs,
+        chainId: 97, // BSC Testnet
+      }),
+    }).catch(err => {
+      console.error('[Admin Deploy] Failed to trigger Fairlaunch verification:', err);
+    });
+
+    // Build constructor args for Vesting
+    const vestingArgs = [
+      vestingParams.beneficiary, // beneficiary
+      vestingParams.startTime.toString(), // startTime - convert to string
+      vestingParams.durations.map((d: any) => d.toString()), // durations array - convert all to string
+      vestingParams.amounts.map((a: any) => a.toString()), // amounts array - convert all to string
+    ];
+
+    // Trigger Vesting verification
+    fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001'}/api/internal/verify-contract`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contractAddress: vestingAddress,
+        contractType: 'vesting',
+        launchRoundId,
+        constructorArgs: vestingArgs,
+        chainId: 97,
+      }),
+    }).catch(err => {
+      console.error('[Admin Deploy] Failed to trigger Vesting verification:', err);
+    });
+
+    console.log('[Admin Deploy] ✅ Verification requests sent');
+
+    // 15. Return success
     return NextResponse.json({
       success: true,
       projectId: project.id,
       launchRoundId,
       contractAddress,
       txHash: receipt.hash,
-      blockNumber: receipt.blockNumber,
+      blockNumber: receipt.blockNumber.toString(), // Convert BigInt to string
       status: 'DEPLOYED',
       verified: false, // Will be updated by verification process
     });
