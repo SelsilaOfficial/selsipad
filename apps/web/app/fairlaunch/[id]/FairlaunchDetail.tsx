@@ -337,7 +337,7 @@ export function FairlaunchDetail({ fairlaunch, userAddress }: FairlaunchDetailPr
               <div className="text-xl font-bold text-green-400">
                 <Countdown targetDate={fairlaunch.end_at} />
               </div>
-              <div className="text-gray-500 text-[10px] mt-1">
+              <div className="text-gray-500 text-[10px] mt-1" suppressHydrationWarning>
                 {Intl.DateTimeFormat().resolvedOptions().timeZone}
               </div>
             </div>
@@ -348,7 +348,7 @@ export function FairlaunchDetail({ fairlaunch, userAddress }: FairlaunchDetailPr
               <div className="text-xl font-bold text-blue-400">
                 <Countdown targetDate={fairlaunch.start_at} />
               </div>
-              <div className="text-gray-500 text-[10px] mt-1">
+              <div className="text-gray-500 text-[10px] mt-1" suppressHydrationWarning>
                 {Intl.DateTimeFormat().resolvedOptions().timeZone}
               </div>
             </div>
