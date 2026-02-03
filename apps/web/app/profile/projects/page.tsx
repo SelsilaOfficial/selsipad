@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Rocket, Loader2, Filter } from 'lucide-react';
+import Link from 'next/link';
+import { Rocket, Loader2, Filter, ArrowLeft } from 'lucide-react';
 import { ProjectStatusCard } from '@/components/developer/ProjectStatusCard';
 import { getServerSession } from '@/lib/auth/session';
 
@@ -91,47 +92,57 @@ export default function ProjectsPage() {
     <div className="min-h-screen bg-gradient-to-b from-gray-900 via-purple-900 to-gray-900 text-white">
       <div className="max-w-7xl mx-auto px-4 py-12">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-4xl font-bold mb-2 flex items-center gap-3">
-              <Rocket className="w-10 h-10 text-purple-400" />
-              My Projects
-            </h1>
-            <p className="text-gray-400">Track your Fairlaunch and Presale projects</p>
-          </div>
+        <div className="flex flex-col gap-4 mb-8">
+          <Link 
+            href="/profile" 
+            className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors w-fit"
+          >
+            <ArrowLeft size={20} />
+            <span>Back to Profile</span>
+          </Link>
 
-          {/* Filter */}
-          <div className="flex items-center gap-2 bg-gray-800 rounded-lg p-1">
-            <button
-              onClick={() => setFilter('ALL')}
-              className={`px-4 py-2 rounded-lg transition ${
-                filter === 'ALL' 
-                  ? 'bg-purple-600 text-white' 
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              All
-            </button>
-            <button
-              onClick={() => setFilter('FAIRLAUNCH')}
-              className={`px-4 py-2 rounded-lg transition ${
-                filter === 'FAIRLAUNCH' 
-                  ? 'bg-purple-600 text-white' 
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              Fairlaunch
-            </button>
-            <button
-              onClick={() => setFilter('PRESALE')}
-              className={`px-4 py-2 rounded-lg transition ${
-                filter === 'PRESALE' 
-                  ? 'bg-purple-600 text-white' 
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              Presale
-            </button>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-4xl font-bold mb-2 flex items-center gap-3">
+                <Rocket className="w-10 h-10 text-purple-400" />
+                My Projects
+              </h1>
+              <p className="text-gray-400">Track your Fairlaunch and Presale projects</p>
+            </div>
+
+            {/* Filter */}
+            <div className="flex items-center gap-2 bg-gray-800 rounded-lg p-1">
+              <button
+                onClick={() => setFilter('ALL')}
+                className={`px-4 py-2 rounded-lg transition ${
+                  filter === 'ALL' 
+                    ? 'bg-purple-600 text-white' 
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                All
+              </button>
+              <button
+                onClick={() => setFilter('FAIRLAUNCH')}
+                className={`px-4 py-2 rounded-lg transition ${
+                  filter === 'FAIRLAUNCH' 
+                    ? 'bg-purple-600 text-white' 
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                Fairlaunch
+              </button>
+              <button
+                onClick={() => setFilter('PRESALE')}
+                className={`px-4 py-2 rounded-lg transition ${
+                  filter === 'PRESALE' 
+                    ? 'bg-purple-600 text-white' 
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                Presale
+              </button>
+            </div>
           </div>
         </div>
 

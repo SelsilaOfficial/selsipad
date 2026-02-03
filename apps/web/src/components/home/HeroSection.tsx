@@ -7,7 +7,7 @@ import Image from 'next/image';
 
 export function HeroSection() {
   return (
-    <section className="relative min-h-[85vh] flex items-center justify-center overflow-hidden pt-16">
+    <section className="relative min-h-[65vh] flex items-center justify-center overflow-hidden pt-20">
       {/* Background handled by PageBackground */}
 
       <div className="relative z-10 container mx-auto px-4 text-center">
@@ -16,7 +16,7 @@ export function HeroSection() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 backdrop-blur-md mb-8 hover:bg-white/10 transition-colors cursor-default"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 backdrop-blur-md mb-4 hover:bg-white/10 transition-colors cursor-default"
         >
           <span className="flex h-2 w-2 relative">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
@@ -30,7 +30,7 @@ export function HeroSection() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.1 }}
-          className="text-5xl md:text-7xl lg:text-8xl font-black tracking-tight mb-6"
+          className="text-5xl md:text-7xl lg:text-8xl font-black tracking-tight mb-4"
         >
           <span className="text-white">Launch the</span>
           <br />
@@ -44,7 +44,7 @@ export function HeroSection() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.2 }}
-          className="text-lg md:text-xl text-gray-400 max-w-2xl mx-auto mb-10 leading-relaxed"
+          className="text-lg md:text-xl text-gray-400 max-w-2xl mx-auto mb-8 leading-relaxed"
         >
           The premier multi-chain platform for Fairlaunch, Presales, and Bonding Curves. 
           Secure, transparent, and built for the community.
@@ -81,14 +81,14 @@ export function HeroSection() {
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.5 }}
-          className="mt-20 pt-10 border-t border-white/5 grid grid-cols-2 md:grid-cols-4 gap-8 max-w-4xl mx-auto"
+          className="mt-12 pt-8 border-t border-white/5 grid grid-cols-2 md:grid-cols-4 gap-8 max-w-4xl mx-auto"
         >
-          {STATS.map((stat, idx) => (
-            <div key={idx} className="text-center group hover:bg-white/5 p-4 rounded-xl transition-colors cursor-default">
-              <div className="text-3xl font-bold text-white mb-1 group-hover:text-indigo-300 transition-colors">{stat.value}</div>
-              <div className="text-sm text-gray-500 font-medium tracking-wide uppercase">{stat.label}</div>
-            </div>
-          ))}
+           {STATS.map((stat, idx) => (
+             <div key={idx} className="text-center group hover:bg-white/5 p-4 rounded-xl transition-colors cursor-default">
+               <div className="text-3xl font-bold text-white mb-1 group-hover:text-indigo-300 transition-colors">{stat.value}</div>
+               <div className="text-sm text-gray-500 font-medium tracking-wide uppercase">{stat.label}</div>
+             </div>
+           ))}
         </motion.div>
       </div>
     </section>

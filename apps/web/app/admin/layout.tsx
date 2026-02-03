@@ -1,6 +1,7 @@
 'use client';
 
 import { EVMWalletProvider } from '@/lib/wallet/EVMWalletProvider';
+import { AdminShell } from '@/components/admin/AdminShell';
 
 export default function AdminLayout({
   children,
@@ -10,7 +11,9 @@ export default function AdminLayout({
   // Admin layout with EVM wallet provider for RainbowKit
   return (
     <EVMWalletProvider>
-      <div className="min-h-screen bg-black p-6">{children}</div>
+      <AdminShell>
+        {children}
+      </AdminShell>
     </EVMWalletProvider>
   );
 }
