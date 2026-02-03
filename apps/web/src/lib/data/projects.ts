@@ -197,6 +197,8 @@ export async function getAllProjects(filters?: {
           start_at,
           end_at,
           contract_address,
+          total_raised,
+          total_participants,
           params
         )
       `)
@@ -232,8 +234,8 @@ export async function getAllProjects(filters?: {
         .filter((round: any) => {
           const status = round.status?.toUpperCase();
           console.log('[Explore Debug] Round status:', status, 'for project:', project.name);
-          // Show if: APPROVED_TO_DEPLOY (approved by admin), DEPLOYED, LIVE, or ACTIVE
-          return status === 'APPROVED_TO_DEPLOY' || status === 'APPROVED' || status === 'DEPLOYED' || status === 'LIVE' || status === 'ACTIVE';
+          // Show if: APPROVED_TO_DEPLOY (approved by admin), DEPLOYED, LIVE, ACTIVE, or ENDED
+          return status === 'APPROVED_TO_DEPLOY' || status === 'APPROVED' || status === 'DEPLOYED' || status === 'LIVE' || status === 'ACTIVE' || status === 'ENDED';
         })
         .map((round: any) => {
         const params = round.params || {};
@@ -248,7 +250,7 @@ export async function getAllProjects(filters?: {
           network: mapChainToNetwork(round.chain),
           chain: round.chain, // Add specific chain ID
           status: calculateRealTimeStatus(round),
-          raised: params.total_raised || 0,
+          raised: Number(round.total_raised) || 0,
           target: params.softcap || params.hardcap || 1000,
           kyc_verified: !!project.kyc_submission_id,
           audit_status: project.scan_result_id ? 'pass' : null,

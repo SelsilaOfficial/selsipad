@@ -12,14 +12,11 @@ export async function saveFairlaunchContribution(params: {
   amount: string; // in wei
   txHash: string;
   chain: string;
+  walletAddress: string; // Wallet address from client
 }): Promise<{ success: boolean; error?: string }> {
   try {
-    // Get current session
+    // Get current session (optional for referral tracking)
     const session = await getServerSession();
-    
-    if (!session) {
-      return { success: false, error: 'Not authenticated' };
-    }
     
     const supabase = createClient();
     
@@ -34,16 +31,22 @@ export async function saveFairlaunchContribution(params: {
       return { success: false, error: 'Round not found' };
     }
     
+    // Convert amount from wei to ether for database storage
+    const amountInEther = (Number(params.amount) / 1e18).toString();
+    
     // Save contribution to database
+    // IMPORTANT: status must be 'CONFIRMED' to trigger total_raised update
+    // Note: user_id is nullable because wallet-only auth may not populate auth.users
     const { error: insertError } = await supabase
       .from('contributions')
       .insert({
         round_id: params.roundId,
-        user_id: session.userId,
-        amount: params.amount,
-        payment_token: round.raise_asset || 'NATIVE',
-        tx_hash: params.txHash,
+        user_id: null, // Nullable - wallet-only auth doesn't use auth.users
+        wallet_address: params.walletAddress.toLowerCase(), // Use provided wallet address
+        amount: amountInEther,
         chain: params.chain,
+        tx_hash: params.txHash,
+        status: 'CONFIRMED',
       });
     
     if (insertError) {
@@ -54,16 +57,21 @@ export async function saveFairlaunchContribution(params: {
       }
     }
     
+    
     // ✅ Record for referral tracking
-    await recordContribution({
-      userId: session.userId,
-      sourceType: 'FAIRLAUNCH',
-      sourceId: params.roundId,
-      amount: params.amount,
-      asset: round.raise_asset || 'NATIVE',
-      chain: params.chain,
-      txHash: params.txHash,
-    });
+    // Skip if userId is null (wallet-only auth) or no session
+    if (session?.userId) {
+      await recordContribution({
+        userId: session.userId,
+        sourceType: 'FAIRLAUNCH',
+        sourceId: params.roundId,
+        amount: params.amount,
+        asset: round.raise_asset || 'NATIVE',
+        chain: params.chain,
+        txHash: params.txHash,
+      });
+    }
+    
     
     return { success: true };
   } catch (error: any) {

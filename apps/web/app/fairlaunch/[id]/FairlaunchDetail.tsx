@@ -80,9 +80,41 @@ function getNativeCurrency(chain?: string, chainId?: string | number): string {
   const c = chain?.toLowerCase() || '';
   const cid = chainId?.toString() || '';
   
-  if (c.includes('bsc') || c.includes('bnb') || cid === '97' || cid === '56') return 'BNB';
-  if (c.includes('base') || c.includes('eth') || cid === '8453' || cid === '84532' || cid === '1' || cid === '11155111') return 'ETH';
+  // Debug logging
+  console.log('getNativeCurrency debug:', { chain, chainId, c, cid });
   
+  // IMPORTANT: Sometimes chain_id is stored in 'chain' field instead of 'chainId'
+  // Check if 'chain' is a number (like '97', '56', etc.)
+  const isChainNumeric = /^\d+$/.test(c);
+  const effectiveChainId = isChainNumeric ? c : cid;
+  
+  console.log('Effective chain ID:', effectiveChainId);
+  
+  // Check chain_id first (most reliable)
+  if (effectiveChainId === '97' || effectiveChainId === '56') {
+    console.log('Detected BNB chain by ID:', effectiveChainId);
+    return 'BNB';
+  }
+  
+  // Then check chain string (only if not numeric)
+  if (!isChainNumeric && (c.includes('bsc') || c.includes('bnb'))) {
+    console.log('Detected BNB chain by name:', c);
+    return 'BNB';
+  }
+  
+  // Base network
+  if (effectiveChainId === '8453' || effectiveChainId === '84532' || c.includes('base')) {
+    console.log('Detected Base chain');
+    return 'ETH';
+  }
+  
+  // Ethereum networks
+  if (effectiveChainId === '1' || effectiveChainId === '11155111' || c.includes('eth') || c.includes('sepolia')) {
+    console.log('Detected Ethereum chain');
+    return 'ETH';
+  }
+  
+  console.warn('Unknown network, defaulting to ETH. chain:', c, 'chainId:', cid, 'effectiveChainId:', effectiveChainId);
   return 'ETH'; // Default
 }
 
@@ -97,6 +129,17 @@ export function FairlaunchDetail({ fairlaunch, userAddress }: FairlaunchDetailPr
   // Network logic: prefer explicit chain_id, fall back to chain string
   const chainId = fairlaunch.chain_id || fairlaunch.project?.chain_id || fairlaunch.params?.chain_id;
   const chainKey = fairlaunch.chain || '';
+  
+  // Debug logging for network detection
+  console.log('Fairlaunch network debug:', {
+    fairlaunch_chain_id: fairlaunch.chain_id,
+    fairlaunch_chain: fairlaunch.chain,
+    project_chain_id: fairlaunch.project?.chain_id,
+    params_chain_id: fairlaunch.params?.chain_id,
+    resolved_chainId: chainId,
+    resolved_chainKey: chainKey
+  });
+  
   const networkName = getNetworkDisplay(chainKey, chainId);
   const nativeCurrency = getNativeCurrency(chainKey, chainId);
   
@@ -153,14 +196,33 @@ export function FairlaunchDetail({ fairlaunch, userAddress }: FairlaunchDetailPr
   // Ensure we don't show negative unlocked if data is bad
   const unlockedPercent = Math.max(0, 100 - presalePercent - teamPercent);
 
-  const tabs: { key: TabType; label: string; enabled: boolean }[] = [
+  // Calculate time-based status
+  const timeStatus = getTimeStatus(fairlaunch.start_at, fairlaunch.end_at);
+  const isLive = timeStatus === 'live';
+  const isEnded = timeStatus === 'ended';
+  const isFinalized = fairlaunch.status === 'FINALIZED_SUCCESS' || fairlaunch.status === 'FINALIZED_FAIL';
+
+  const tabs: { key: TabType; label: string; enabled: boolean; hasIndicator?: boolean }[] = [
     { key: 'overview', label: 'Overview', enabled: true },
-    { key: 'contribute', label: 'Contribute', enabled: fairlaunch.status === 'LIVE' },
-    { key: 'claim', label: 'Claim', enabled: fairlaunch.status === 'FINALIZED_SUCCESS' },
+    { 
+      key: 'contribute', 
+      label: 'Contribute', 
+      // Enable if time-based status is 'live' OR database status is 'LIVE'
+      enabled: isLive || fairlaunch.status === 'LIVE',
+      hasIndicator: isLive || fairlaunch.status === 'LIVE'
+    },
+    { 
+      key: 'claim', 
+      label: 'Claim', 
+      // Enable if ended OR status is ENDED
+      enabled: isEnded || fairlaunch.status === 'ENDED',
+      hasIndicator: isEnded || fairlaunch.status === 'ENDED'
+    },
     {
       key: 'refund',
       label: 'Refund',
-      enabled: ['FINALIZED_FAIL', 'REFUNDING'].includes(fairlaunch.status),
+      // Enable if ended and finalized as fail, or in refunding status
+      enabled: (isEnded && fairlaunch.status === 'FINALIZED_FAIL') || fairlaunch.status === 'REFUNDING'
     },
     { key: 'transactions', label: 'Transactions', enabled: !!userAddress },
   ];
@@ -392,7 +454,7 @@ export function FairlaunchDetail({ fairlaunch, userAddress }: FairlaunchDetailPr
               key={tab.key}
               onClick={() => tab.enabled && setActiveTab(tab.key)}
               disabled={!tab.enabled}
-              className={`pb-3 px-1 font-medium transition-colors whitespace-nowrap ${
+              className={`pb-3 px-1 font-medium transition-colors whitespace-nowrap relative ${
                 activeTab === tab.key
                   ? 'text-green-400 border-b-2 border-green-400'
                   : tab.enabled
@@ -401,6 +463,9 @@ export function FairlaunchDetail({ fairlaunch, userAddress }: FairlaunchDetailPr
               }`}
             >
               {tab.label}
+              {tab.hasIndicator && activeTab !== tab.key && (
+                <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+              )}
             </button>
           ))}
         </div>
@@ -426,9 +491,9 @@ export function FairlaunchDetail({ fairlaunch, userAddress }: FairlaunchDetailPr
           />
         )}
         {activeTab === 'contribute' && <ContributeTab userAddress={userAddress} fairlaunch={fairlaunch} />}
-        {activeTab === 'claim' && <ClaimTab />}
+        {activeTab === 'claim' && <ClaimTab fairlaunch={fairlaunch} userAddress={userAddress} />}
         {activeTab === 'refund' && <RefundTab />}
-        {activeTab === 'transactions' && <TransactionsTab userAddress={userAddress} />}
+        {activeTab === 'transactions' && <TransactionsTab roundId={fairlaunch.id} chain={fairlaunch.chain} />}
       </div>
     </div>
   );
@@ -753,7 +818,21 @@ function ContributeTab({ userAddress, fairlaunch }: { userAddress?: string; fair
   const publicClient = usePublicClient();
   
   // Get contract address and network info
-  const fairlaunchAddress = fairlaunch.params?.round_address as `0x${string}` | undefined;
+  // Try multiple sources for contract address
+  const fairlaunchAddress = (
+    fairlaunch.contract_address || 
+    fairlaunch.params?.round_address || 
+    fairlaunch.params?.contract_address
+  ) as `0x${string}` | undefined;
+  
+  console.log('ContributeTab - Contract address debug:', {
+    contract_address: fairlaunch.contract_address,
+    params_round_address: fairlaunch.params?.round_address,
+    params_contract_address: fairlaunch.params?.contract_address,
+    resolved_address: fairlaunchAddress,
+    deployment_status: fairlaunch.deployment_status
+  });
+  
   const minContribution = Number(fairlaunch.params?.min_contribution || 0);
   const maxContribution = Number(fairlaunch.params?.max_contribution || 0);
   const nativeCurrency = getNativeCurrency(fairlaunch.chain, String(fairlaunch.params?.chain_id || ''));
@@ -827,17 +906,28 @@ function ContributeTab({ userAddress, fairlaunch }: { userAddress?: string; fair
       }
       
       // ✅ Save to database and trigger referral tracking
+      console.log('[ContributeTab] Saving contribution:', {
+        roundId: fairlaunch.id,
+        amount: valueInWei.toString(),
+        txHash,
+        chain: String(fairlaunch.params?.chain_id || fairlaunch.chain || '97'),
+      });
+      
       const { saveFairlaunchContribution } = await import('@/actions/fairlaunch/save-contribution');
       const saveResult = await saveFairlaunchContribution({
         roundId: fairlaunch.id,
         amount: valueInWei.toString(),
         txHash,
-        chain: fairlaunch.params?.chain_id || fairlaunch.chain,
+        chain: String(fairlaunch.params?.chain_id || fairlaunch.chain || '97'),
+        walletAddress: userAddress, // Pass wallet address from client
       });
       
+      console.log('[ContributeTab] Save result:', saveResult);
+      
       if (!saveResult.success) {
-        console.error('Failed to save contribution:', saveResult.error);
-        // Don't fail the whole transaction, just log
+        console.error('[ContributeTab] Failed to save contribution:', saveResult.error);
+        // Alert user but don't fail the whole transaction
+        alert(`⚠️ Transaction successful but failed to update database: ${saveResult.error}\n\nPlease contact support with TX: ${txHash}`);
       }
       
       setSuccess(`Contribution successful! You contributed ${amount} ${nativeCurrency}`);
@@ -868,13 +958,23 @@ function ContributeTab({ userAddress, fairlaunch }: { userAddress?: string; fair
     );
   }
   
-  if (fairlaunch.status !== 'LIVE') {
+  
+  // Check if sale is active based on time
+  const timeStatus = getTimeStatus(fairlaunch.start_at, fairlaunch.end_at);
+  const isTimeBasedLive = timeStatus === 'live';
+  const isDatabaseLive = fairlaunch.status === 'LIVE';
+  const isSaleActive = isTimeBasedLive || isDatabaseLive;
+  
+  if (!isSaleActive) {
     return (
       <div className="text-center py-12">
         <div className="text-6xl mb-4">⏸️</div>
         <h3 className="text-xl font-semibold text-white mb-2">Sale Not Active</h3>
         <p className="text-gray-400">
           This Fairlaunch is currently {fairlaunch.status.toLowerCase()}
+        </p>
+        <p className="text-sm text-gray-500 mt-2">
+          Time status: {timeStatus}
         </p>
       </div>
     );
@@ -981,12 +1081,192 @@ function ContributeTab({ userAddress, fairlaunch }: { userAddress?: string; fair
   );
 }
 
-function ClaimTab() {
+function ClaimTab({ fairlaunch, userAddress }: { fairlaunch: Fairlaunch; userAddress?: string }) {
+  const [claimInfo, setClaimInfo] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [claiming, setClaiming] = useState(false);
+  const [error, setError] = useState('');
+  const { data: walletClient } = useWalletClient();
+  const publicClient = usePublicClient();
+
+  useEffect(() => {
+    loadClaimInfo();
+  }, [fairlaunch.id, userAddress]);
+
+  async function loadClaimInfo() {
+    if (!userAddress) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      console.log('[ClaimTab] Loading claim info for:', userAddress);
+      const { claimFairlaunchTokens } = await import('@/actions/fairlaunch/claim-tokens');
+      const result = await claimFairlaunchTokens(fairlaunch.id);
+      
+      console.log('[ClaimTab] Claim result:', result);
+      
+      if (result.success) {
+        setClaimInfo(result);
+      } else {
+        console.error('[ClaimTab] Claim error:', result.error);
+        setError(result.error || 'Failed to load claim info');
+      }
+    } catch (err: any) {
+      console.error('[ClaimTab] Exception:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleClaim() {
+    if (!walletClient || !claimInfo) return;
+
+    setClaiming(true);
+    setError('');
+
+    try {
+      // Import contract ABI
+      const FairlaunchABI = (await import('@/lib/web3/abis/Fairlaunch.json')).default;
+      
+      // Call claimTokens() on contract
+      const hash = await walletClient.writeContract({
+        address: claimInfo.contractAddress as `0x${string}`,
+        abi: FairlaunchABI.abi || FairlaunchABI,
+        functionName: 'claimTokens', // Correct function name from ABI
+        args: [],
+      });
+
+      console.log('[ClaimTab] Transaction sent:', hash);
+
+      // Wait for confirmation
+      const receipt = await publicClient!.waitForTransactionReceipt({ hash });
+      console.log('[ClaimTab] Transaction confirmed:', receipt);
+
+      // Mark as claimed in database
+      const { markTokensClaimed } = await import('@/actions/fairlaunch/claim-tokens');
+      await markTokensClaimed({
+        contributionId: claimInfo.contributionId,
+        txHash: hash,
+      });
+
+      alert(`✅ Claim successful!
+      
+Tokens claimed: ${parseFloat(claimInfo.claimable).toLocaleString()} ${fairlaunch.project?.symbol || 'tokens'}
+Transaction: ${hash}
+
+Check your wallet!`);
+
+      // Reload claim info
+      await loadClaimInfo();
+    } catch (err: any) {
+      console.error('[ClaimTab] Claim error:', err);
+      setError(err.message || 'Claim transaction failed');
+    } finally {
+      setClaiming(false);
+    }
+  }
+
+  if (!userAddress) {
+    return (
+      <div className="text-center py-12">
+        <div className="text-6xl mb-4">🔒</div>
+        <h3 className="text-xl font-semibold text-white mb-2">Connect Wallet</h3>
+        <p className="text-gray-400">Please connect your wallet to claim tokens</p>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="text-center py-12">
+        <div className="animate-spin text-4xl mb-4">⏳</div>
+        <p className="text-gray-400">Loading claim info...</p>
+      </div>
+    );
+  }
+
+  if (error && !claimInfo) {
+    return (
+      <div className="text-center py-12">
+        <div className="text-6xl mb-4">ℹ️</div>
+        <h3 className="text-xl font-semibold text-white mb-2">Cannot Claim</h3>
+        <p className="text-gray-400">{error}</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="text-center py-12">
-      <div className="text-6xl mb-4">🎁</div>
-      <h3 className="text-xl font-semibold text-white mb-2">Claim Coming Soon</h3>
-      <p className="text-gray-400">Token claiming will be available after sale success</p>
+    <div className="space-y-6">
+      {/* Claim Info Card */}
+      <div className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 border border-purple-500/20 rounded-2xl p-6">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="p-3 bg-purple-500/20 rounded-xl">
+            <CheckCircle className="w-6 h-6 text-purple-400" />
+          </div>
+          <div>
+            <h3 className="text-xl font-bold text-white">Claim Your Tokens</h3>
+            <p className="text-sm text-gray-400">Token distribution is now available</p>
+          </div>
+        </div>
+
+        {/* Contribution Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="bg-black/20 rounded-xl p-4">
+            <div className="text-sm text-gray-400 mb-1">Your Contribution</div>
+            <div className="text-2xl font-bold text-white">
+              {parseFloat(claimInfo.contribution).toFixed(4)} BNB
+            </div>
+          </div>
+
+          <div className="bg-black/20 rounded-xl p-4">
+            <div className="text-sm text-gray-400 mb-1">Your Share</div>
+            <div className="text-2xl font-bold text-purple-400">
+              {claimInfo.userShare}%
+            </div>
+          </div>
+
+          <div className="bg-black/20 rounded-xl p-4">
+            <div className="text-sm text-gray-400 mb-1">Claimable Tokens</div>
+            <div className="text-2xl font-bold text-green-400">
+              {parseFloat(claimInfo.claimable).toLocaleString()}
+            </div>
+            <div className="text-xs text-gray-500 mt-1">
+              {fairlaunch.project?.symbol || 'TOKENS'}
+            </div>
+          </div>
+        </div>
+
+        {/* Claim Button */}
+        {error ? (
+          <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-4">
+            <p className="text-red-400 text-sm">{error}</p>
+          </div>
+        ) : null}
+
+        <button
+          onClick={handleClaim}
+          disabled={claiming || !walletClient}
+          className="w-full px-6 py-4 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed text-white font-bold rounded-xl transition flex items-center justify-center gap-2"
+        >
+          {claiming ? (
+            <>
+              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              Claiming...
+            </>
+          ) : (
+            <>
+              <CheckCircle className="w-5 h-5" />
+              Claim {parseFloat(claimInfo.claimable).toLocaleString()} {fairlaunch.project?.symbol || 'Tokens'}
+            </>
+          )}
+        </button>
+
+        <p className="text-xs text-gray-500 text-center mt-4">
+          * Tokens will be sent to your connected wallet
+        </p>
+      </div>
     </div>
   );
 }
@@ -1001,16 +1281,122 @@ function RefundTab() {
   );
 }
 
-function TransactionsTab({ userAddress }: { userAddress?: string }) {
+function TransactionsTab({ roundId, chain }: { roundId: string; chain: string }) {
+  const [contributions, setContributions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadContributions() {
+      console.log('[TransactionsTab] Loading contributions for roundId:', roundId);
+      try {
+        const { getFairlaunchContributions } = await import('@/actions/fairlaunch/get-contributions');
+        const result = await getFairlaunchContributions(roundId);
+        console.log('[TransactionsTab] Result:', result);
+        if (result.success) {
+          setContributions(result.contributions);
+        }
+      } catch (error) {
+        console.error('[TransactionsTab] Error loading contributions:', error);
+      }
+      setLoading(false);
+    }
+    loadContributions();
+  }, [roundId]);
+
+  if (loading) {
+    return (
+      <div className="text-center py-12">
+        <div className="text-6xl mb-4">⏳</div>
+        <p className="text-gray-400">Loading contributions...</p>
+      </div>
+    );
+  }
+
+  if (contributions.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <div className="text-6xl mb-4">📊</div>
+        <h3 className="text-xl font-semibold text-white mb-2">No Contributions Yet</h3>
+        <p className="text-gray-400">Be the first to contribute!</p>
+      </div>
+    );
+  }
+
+  // Get block explorer URL based on chain
+  const getExplorerUrl = (txHash: string) => {
+    const explorers: Record<string, string> = {
+      '1': 'https://etherscan.io',
+      '56': 'https://bscscan.com',
+      '97': 'https://testnet.bscscan.com',
+      '8453': 'https://basescan.org',
+      '84532': 'https://sepolia.basescan.org',
+    };
+    return `${explorers[chain] || 'https://testnet.bscscan.com'}/tx/${txHash}`;
+  };
+
+  // Format wallet address
+  const formatAddress = (address: string) => {
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  };
+
+  // Format date
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
   return (
-    <div className="text-center py-12">
-      <div className="text-6xl mb-4">📊</div>
-      <h3 className="text-xl font-semibold text-white mb-2">Transaction History</h3>
-      <p className="text-gray-400">
-        {userAddress
-          ? 'Your transaction history will appear here'
-          : 'Connect wallet to view your transactions'}
-      </p>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between mb-6">
+        <h3 className="text-xl font-semibold text-white">
+          Contribution History ({contributions.length})
+        </h3>
+        <p className="text-sm text-gray-400">
+          Total: {contributions.reduce((sum, c) => sum + Number(c.amount), 0).toFixed(2)} BNB
+        </p>
+      </div>
+
+      <div className="space-y-3">
+        {contributions.map((contribution, index) => (
+          <div
+            key={contribution.id}
+            className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-4 hover:bg-white/10 transition-all"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-2">
+                  <span className="text-white/40 text-sm">#{contributions.length - index}</span>
+                  <code className="text-white font-mono text-sm">
+                    {formatAddress(contribution.wallet_address)}
+                  </code>
+                  <a
+                    href={getExplorerUrl(contribution.tx_hash)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-cyan-400 hover:text-cyan-300 text-xs flex items-center gap-1"
+                  >
+                    View TX ↗
+                  </a>
+                </div>
+                <p className="text-gray-400 text-xs">
+                  {formatDate(contribution.created_at)}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-2xl font-bold text-white">
+                  {Number(contribution.amount).toFixed(2)}
+                </p>
+                <p className="text-sm text-gray-400">BNB</p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
