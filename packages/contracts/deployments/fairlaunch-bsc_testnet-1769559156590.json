@@ -1,0 +1,19 @@
+{
+  "network": "bsc_testnet",
+  "chainId": "97",
+  "timestamp": "2026-01-28T00:12:36.589Z",
+  "deployer": "0x95D94D86CfC550897d2b80672a3c94c12429a90D",
+  "admin": "0x92222c5248FB6c78c3111AA1076C1eF41F44e394",
+  "contracts": {
+    "feeSplitter": "0x2672af17eA89bc5e46BB52385C45Cb42e5eC8C48",
+    "fairlaunchFactory": "0x7B7C7123579A0107E3Ff3B208C58e7a04ae8357A"
+  },
+  "config": {
+    "deploymentFee": "0.2",
+    "treasuryVault": "0x95D94D86CfC550897d2b80672a3c94c12429a90D",
+    "referralPoolVault": "0x95D94D86CfC550897d2b80672a3c94c12429a90D",
+    "sbtStakingVault": "0x95D94D86CfC550897d2b80672a3c94c12429a90D",
+    "adminExecutor": "0x92222c5248FB6c78c3111AA1076C1eF41F44e394"
+  },
+  "explorer": "https://testnet.bscscan.com"
+}

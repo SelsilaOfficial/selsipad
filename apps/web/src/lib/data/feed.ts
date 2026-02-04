@@ -19,6 +19,8 @@ export interface Post {
   likes: number;
   replies: number;
   is_liked: boolean;
+  image_urls?: string[];
+  hashtags?: string[];
 }
 
 /**
@@ -40,7 +42,7 @@ export async function getFeedPosts(limit = 20): Promise<Post[]> {
     // Fetch posts without JOIN (no FK relationship anymore)
     const { data, error } = await supabase
       .from('posts')
-      .select('id, author_id, content, project_id, type, created_at')
+      .select('id, author_id, content, project_id, type, created_at, image_urls, hashtags')
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
       .limit(limit);
@@ -91,6 +93,8 @@ export async function getFeedPosts(limit = 20): Promise<Post[]> {
         likes: likes.count,
         replies: 0,
         is_liked: likes.userLiked,
+        image_urls: post.image_urls || [],
+        hashtags: post.hashtags || [],
       };
     });
   } catch (err) {

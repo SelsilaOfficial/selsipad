@@ -1,5 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
-import { FairlaunchList } from './FairlaunchList';
+import { redirect } from 'next/navigation';
 
 export const metadata = {
   title: 'Fairlaunch | SELSIPAD',
@@ -7,24 +6,6 @@ export const metadata = {
 };
 
 export default async function FairlaunchPage() {
-  const supabase = createClient();
-
-  // Fetch all fairlaunch rounds (public data)
-  const { data: fairlaunches, error } = await supabase
-    .from('launch_rounds')
-    .select('*')
-    .eq('sale_type', 'fairlaunch')
-    .order('created_at', { ascending: false });
-
-  if (error) {
-    console.error('Failed to fetch fairlaunches:', error);
-  }
-
-  return (
-    <div className="min-h-screen bg-gray-950 py-8">
-      <div className="container mx-auto px-4">
-        <FairlaunchList fairlaunches={fairlaunches || []} />
-      </div>
-    </div>
-  );
+  // Redirect to Explore page since fairlaunch list is now integrated there
+  redirect('/explore');
 }

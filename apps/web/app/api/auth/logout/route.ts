@@ -10,7 +10,15 @@ export async function POST() {
     // Call server action to delete session & redirect
     await logout();
 
-    return NextResponse.json({ success: true });
+    // Revalidate cached pages to show logged-out state
+    const { revalidatePath } = await import('next/cache');
+    revalidatePath('/profile');
+    revalidatePath('/');
+
+    return NextResponse.json({ 
+      success: true,
+      message: 'Logged out successfully' 
+    });
   } catch (error) {
     console.error('[Logout API] Error:', error);
     return NextResponse.json({ error: 'Logout failed' }, { status: 500 });

@@ -100,6 +100,7 @@ export default async function ProjectDetailPage({ params }: { params: { id: stri
                   projectName={project.name}
                   projectSymbol={project.symbol}
                   network={project.network}
+                  contractAddress={project.contract_address}
                   minContribution={0.1}
                   maxContribution={10}
                 />

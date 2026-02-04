@@ -7,13 +7,9 @@ async function getFairlaunchSubmissions() {
 
   const { data: rounds, error } = await supabase
     .from('launch_rounds')
-    .select(
-      `
-      *,
-      profiles(wallet_address, username)
-    `
-    )
+    .select('*, projects(name, symbol, logo_url)')
     .eq('sale_type', 'fairlaunch')
+    .in('status', ['SUBMITTED', 'SUBMITTED_FOR_REVIEW', 'APPROVED_TO_DEPLOY', 'REJECTED', 'DEPLOYED'])
     .order('created_at', { ascending: true });
 
   if (error) {
@@ -40,6 +36,13 @@ function getStatusBadge(status: string) {
           Approved
         </span>
       );
+    case 'DEPLOYED':
+      return (
+        <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-600/20 text-blue-400 rounded-full text-sm">
+          <TrendingUp className="w-3 h-3" />
+          Deployed
+        </span>
+      );
     case 'REJECTED':
       return (
         <span className="inline-flex items-center gap-1 px-3 py-1 bg-red-600/20 text-red-400 rounded-full text-sm">
@@ -56,8 +59,8 @@ export default async function FairlaunchReviewPage() {
   const rounds = await getFairlaunchSubmissions();
 
   // Separate into pending and reviewed
-  const pending = rounds.filter((r) => r.status === 'SUBMITTED_FOR_REVIEW');
-  const reviewed = rounds.filter((r) => ['APPROVED_TO_DEPLOY', 'REJECTED'].includes(r.status));
+  const pending = rounds.filter((r) => ['SUBMITTED', 'SUBMITTED_FOR_REVIEW'].includes(r.status));
+  const reviewed = rounds.filter((r) => ['APPROVED_TO_DEPLOY', 'REJECTED', 'DEPLOYED'].includes(r.status));
 
   return (
     <div>
@@ -139,15 +142,15 @@ export default async function FairlaunchReviewPage() {
                     >
                       <td className="p-4">
                         <div>
-                          <p className="text-white font-medium">{round.name || 'Unnamed'}</p>
+                          <p className="text-white font-medium">{round.projects?.name || 'Unnamed'}</p>
                           <p className="text-gray-500 text-sm">
                             by {round.created_by?.slice(0, 6)}...
                           </p>
                         </div>
                       </td>
-                      <td className="p-4 text-gray-300 capitalize">{round.network}</td>
+                      <td className="p-4 text-gray-300 capitalize">{round.chain || round.chain_id}</td>
                       <td className="p-4 text-gray-300">
-                        {round.params?.sale_params?.softcap || 'N/A'}
+                        {round.params?.softcap || 'N/A'}
                       </td>
                       <td className="p-4">
                         <span className={isLiquidityValid ? 'text-green-400' : 'text-red-400'}>
@@ -192,15 +195,16 @@ export default async function FairlaunchReviewPage() {
                   {reviewed.some((r) => r.status === 'REJECTED') && (
                     <th className="text-left p-4 text-gray-400 font-medium">Reason</th>
                   )}
+                  <th className="text-right p-4 text-gray-400 font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {reviewed.map((round) => (
-                  <tr key={round.id} className="border-b border-gray-800">
+                  <tr key={round.id} className="border-b border-gray-800 hover:bg-gray-800/50 transition-colors">
                     <td className="p-4">
-                      <p className="text-white font-medium">{round.name || 'Unnamed'}</p>
+                      <p className="text-white font-medium">{round.projects?.name || 'Unnamed'}</p>
                     </td>
-                    <td className="p-4 text-gray-300 capitalize">{round.network}</td>
+                    <td className="p-4 text-gray-300 capitalize">{round.chain || round.chain_id}</td>
                     <td className="p-4 text-gray-400">
                       {round.reviewed_at ? new Date(round.reviewed_at).toLocaleDateString() : '-'}
                     </td>
@@ -208,6 +212,35 @@ export default async function FairlaunchReviewPage() {
                     {reviewed.some((r) => r.status === 'REJECTED') && (
                       <td className="p-4 text-gray-400 text-sm">{round.rejection_reason || '-'}</td>
                     )}
+                    <td className="p-4 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        {round.status === 'APPROVED_TO_DEPLOY' && (
+                          <>
+                            <Link
+                              href={`/admin/fairlaunch/review/${round.id}`}
+                              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm"
+                            >
+                              View Details
+                            </Link>
+                            <Link
+                              href={`/fairlaunch/${round.id}`}
+                              target="_blank"
+                              className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors text-sm"
+                            >
+                              Live Page
+                            </Link>
+                          </>
+                        )}
+                        {round.status === 'REJECTED' && (
+                          <Link
+                            href={`/admin/fairlaunch/review/${round.id}`}
+                            className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors text-sm"
+                          >
+                            View
+                          </Link>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>

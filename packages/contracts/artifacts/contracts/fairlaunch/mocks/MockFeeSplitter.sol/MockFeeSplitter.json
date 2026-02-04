@@ -1,0 +1,24 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "MockFeeSplitter",
+  "sourceName": "contracts/fairlaunch/mocks/MockFeeSplitter.sol",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "presale",
+          "type": "address"
+        }
+      ],
+      "name": "grantPresaleRole",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x60808060405234601457607d908161001a8239f35b600080fdfe6004361015600c57600080fd5b6000803560e01c63417eb66c14602157600080fd5b3460445760203660031901126044576004356001600160a01b0381160360445780f35b80fdfea26469706673582212201af2c2249ad673dd21afc4e313a58086b0bb1367886632be25696ce3031a066564736f6c63430008140033",
+  "deployedBytecode": "0x6004361015600c57600080fd5b6000803560e01c63417eb66c14602157600080fd5b3460445760203660031901126044576004356001600160a01b0381160360445780f35b80fdfea26469706673582212201af2c2249ad673dd21afc4e313a58086b0bb1367886632be25696ce3031a066564736f6c63430008140033",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

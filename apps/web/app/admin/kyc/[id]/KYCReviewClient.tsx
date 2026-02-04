@@ -85,10 +85,18 @@ export function KYCReviewClient({ submission }: KYCReviewClientProps) {
             </div>
 
             <div className="flex items-start gap-3">
-              <FileText className="w-5 h-5 text-blue-400 mt-1" />
+              <User className="w-5 h-5 text-blue-400 mt-1" />
               <div>
-                <p className="text-gray-400 text-sm">Document Type</p>
-                <p className="text-white capitalize">{submission.document_type}</p>
+                <p className="text-gray-400 text-sm">Full Name</p>
+                <p className="text-white">{submission.full_name}</p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3">
+              <FileText className="w-5 h-5 text-green-400 mt-1" />
+              <div>
+                <p className="text-gray-400 text-sm">Country</p>
+                <p className="text-white">{submission.country}</p>
               </div>
             </div>
 

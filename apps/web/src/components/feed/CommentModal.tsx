@@ -113,10 +113,10 @@ export function CommentModal({ postId, isOpen, onClose }: CommentModalProps) {
                 onChange={(e) => setNewComment(e.target.value)}
                 className="w-full resize-none border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
                 rows={2}
-                maxLength={2000}
+                maxLength={100}
               />
               <div className="flex justify-between items-center mt-2">
-                <span className="text-sm text-gray-500">{newComment.length}/2000</span>
+                <span className="text-sm text-gray-500">{newComment.length}/100</span>
                 <button
                   onClick={handleSubmit}
                   disabled={!newComment.trim() || submitting}

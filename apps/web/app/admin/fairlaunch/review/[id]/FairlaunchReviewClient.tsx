@@ -13,18 +13,38 @@ interface FairlaunchReviewClientProps {
 export function FairlaunchReviewClient({ round }: FairlaunchReviewClientProps) {
   const router = useRouter();
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isDeploying, setIsDeploying] = useState(false);
   const [showRejectInput, setShowRejectInput] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [error, setError] = useState('');
 
-  // Extract fairlaunch params
-  const saleParams = round.params?.sale_params || {};
-  const lpLock = round.params?.lp_lock || {};
-  const teamVesting = round.params?.team_vesting || {};
-
-  const liquidityPercent = lpLock.percentage || 0;
-  const lpLockMonths = lpLock.duration_months || 0;
+  // Extract fairlaunch params (handling flat DB structure)
+  const params = round.params || {};
+  
+  // Map flat params to UI structure
+  const liquidityPercent = params.liquidity_percent || 0;
+  const lpLockMonths = params.lp_lock_months || 0;
   const isLiquidityValid = liquidityPercent >= 70 && lpLockMonths >= 12;
+
+  // Helper for safe access
+  const saleParams = {
+    tokens_for_sale: params.tokens_for_sale,
+    softcap: params.softcap,
+    payment_token: round.raise_asset,
+    start_at: round.start_at,
+    end_at: round.end_at,
+    token_address: round.token_address || round.projects?.token_address
+  };
+
+  const lpLock = {
+    platform: params.dex_platform
+  };
+
+  const teamVesting = {
+    vesting_address: params.vesting_address,
+    schedule: params.vesting_schedule, // Fixed: read from params
+    tokens: params.team_vesting_tokens, // NEW: add tokens
+  };
 
   const handleApprove = async () => {
     // Validate before approving
@@ -64,6 +84,36 @@ export function FairlaunchReviewClient({ round }: FairlaunchReviewClientProps) {
     } else {
       setError(result.error || 'Failed to reject');
       setIsProcessing(false);
+    }
+  };
+
+  const handleDeploy = async () => {
+    if (!confirm('Deploy this fairlaunch contract? This action cannot be undone.')) {
+      return;
+    }
+
+    setIsDeploying(true);
+    setError('');
+
+    try {
+      const response = await fetch('/api/admin/fairlaunch/deploy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ launchRoundId: round.id }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        alert(`Contract deployed successfully!\n\nAddress: ${data.contractAddress}\nTX: ${data.txHash}`);
+        router.refresh();
+      } else {
+        setError(data.error || 'Deployment failed');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to deploy');
+    } finally {
+      setIsDeploying(false);
     }
   };
 
@@ -109,12 +159,17 @@ export function FairlaunchReviewClient({ round }: FairlaunchReviewClientProps) {
           <div className="space-y-3">
             <div>
               <p className="text-gray-400 text-sm">Project Name</p>
-              <p className="text-white font-medium">{round.name || 'Unnamed'}</p>
+              <p className="text-white font-medium">{round.projects?.name || 'Unnamed'}</p>
+            </div>
+
+            <div>
+              <p className="text-gray-400 text-sm">Description</p>
+              <p className="text-white text-sm line-clamp-2">{round.projects?.description || 'No description'}</p>
             </div>
 
             <div>
               <p className="text-gray-400 text-sm">Network</p>
-              <p className="text-white capitalize">{round.network}</p>
+              <p className="text-white capitalize">{round.chain_id === 97 ? 'BSC Testnet' : round.chain_id}</p>
             </div>
 
             <div>
@@ -125,7 +180,7 @@ export function FairlaunchReviewClient({ round }: FairlaunchReviewClientProps) {
             <div>
               <p className="text-gray-400 text-sm">Token Address</p>
               <p className="text-white font-mono text-sm">
-                {saleParams.token_address || 'Not provided'}
+                {round.projects?.token_address || saleParams.token_address || 'Not provided'}
               </p>
             </div>
           </div>
@@ -142,6 +197,19 @@ export function FairlaunchReviewClient({ round }: FairlaunchReviewClientProps) {
             </div>
 
             <div>
+              <p className="text-gray-400 text-sm">Total Supply (Escrowed)</p>
+              <p className="text-white">
+                {(() => {
+                  const tokensForSale = parseFloat(params.tokens_for_sale || '0');
+                  const liquidityTokens = parseFloat(params.liquidity_tokens || '0');
+                  const teamTokens = parseFloat(params.team_vesting_tokens || '0');
+                  const totalSupply = tokensForSale + liquidityTokens + teamTokens;
+                  return totalSupply > 0 ? totalSupply.toLocaleString() : 'N/A';
+                })()}
+              </p>
+            </div>
+
+            <div>
               <p className="text-gray-400 text-sm">Softcap (No Hardcap)</p>
               <p className="text-white">{saleParams.softcap || 'N/A'}</p>
             </div>
@@ -153,10 +221,10 @@ export function FairlaunchReviewClient({ round }: FairlaunchReviewClientProps) {
 
             <div>
               <p className="text-gray-400 text-sm">Sale Period</p>
-              <p className="text-white text-sm">
+              <p className="text-white text-sm" suppressHydrationWarning>
                 {saleParams.start_at && saleParams.end_at ? (
                   <>
-                    {new Date(saleParams.start_at).toLocaleDateString()} -
+                    {new Date(saleParams.start_at).toLocaleDateString()} -{' '}
                     {new Date(saleParams.end_at).toLocaleDateString()}
                   </>
                 ) : (
@@ -202,8 +270,13 @@ export function FairlaunchReviewClient({ round }: FairlaunchReviewClientProps) {
 
           <div className="space-y-3">
             <div>
-              <p className="text-gray-400 text-sm">Team Allocation</p>
-              <p className="text-white">{teamVesting.team_allocation || 'Not set'}</p>
+              <p className="text-gray-400 text-sm">Team Vesting Tokens</p>
+              <p className="text-white">{teamVesting.tokens || '0'}</p>
+            </div>
+
+            <div>
+              <p className="text-gray-400 text-sm">Vesting Address</p>
+              <p className="text-white font-mono text-sm">{teamVesting.vesting_address || 'Not set'}</p>
             </div>
 
             <div>
@@ -235,70 +308,147 @@ export function FairlaunchReviewClient({ round }: FairlaunchReviewClientProps) {
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
         <h2 className="text-xl font-semibold text-white mb-4">Review Actions</h2>
 
-        {!showRejectInput ? (
-          <div className="flex gap-4">
-            <button
-              onClick={handleApprove}
-              disabled={isProcessing || !isLiquidityValid}
-              className="flex-1 flex items-center justify-center gap-2 px-6 py-4 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
-            >
-              <CheckCircle2 className="w-5 h-5" />
-              {isProcessing ? 'Approving...' : 'Approve Fairlaunch'}
-            </button>
+        {/* Only show approve/reject for SUBMITTED status */}
+        {(round.status === 'SUBMITTED' || round.status === 'SUBMITTED_FOR_REVIEW') && (
+          <>
+            {!showRejectInput ? (
+              <div className="flex gap-4">
+                <button
+                  onClick={handleApprove}
+                  disabled={isProcessing || !isLiquidityValid}
+                  className="flex-1 flex items-center justify-center gap-2 px-6 py-4 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
+                >
+                  <CheckCircle2 className="w-5 h-5" />
+                  {isProcessing ? 'Approving...' : 'Approve Fairlaunch'}
+                </button>
 
-            <button
-              onClick={() => setShowRejectInput(true)}
-              disabled={isProcessing}
-              className="flex-1 flex items-center justify-center gap-2 px-6 py-4 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
-            >
-              <XCircle className="w-5 h-5" />
-              Reject Fairlaunch
-            </button>
+                <button
+                  onClick={() => setShowRejectInput(true)}
+                  disabled={isProcessing}
+                  className="flex-1 flex items-center justify-center gap-2 px-6 py-4 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
+                >
+                  <XCircle className="w-5 h-5" />
+                  Reject Fairlaunch
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Rejection Reason (min 10 characters)
+                  </label>
+                  <textarea
+                    value={rejectionReason}
+                    onChange={(e) => setRejectionReason(e.target.value)}
+                    placeholder="Explain why this fairlaunch is being rejected..."
+                    className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white resize-none"
+                    rows={4}
+                    disabled={isProcessing}
+                  />
+                  <p className="text-gray-500 text-sm mt-1">
+                    {rejectionReason.length}/10 characters minimum
+                  </p>
+                </div>
+
+                <div className="flex gap-4">
+                  <button
+                    onClick={handleReject}
+                    disabled={isProcessing || rejectionReason.trim().length < 10}
+                    className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
+                  >
+                    <XCircle className="w-5 h-5" />
+                    {isProcessing ? 'Rejecting...' : 'Confirm Rejection'}
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setShowRejectInput(false);
+                      setRejectionReason('');
+                      setError('');
+                    }}
+                    disabled={isProcessing}
+                    className="px-6 py-3 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Show status message for approved/deployed */}
+        {round.status ===  'APPROVED_TO_DEPLOY' && (
+          <div className="bg-green-950/30 border border-green-800 rounded-lg p-4">
+            <p className="text-green-400 font-medium">✅ This fairlaunch has been approved</p>
+            <p className="text-gray-400 text-sm mt-1">Proceed to deploy the contract below.</p>
           </div>
-        ) : (
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Rejection Reason (min 10 characters)
-              </label>
-              <textarea
-                value={rejectionReason}
-                onChange={(e) => setRejectionReason(e.target.value)}
-                placeholder="Explain why this fairlaunch is being rejected..."
-                className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white resize-none"
-                rows={4}
-                disabled={isProcessing}
-              />
-              <p className="text-gray-500 text-sm mt-1">
-                {rejectionReason.length}/10 characters minimum
-              </p>
-            </div>
+        )}
 
-            <div className="flex gap-4">
-              <button
-                onClick={handleReject}
-                disabled={isProcessing || rejectionReason.trim().length < 10}
-                className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
-              >
-                <XCircle className="w-5 h-5" />
-                {isProcessing ? 'Rejecting...' : 'Confirm Rejection'}
-              </button>
-
-              <button
-                onClick={() => {
-                  setShowRejectInput(false);
-                  setRejectionReason('');
-                  setError('');
-                }}
-                disabled={isProcessing}
-                className="px-6 py-3 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
+        {round.status === 'DEPLOYED' && (
+          <div className="bg-blue-950/30 border border-blue-800 rounded-lg p-4">
+            <p className="text-blue-400 font-medium">🚀 This fairlaunch has been deployed</p>
+            <p className="text-gray-400 text-sm mt-1">See deployment details below.</p>
           </div>
         )}
       </div>
+
+      {/* Deploy Section - Shows for approved projects */}
+      {round.status === 'APPROVED_TO_DEPLOY' && !round.contract_address && (
+        <div className="bg-purple-950/30 border border-purple-800 rounded-xl p-6">
+          <h2 className="text-xl font-semibold text-white mb-4">📡 Deploy Contract</h2>
+          <p className="text-gray-300 mb-4">
+            This fairlaunch has been approved. Deploy the contract to BSC {round.chain_id === 97 ? 'Testnet' : 'Mainnet'}.
+          </p>
+          <button
+            onClick={handleDeploy}
+            disabled={isDeploying}
+            className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
+          >
+            <TrendingUp className="w-5 h-5" />
+            {isDeploying ? 'Deploying Contract...' : 'Deploy Contract'}
+          </button>
+        </div>
+      )}
+
+      {/* Deployment Status - Shows for deployed contracts */}
+      {round.contract_address && (
+        <div className="bg-green-950/30 border border-green-800 rounded-xl p-6">
+          <h2 className="text-green-400 font-semibold text-xl mb-4">✅ Contract Deployed</h2>
+          <div className="space-y-3">
+            <div>
+              <p className="text-gray-400 text-sm">Contract Address</p>
+              <a
+                href={`https://${round.chain_id === 97 ? 'testnet.' : ''}bscscan.com/address/${round.contract_address}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-400 hover:underline font-mono text-sm break-all"
+              >
+                {round.contract_address}
+              </a>
+            </div>
+            {round.deployment_tx_hash && (
+              <div>
+                <p className="text-gray-400 text-sm">Transaction Hash</p>
+                <a
+                  href={`https://${round.chain_id === 97 ? 'testnet.' : ''}bscscan.com/tx/${round.deployment_tx_hash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-400 hover:underline font-mono text-sm break-all"
+                >
+                  {round.deployment_tx_hash}
+                </a>
+              </div>
+            )}
+            {round.deployed_at && (
+              <div>
+                <p className="text-gray-400 text-sm">Deployed At</p>
+                <p className="text-white" suppressHydrationWarning>{new Date(round.deployed_at).toLocaleString()}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

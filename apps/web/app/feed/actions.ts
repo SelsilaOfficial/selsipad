@@ -48,6 +48,16 @@ export async function createPost(
       );
     }
 
+    // Extract hashtags from content (case-insensitive)
+    const extractHashtags = (text: string): string[] => {
+      const matches = text.match(/#\w+/g);
+      return matches ? [...new Set(matches.map(tag => tag.toLowerCase()))] : [];
+    };
+
+    const hashtags = extractHashtags(content);
+
+    console.log('[createPost] Extracted hashtags:', { count: hashtags.length, hashtags });
+
     // Insert new post
     const { data: newPost, error } = await supabase
       .from('posts')
@@ -57,6 +67,7 @@ export async function createPost(
         project_id: projectId,
         type: 'POST', // Changed from TEXT to POST to match schema
         image_urls: imageUrls || [],
+        hashtags: hashtags,
       })
       .select()
       .single();
@@ -81,6 +92,7 @@ export async function createPost(
       likes: 0,
       replies: 0,
       is_liked: false,
+      image_urls: newPost.image_urls || [],
     };
   } catch (err) {
     console.error('Unexpected error in createPost:', err);

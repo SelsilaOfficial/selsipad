@@ -5,10 +5,12 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Card, CardContent, StatusBadge, Avatar } from '@/components/ui';
 import { PageHeader, PageContainer } from '@/components/layout';
+import { Wallet, Shield, CheckCircle } from 'lucide-react';
 import type { UserProfile } from '@/lib/data/profile';
 import type { UserStatsMultiChain } from '@/types/multi-chain';
 import { formatChainName } from '@/lib/utils/chain';
 import { formatDistance } from 'date-fns';
+import { Rocket, ArrowRight } from 'lucide-react';
 
 interface ProfileClientContentProps {
   initialProfile: UserProfile;
@@ -39,36 +41,39 @@ export function ProfileClientContent({
 
       <PageContainer className="py-4 space-y-6">
         {/* Profile Card */}
-        <Card>
-          <CardContent className="space-y-4">
-            <div className="flex items-center gap-4">
+        {/* Profile Card */}
+        <div className="relative overflow-hidden rounded-xl border border-gray-800 bg-gray-900/50 p-6 backdrop-blur-xl">
+          <div className="flex items-center gap-6">
+            <div className="relative">
+              <div className="absolute -inset-1 rounded-full bg-gradient-to-r from-primary-main to-purple-600 opacity-20 blur-sm" />
               <Avatar
                 src={profile.avatar_url}
                 alt={profile.username || 'User'}
                 size="xl"
                 fallback={profile.username?.slice(0, 2).toUpperCase() || 'U'}
+                className="relative border-4 border-gray-900"
               />
-              <div className="flex-1">
-                <h2 className="text-heading-lg">{profile.username || 'Anonymous User'}</h2>
-                {profile.bio && (
-                  <p className="text-body-sm text-text-secondary mt-1">{profile.bio}</p>
-                )}
-              </div>
             </div>
+            <div className="flex-1">
+              <h2 className="text-2xl font-bold text-white mb-1">{profile.username || 'Anonymous User'}</h2>
+              {profile.bio && (
+                <p className="text-sm text-gray-400 max-w-lg">{profile.bio}</p>
+              )}
+            </div>
+          </div>
 
-            {/* Stats Grid */}
-            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-border-subtle">
-              <div>
-                <p className="text-caption text-text-secondary">Followers</p>
-                <p className="text-heading-md">{profile.follower_count || 0}</p>
-              </div>
-              <div>
-                <p className="text-caption text-text-secondary">Following</p>
-                <p className="text-heading-md">{profile.following_count || 0}</p>
-              </div>
+          {/* Stats Grid */}
+          <div className="mt-6 grid grid-cols-2 gap-4 border-t border-gray-800 pt-6">
+            <div className="rounded-lg bg-gray-800/50 p-3 text-center transition-colors hover:bg-gray-800">
+              <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Followers</p>
+              <p className="text-xl font-bold text-white">{profile.follower_count || 0}</p>
             </div>
-          </CardContent>
-        </Card>
+            <div className="rounded-lg bg-gray-800/50 p-3 text-center transition-colors hover:bg-gray-800">
+              <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Following</p>
+              <p className="text-xl font-bold text-white">{profile.following_count || 0}</p>
+            </div>
+          </div>
+        </div>
 
         {/* Multi-Chain Contributions */}
         {multiChainStats && multiChainStats.contributions.length > 0 && (
@@ -184,86 +189,105 @@ export function ProfileClientContent({
 
           {/* Blue Check Status */}
           <Link href="/profile/blue-check">
-            <Card hover>
-              <CardContent>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 flex items-center justify-center">
+            <div className="group relative overflow-hidden rounded-xl border border-blue-900/30 bg-gray-900/50 p-1 transition-all hover:border-blue-500/30 hover:shadow-[0_0_20px_rgba(59,130,246,0.1)]">
+              <div className="relative flex items-center justify-between rounded-lg bg-gray-900 p-4">
+                  <div className="flex items-center gap-4">
+                    <div className="relative flex h-12 w-12 items-center justify-center rounded-lg bg-blue-500/10 transition-colors group-hover:bg-blue-500/20">
                       <Image
                         src="/bluecheck-badge.png"
                         alt="Blue Check"
-                        width={40}
-                        height={40}
-                        className={`object-contain transition-all ${
+                        width={32}
+                        height={32}
+                        className={`object-contain transition-all duration-300 ${
                           profile.bluecheck_status === 'active'
-                            ? 'opacity-100'
-                            : 'opacity-30 grayscale'
+                            ? 'opacity-100 scale-110 drop-shadow-[0_0_8px_rgba(59,130,246,0.5)]'
+                            : 'opacity-40 grayscale'
                         }`}
                       />
                     </div>
                     <div>
-                      <h4 className="text-heading-sm">Blue Check</h4>
-                      <p className="text-caption text-text-secondary">
+                      <h4 className="font-bold text-white group-hover:text-blue-400 transition-colors">Blue Check</h4>
+                      <p className="text-sm text-gray-500">
                         {profile.bluecheck_status === 'active' && profile.bluecheck_expires_at
                           ? `Expires ${formatDistance(new Date(profile.bluecheck_expires_at), new Date(), { addSuffix: true })}`
-                          : 'Enhanced trust badge'}
+                          : 'Premium verification badge'}
                       </p>
                     </div>
                   </div>
-                  <StatusBadge
-                    status={
-                      profile.bluecheck_status === 'none'
-                        ? 'inactive'
-                        : profile.bluecheck_status === 'active'
-                          ? 'verified'
-                          : (profile.bluecheck_status as any)
-                    }
-                  />
-                </div>
-              </CardContent>
-            </Card>
+                  <div className={`px-3 py-1 rounded-full text-xs font-medium uppercase tracking-wide border ${
+                    profile.bluecheck_status === 'active' 
+                      ? 'bg-blue-500/10 text-blue-400 border-blue-500/20 shadow-[0_0_10px_rgba(59,130,246,0.2)]' 
+                      : 'bg-gray-800 text-gray-500 border-gray-700'
+                  }`}>
+                    {profile.bluecheck_status === 'active' ? 'Verified' : 'Inactive'}
+                  </div>
+              </div>
+            </div>
           </Link>
 
           {/* KYC Status */}
           <Link href="/profile/kyc">
-            <Card hover>
-              <CardContent>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 flex items-center justify-center">
+            <div className="group relative overflow-hidden rounded-xl border border-yellow-900/30 bg-gray-900/50 p-1 transition-all hover:border-yellow-500/30 hover:shadow-[0_0_20px_rgba(234,179,8,0.1)]">
+              <div className="relative flex items-center justify-between rounded-lg bg-gray-900 p-4">
+                  <div className="flex items-center gap-4">
+                    <div className="relative flex h-12 w-12 items-center justify-center rounded-lg bg-yellow-500/10 transition-colors group-hover:bg-yellow-500/20">
                       <Image
                         src="/developer-kyc-badge.png"
                         alt="Developer KYC"
-                        width={48}
-                        height={48}
-                        className={`object-contain transition-all ${
-                          profile.kyc_status === 'verified' ? 'opacity-100' : 'opacity-30 grayscale'
+                        width={32}
+                        height={32}
+                        className={`object-contain transition-all duration-300 ${
+                          profile.kyc_status === 'verified' ? 'opacity-100 scale-110 drop-shadow-[0_0_8px_rgba(234,179,8,0.5)]' : 'opacity-40 grayscale'
                         }`}
                       />
                     </div>
                     <div>
-                      <h4 className="text-heading-sm">Developer KYC</h4>
-                      <p className="text-caption text-text-secondary">
+                      <h4 className="font-bold text-white group-hover:text-yellow-400 transition-colors">Developer KYC</h4>
+                      <p className="text-sm text-gray-500">
                         {profile.kyc_status === 'verified'
-                          ? 'Identity verified for project creation'
-                          : 'Required for project creators'}
+                          ? 'Identity verified'
+                          : 'Required for creators'}
                       </p>
                     </div>
                   </div>
-                  <StatusBadge
-                    status={
-                      profile.kyc_status === 'verified'
-                        ? 'verified'
-                        : profile.kyc_status === 'not_started'
-                          ? 'inactive'
-                          : (profile.kyc_status as any)
-                    }
-                  />
-                </div>
-              </CardContent>
-            </Card>
+                  <div className={`px-3 py-1 rounded-full text-xs font-medium uppercase tracking-wide border ${
+                    profile.kyc_status === 'verified'
+                      ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20 shadow-[0_0_10px_rgba(234,179,8,0.2)]'
+                      : 'bg-gray-800 text-gray-500 border-gray-700'
+                  }`}>
+                    {profile.kyc_status === 'verified' ? 'Verified' : 'Unverified'}
+                  </div>
+              </div>
+            </div>
           </Link>
         </div>
+
+        {/* My Projects Shortcut */}
+        <Link href="/profile/projects">
+          <div className="group relative overflow-hidden rounded-xl border border-primary-main/30 bg-gradient-to-br from-gray-900 to-gray-900 shadow-lg transition-all hover:scale-[1.01] hover:border-primary-main/50 hover:shadow-primary-main/10">
+            {/* Background Glow */}
+            <div className="absolute top-0 right-0 -mt-8 -mr-8 h-32 w-32 rounded-full bg-primary-main/10 blur-3xl transition-all group-hover:bg-primary-main/20" />
+            
+            <div className="relative p-5 flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary-main/10 border border-primary-main/20 shadow-inner group-hover:bg-primary-main/20 transition-all">
+                  <Rocket className="h-6 w-6 text-primary-main" />
+                </div>
+                <div>
+                  <h4 className="text-lg font-bold text-white group-hover:text-primary-main transition-colors">
+                    My Projects
+                  </h4>
+                  <p className="text-sm text-gray-400">
+                    Track your Fairlaunch & Presale campaigns
+                  </p>
+                </div>
+              </div>
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-800 text-gray-400 opacity-50 transition-all group-hover:bg-primary-main group-hover:text-white group-hover:opacity-100">
+                <ArrowRight size={16} />
+              </div>
+            </div>
+          </div>
+        </Link>
 
         {/* Wallet Management */}
         <div className="space-y-3">
@@ -278,23 +302,27 @@ export function ProfileClientContent({
           </div>
 
           {primaryWallet ? (
-            <Card variant="bordered" className="border-l-4 border-primary-main">
-              <CardContent>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <h4 className="text-heading-sm font-mono">{primaryWallet.address}</h4>
-                      <span className="px-2 py-0.5 bg-primary-soft/20 text-primary-main text-caption rounded-full border border-primary-main/30">
-                        Primary
-                      </span>
-                    </div>
-                    <p className="text-caption text-text-secondary">
-                      {primaryWallet.network} • {primaryWallet.label || 'No label'}
-                    </p>
+            <div className="relative overflow-hidden rounded-xl border border-primary-main/30 bg-gradient-to-br from-gray-900 via-gray-900 to-primary-main/10 p-5 shadow-[0_0_30px_rgba(var(--primary-rgb),0.05)]">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 bg-primary-main/10 rounded-lg text-primary-main">
+                    <Wallet size={16} />
                   </div>
+                  <span className="text-sm font-medium text-primary-main">Primary Wallet</span>
                 </div>
-              </CardContent>
-            </Card>
+                <div className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-primary-main text-white">
+                  {primaryWallet.network}
+                </div>
+              </div>
+              <div className="space-y-1">
+                <h4 className="font-mono text-lg text-white font-medium tracking-tight break-all">
+                  {primaryWallet.address}
+                </h4>
+                <p className="text-sm text-gray-500">
+                  {primaryWallet.label || 'No label set'}
+                </p>
+              </div>
+            </div>
           ) : (
             <Card>
               <CardContent className="text-center py-6">

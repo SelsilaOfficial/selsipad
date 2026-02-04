@@ -7,6 +7,10 @@ import { getServerSession } from '@/lib/auth/session';
 import { ProfileClientContent } from './ProfileClientContent';
 import { Card, CardContent } from '@/components/ui';
 
+// Force dynamic rendering - no caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export default async function ProfilePage() {
   // Get session and fetch data server-side
   const session = await getServerSession();

@@ -1,0 +1,80 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "MockFeeSplitter",
+  "sourceName": "contracts/mocks/MockFeeSplitter.sol",
+  "abi": [
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "FeeDistributed",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "presale",
+          "type": "address"
+        }
+      ],
+      "name": "PresaleRoleGranted",
+      "type": "event"
+    },
+    {
+      "inputs": [],
+      "name": "distributeFees",
+      "outputs": [],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "presale",
+          "type": "address"
+        }
+      ],
+      "name": "grantPresaleRole",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "name": "hasPresaleRole",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "stateMutability": "payable",
+      "type": "receive"
+    }
+  ],
+  "bytecode": "0x6080806040523461001657610162908161001c8239f35b600080fdfe608080604052600436101561001d575b50361561001b57600080fd5b005b600090813560e01c90816326f55c62146100ea57508063417eb66c146100825763bb57ad200361000f578060031936011261007f577f65fbefa8a319bc4b53d3436a388ac60632281c1ce0b61c4d0d7d2dbd2ad44ec96020604051348152a180f35b80fd5b503461007f57602036600319011261007f576004356001600160a01b038116908190036100e6578082528160205260408220600160ff198254161790557fb84819af5c70c4dcebf5bfcffe270cb4b1b6f6ed4a1a54f7c38ddecaf3abb5aa8280a280f35b5080fd5b9050346100e65760203660031901126100e6576004356001600160a01b038116908190036101285760408360ff926020955280855220541615158152f35b8280fdfea26469706673582212200d4a03e7c1f9c8ecba4c74372f34d77ab419e2f9ae355d311173878fe4a2925864736f6c63430008140033",
+  "deployedBytecode": "0x608080604052600436101561001d575b50361561001b57600080fd5b005b600090813560e01c90816326f55c62146100ea57508063417eb66c146100825763bb57ad200361000f578060031936011261007f577f65fbefa8a319bc4b53d3436a388ac60632281c1ce0b61c4d0d7d2dbd2ad44ec96020604051348152a180f35b80fd5b503461007f57602036600319011261007f576004356001600160a01b038116908190036100e6578082528160205260408220600160ff198254161790557fb84819af5c70c4dcebf5bfcffe270cb4b1b6f6ed4a1a54f7c38ddecaf3abb5aa8280a280f35b5080fd5b9050346100e65760203660031901126100e6576004356001600160a01b038116908190036101285760408360ff926020955280855220541615158152f35b8280fdfea26469706673582212200d4a03e7c1f9c8ecba4c74372f34d77ab419e2f9ae355d311173878fe4a2925864736f6c63430008140033",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

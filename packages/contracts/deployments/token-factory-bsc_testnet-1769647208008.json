@@ -1,0 +1,14 @@
+{
+  "network": "bsc_testnet",
+  "chainId": "97",
+  "timestamp": "2026-01-29T00:40:08.007Z",
+  "deployer": "0x95D94D86CfC550897d2b80672a3c94c12429a90D",
+  "contracts": {
+    "simpleTokenFactory": "0x4924e4Dc79f3673a25ea29D26822A5Ee3535Ce6B"
+  },
+  "config": {
+    "treasury": "0x95D94D86CfC550897d2b80672a3c94c12429a90D",
+    "creationFee": "0.2"
+  },
+  "explorer": "https://testnet.bscscan.com/address/0x4924e4Dc79f3673a25ea29D26822A5Ee3535Ce6B"
+}

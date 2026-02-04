@@ -3,13 +3,14 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { Plus, Search } from 'lucide-react';
+import type { PoolStatus } from '@selsipad/shared';
 import { NetworkBadge } from '@/components/presale/NetworkBadge';
 import { StatusPill } from '@/components/presale/StatusPill';
 
 interface Fairlaunch {
   id: string;
   status: string;
-  network: string;
+  chain: string; // Changed from network to match DB schema
   params: any;
   created_at: string;
   start_at: string;
@@ -22,15 +23,58 @@ interface FairlaunchListProps {
   fairlaunches: Fairlaunch[];
 }
 
+// Helper to get native currency symbol from chain ID or network name
+function getNativeCurrency(chainId?: string, networkName?: string): string {
+  // Check by network name first
+  if (networkName?.includes('bsc') || networkName?.includes('bnb')) {
+    return 'BNB';
+  }
+  
+  // Check by chain ID
+  if (chainId === '97' || chainId === '56') {
+    return 'BNB'; // BSC Testnet & Mainnet
+  }
+  if (chainId === '8453' || chainId === '84532') {
+    return 'ETH'; // Base networks
+  }
+  if (chainId === '1' || chainId === '11155111') {
+    return 'ETH'; // Ethereum Mainnet & Sepolia
+  }
+  
+  return 'ETH'; // Default
+}
+
+// Helper to get chain badge color and label
+function getChainBadge(chainId?: string, networkName?: string): { label: string; color: string } {
+  const currency = getNativeCurrency(chainId, networkName);
+  
+  if (currency === 'BNB') {
+    return { label: 'BNB', color: 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20' };
+  }
+  
+  // Check if Base
+  if (chainId === '8453' || chainId === '84532' || networkName?.includes('base')) {
+    return { label: 'BASE', color: 'bg-blue-500/10 text-blue-400 border border-blue-500/20' };
+  }
+  
+  return { label: 'ETH', color: 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' };
+}
+
 export function FairlaunchList({ fairlaunches: initialFairlaunches }: FairlaunchListProps) {
   const [networkFilter, setNetworkFilter] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredFairlaunches = initialFairlaunches.filter((fl) => {
-    // Network filter
-    if (networkFilter !== 'ALL' && !fl.network.includes(networkFilter)) {
-      return false;
+    // Network filter - use chain field from DB
+    if (networkFilter !== 'ALL') {
+      const chain = fl.chain || '';
+      // Map chain ID to network type
+      const isEVM = ['1', '11155111', '56', '97', '8453', '84532'].includes(chain);
+      const isSolana = chain === 'SOLANA';
+      
+      if (networkFilter === 'EVM' && !isEVM) return false;
+      if (networkFilter === 'SOLANA' && !isSolana) return false;
     }
 
     // Status filter
@@ -177,8 +221,16 @@ function FairlaunchCard({ fairlaunch }: { fairlaunch: Fairlaunch }) {
             {projectName}
           </h3>
           <div className="flex items-center gap-2">
-            <NetworkBadge network={fairlaunch.network} />
-            <StatusPill status={fairlaunch.status} />
+            <NetworkBadge network={fairlaunch.params?.network_name || 'EVM'} chainId={fairlaunch.chain} />
+            <StatusPill status={fairlaunch.status as PoolStatus} />
+            {fairlaunch.params?.token_symbol && (
+              <span className="px-2 py-1 bg-gray-800 border border-gray-700 rounded text-xs text-gray-300">
+                Token: {fairlaunch.params.token_symbol}
+              </span>
+            )}
+            <span className={`px-2 py-1 rounded text-xs font-semibold ${getChainBadge(fairlaunch.chain, fairlaunch.params?.network_name).color}`}>
+              {getChainBadge(fairlaunch.chain, fairlaunch.params?.network_name).label}
+            </span>
           </div>
         </div>
       </div>
@@ -196,8 +248,8 @@ function FairlaunchCard({ fairlaunch }: { fairlaunch: Fairlaunch }) {
           />
         </div>
         <div className="flex justify-between text-xs text-gray-500 mt-1">
-          <span>{raised.toLocaleString()}</span>
-          <span>{softcap.toLocaleString()}</span>
+          <span>{raised.toLocaleString()} {getNativeCurrency(fairlaunch.chain, fairlaunch.params?.network_name)}</span>
+          <span>Soft {softcap.toLocaleString()} {getNativeCurrency(fairlaunch.chain, fairlaunch.params?.network_name)}</span>
         </div>
       </div>
 

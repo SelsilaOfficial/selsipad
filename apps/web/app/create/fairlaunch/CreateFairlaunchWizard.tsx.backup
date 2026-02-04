@@ -1,0 +1,1284 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { ArrowLeft, ArrowRight, Save, AlertCircle, CheckCircle2, Loader2, Rocket } from 'lucide-react';
+import { z } from 'zod';
+import { useWriteContract, useWaitForTransactionReceipt, usePublicClient } from 'wagmi';
+import { decodeEventLog, type Address } from 'viem';
+import { createFairlaunchDraft, submitFairlaunch } from './actions';
+import { 
+  parseWizardDataToContractParams,
+  FACTORY_ADDRESSES,
+  FairlaunchFactoryABI,
+  getDeploymentFee 
+} from '@/lib/web3/fairlaunch-contracts';
+import {
+  TOKEN_FACTORY_ADDRESSES,
+  SimpleTokenFactoryABI,
+  getTokenCreationFee,
+  isTokenFactoryAvailable
+} from '@/lib/web3/token-factory';
+import { createFairlaunchDraftWithReturn, completeFairlaunchDeployment } from '@/actions/fairlaunch';
+
+// ===== FAIRLAUNCH-SPECIFIC SCHEMAS (NOT PRESALE) =====
+const fairlaunchBasicsSchema = z.object({
+  name: z.string().min(3, 'Min 3 characters'),
+  symbol: z.string().min(2, 'Min 2 characters').max(10, 'Max 10 characters'),
+  description: z.string().min(10, 'Min 10 characters'),
+  logo_url: z.string().url('Must be valid URL').optional().or(z.literal('')),
+  network: z.enum(['localhost', 'ethereum', 'bnb', 'base', 'sepolia', 'bsc_testnet', 'base_sepolia', 'solana']),
+});
+
+const fairlaunchParamsSchema = z.object({
+  token_address: z.string().min(20, 'Invalid token address'),
+  tokens_for_sale: z.string().min(1, 'Required'),
+  softcap: z.string().min(1, 'Softcap required'), // NO HARDCAP
+  payment_token: z.enum(['NATIVE', 'USDT', 'USDC']),
+  start_at: z.string().min(1, 'Start time required'),
+  end_at: z.string().min(1, 'End time required'),
+  min_contribution: z.string().optional(),
+  max_contribution: z.string().optional(),
+});
+
+const fairlaunchLiquiditySchema = z.object({
+  liquidity_percent: z.number().min(70, 'Fairlaunch requires min 70% liquidity'),
+  lp_lock_months: z.number().min(12, 'LP lock must be at least 12 months'),
+  listing_platform: z.string().min(1, 'Platform required'),
+});
+
+const teamVestingSchema = z.object({
+  team_allocation: z.string().min(1, 'Required'),
+  schedule: z
+    .array(
+      z.object({
+        month: z.number(),
+        percentage: z.number(),
+      })
+    )
+    .min(1, 'At least one vesting period required'),
+});
+
+// Wizard data type
+type WizardData = {
+  basics?: {
+    network?: string;
+    name?: string;
+    symbol?: string;
+    description?: string;
+    logo_url?: string;
+  };
+  params?: {
+    payment_token?: string;
+    token_address?: string;
+    tokens_for_sale?: string;
+    softcap?: string;
+    min_contribution?: string;
+    max_contribution?: string;
+    start_at?: string;
+    end_at?: string;
+  };
+  liquidity?: {
+    liquidity_percent?: number;
+    lp_lock_months?: number;
+    listing_platform?: string;
+  };
+  team_vesting?: {
+    team_allocation?: string;
+    schedule?: Array<{ month: number; percentage: number }>;
+  };
+  fees?: {
+    platform_fee_bps?: number;
+    referral_enabled?: boolean;
+    referral_reward_bps?: number;
+  };
+};
+
+interface CreateFairlaunchWizardProps {
+  walletAddress: string;
+  initialKycStatus: 'PENDING' | 'SUBMITTED' | 'CONFIRMED' | 'REJECTED';
+  initialScScanStatus: 'NOT_REQUESTED' | 'PENDING' | 'PASS' | 'FAIL' | 'OVERRIDE_PASS';
+}
+
+// Unique storage key for fairlaunch
+const STORAGE_KEY = 'wizard:fairlaunch:v1';
+
+const FAIRLAUNCH_STEPS = [
+  { id: 1, name: 'Basic Info', description: 'Project details' },
+  { id: 2, name: 'Fairlaunch Params', description: 'Tokens & softcap' },
+  { id: 3, name: 'Liquidity Plan', description: '>=70% LP + Lock' },
+  { id: 4, name: 'Team Vesting', description: 'Mandatory vesting' },
+  { id: 5, name: 'Fees', description: 'Platform fees' },
+  { id: 6, name: 'Review', description: 'Summary' },
+  { id: 7, name: 'Submit', description: 'Compliance check' },
+];
+
+export function CreateFairlaunchWizard({
+  walletAddress,
+  initialKycStatus,
+  initialScScanStatus,
+}: CreateFairlaunchWizardProps) {
+  const router = useRouter();
+  const [currentStep, setCurrentStep] = useState(1);
+  const [completedSteps, setCompletedSteps] = useState<number[]>([]);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errors, setErrors] = useState<any>({});
+
+  // Deployment state
+  const [deploymentState, setDeploymentState] = useState<{
+    status: 'idle' | 'preparing' | 'signing' | 'deploying' | 'parsing' | 'saving' | 'success' | 'error';
+    txHash?: string;
+    fairlaunchAddress?: string;
+    vestingAddress?: string;
+    error?: string;
+    projectId?: string;
+    roundId?: string;
+  }>({ status: 'idle' });
+
+  const [wizardData, setWizardData] = useState({
+    basics: { network: 'ethereum' },
+    params: { payment_token: 'NATIVE' },
+    liquidity: { liquidity_percent: 70, lp_lock_months: 12, listing_platform: 'Uniswap' },
+    team_vesting: { team_allocation: '0', schedule: [] },
+    fees: { platform_fee_bps: 500, referral_enabled: true, referral_reward_bps: 100 },
+  });
+  
+  // Vesting periods state - for dynamic form inputs
+  const [vestingPeriods, setVestingPeriods] = useState<Array<{ month: string; percentage: string }>>([
+    { month: '', percentage: '' }
+  ]);
+
+  // Token creation state
+  const [tokenMode, setTokenMode] = useState<'create' | 'existing'>('create');
+  const [tokenCreationData, setTokenCreationData] = useState({
+    name: '',
+    symbol: '',
+    totalSupply: '',
+    decimals: 18,
+  });
+  const [createdTokenAddress, setCreatedTokenAddress] = useState<string>('');
+  const [isCreatingToken, setIsCreatingToken] = useState(false);
+
+  // Wagmi hooks
+  const { writeContract, data: hash, isPending: isWriting, error: writeError } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess: isTxSuccess } = useWaitForTransactionReceipt({ hash });
+  const publicClient = usePublicClient();
+
+  // Load draft
+  useEffect(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        setWizardData(JSON.parse(saved));
+      } catch (e) {
+        console.error('Failed to load fairlaunch draft:', e);
+      }
+    }
+  }, []);
+
+  // Save draft
+  useEffect(() => {
+    if (wizardData.basics?.name) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(wizardData));
+    }
+  }, [wizardData]);
+
+  const validateStep = (step: number): boolean => {
+    setErrors({});
+    try {
+      switch (step) {
+        case 1:
+          fairlaunchBasicsSchema.parse(wizardData.basics);
+          break;
+        case 2:
+          fairlaunchParamsSchema.parse(wizardData.params);
+          break;
+        case 3:
+          fairlaunchLiquiditySchema.parse(wizardData.liquidity);
+          break;
+        case 4:
+          teamVestingSchema.parse(wizardData.team_vesting);
+          if (wizardData.team_vesting.schedule.reduce((s, v) => s + v.percentage, 0) !== 100) {
+            setErrors({ schedule: 'Vesting must total 100%' });
+            return false;
+          }
+          break;
+        case 6:
+          return termsAccepted;
+      }
+      return true;
+    } catch (error: any) {
+      if (error.errors) {
+        const fieldErrors: any = {};
+        error.errors.forEach((err: any) => {
+          fieldErrors[err.path[0]] = err.message;
+        });
+        setErrors(fieldErrors);
+      }
+      return false;
+    }
+  };
+
+  const handleNext = () => {
+    let isValid = true;
+    const newErrors: any = {};
+
+    // Step 4: Sync vesting periods to wizardData
+    if (currentStep === 4) {
+      const schedule = vestingPeriods
+        .filter(p => p.month && p.percentage)
+        .map(p => ({
+          month: parseInt(p.month),
+          percentage: parseFloat(p.percentage),
+        }));
+      
+      const total = schedule.reduce((sum, s) => sum + s.percentage, 0);
+      
+      if (total !== 100) {
+        newErrors.schedule = `Total must be 100% (current: ${total.toFixed(1)}%)`;
+        isValid = false;
+      }
+      
+      if (schedule.length === 0) {
+        newErrors.schedule = 'Add at least one vesting period';
+        isValid = false;
+      }
+      
+      // Sync to wizardData
+      setWizardData(prevData => ({
+        ...prevData,
+        team_vesting: {
+          ...prevData.team_vesting,
+          schedule,
+        },
+      }));
+    }
+
+    setErrors(newErrors);
+    if (isValid && validateStep(currentStep)) {
+      if (!completedSteps.includes(currentStep)) {
+        setCompletedSteps([...completedSteps, currentStep]);
+      }
+      setCurrentStep(currentStep + 1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(wizardData));
+    }
+  };
+
+  const handleBack = () => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const handleSaveDraft = async () => {
+    try {
+      const result = await createFairlaunchDraft(wizardData, walletAddress);
+      if (result.success) {
+        alert('Draft saved!');
+      } else {
+        alert('Save failed: ' + result.error);
+      }
+    } catch (error) {
+      alert('Failed to save draft');
+    }
+  };
+
+  // Token creation handler
+  const handleCreateToken = async () => {
+    if (!tokenCreationData.name || !tokenCreationData.symbol || !tokenCreationData.totalSupply) {
+      setErrors({ ...errors, token_creation: 'All token fields are required' });
+      return;
+    }
+
+    const network = wizardData.basics?.network || 'ethereum';
+    if (!isTokenFactoryAvailable(network)) {
+      setErrors({ ...errors, token_creation: 'Token factory not available on this network' });
+      return;
+    }
+
+    setIsCreatingToken(true);
+    setErrors({});
+
+    try {
+      const factoryAddress = TOKEN_FACTORY_ADDRESSES[network];
+      const creationFee = getTokenCreationFee(network);
+      const totalSupply = BigInt(tokenCreationData.totalSupply) * (10n ** BigInt(tokenCreationData.decimals));
+
+      // Call createToken on SimpleTokenFactory
+      const hash = await writeContract({
+        address: factoryAddress,
+        abi: SimpleTokenFactoryABI,
+        functionName: 'createToken',
+        args: [
+          tokenCreationData.name,
+          tokenCreationData.symbol,
+          totalSupply,
+          tokenCreationData.decimals,
+        ],
+        value: creationFee,
+      });
+
+      // Wait for confirmation (using same wagmi hooks)
+      // The writeContract hook will trigger useWaitForTransactionReceipt
+      
+      // Note: We'll need to parse the TokenCreated event from receipt
+      // For now, we'll rely on user checking the transaction manually
+      // TODO: Add proper event parsing in a useEffect
+      
+      setErrors({ ...errors, token_creation_success: `Token creation transaction submitted! Hash: ${hash}` });
+      
+    } catch (error: any) {
+      console.error('Token creation error:', error);
+      setErrors({ ...errors, token_creation: error.message || 'Token creation failed' });
+    } finally {
+      setIsCreatingToken(false);
+    }
+  };
+
+  const handleSubmit = async () => {
+    setIsSubmitting(true);
+    setDeploymentState({ status: 'preparing' });
+
+    try {
+      // Step 1: Create draft in database first
+      const draftResult = await createFairlaunchDraftWithReturn(wizardData, walletAddress);
+      
+      if (!draftResult.success || !draftResult.projectId || !draftResult.roundId) {
+        throw new Error(draftResult.error || 'Failed to create draft');
+      }
+
+      setDeploymentState({ 
+        status: 'signing',
+        projectId: draftResult.projectId,
+        roundId: draftResult.roundId,
+      });
+
+      // Step 2: Parse wizard data to contract params
+      const { params, vestingParams, lpPlan, deploymentFee } = parseWizardDataToContractParams(
+        wizardData,
+        walletAddress as Address
+      );
+
+      // Step 3: Get factory address for network
+      const network = wizardData.basics?.network || 'ethereum';
+      const factoryAddress = FACTORY_ADDRESSES[network];
+
+      if (!factoryAddress || factoryAddress === '0x0000000000000000000000000000000000000000') {
+        throw new Error(`Factory not deployed on ${network}. Please deploy factory first or switch networks.`);
+      }
+
+      // Step 4: Call factory contract
+      writeContract({
+        address: factoryAddress,
+        abi: FairlaunchFactoryABI.abi,
+        functionName: 'createFairlaunch',
+        args: [params, vestingParams, lpPlan],
+        value: deploymentFee,
+        gas: 15_000_000n, // Set explicit gas limit to avoid MetaMask's 16.7M cap
+      });
+
+      // Transaction will be monitored by useEffect below
+    } catch (error: any) {
+      console.error('Deployment failed:', error);
+      setDeploymentState({ 
+        status: 'error', 
+        error: error.message || 'Deployment failed' 
+      });
+      setIsSubmitting(false);
+    }
+  };
+
+  // Monitor transaction status
+  useEffect(() => {
+    if (hash && !isTxSuccess && !isConfirming) {
+      setDeploymentState(prev => ({ ...prev, status: 'deploying', txHash: hash }));
+    }
+  }, [hash, isConfirming, isTxSuccess]);
+
+  // Handle successful transaction
+  useEffect(() => {
+    if (isTxSuccess && hash && publicClient) {
+      handleTransactionSuccess();
+    }
+  }, [isTxSuccess, hash, publicClient]);
+
+  // Parse events and save to database
+  const handleTransactionSuccess = async () => {
+    try {
+      setDeploymentState(prev => ({ ...prev, status: 'parsing' }));
+
+      // Get transaction receipt
+      const receipt = await publicClient!.getTransactionReceipt({ hash: hash! });
+      
+      // Parse FairlaunchCreated event
+      let fairlaunchAddress: Address | undefined;
+      let vestingAddress: Address | undefined;
+
+      for (const log of receipt.logs) {
+        try {
+          const decoded = decodeEventLog({
+            abi: FairlaunchFactoryABI.abi,
+            data: log.data,
+            topics: log.topics,
+          });
+
+          if (decoded.eventName === 'FairlaunchCreated') {
+            fairlaunchAddress = (decoded.args as any).fairlaunch;
+            vestingAddress = (decoded.args as any).vesting;
+            break;
+          }
+        } catch (e) {
+          // Skip logs that don't match
+        }
+      }
+
+      if (!fairlaunchAddress) {
+        throw new Error('Could not find FairlaunchCreated event in transaction');
+      }
+
+      setDeploymentState(prev => ({ 
+        ...prev, 
+        status: 'saving',
+        fairlaunchAddress,
+        vestingAddress: vestingAddress || undefined,
+      }));
+
+      // Save to database
+      const saveResult = await completeFairlaunchDeployment({
+        roundId: deploymentState.roundId!,
+        projectId: deploymentState.projectId!,
+        fairlaunchAddress: fairlaunchAddress,
+        vestingAddress: vestingAddress || undefined,
+        txHash: hash!,
+        chainId: receipt.chainId,
+      });
+
+      if (!saveResult.success) {
+        throw new Error(saveResult.error || 'Failed to save deployment');
+      }
+
+      // Success!
+      setDeploymentState(prev => ({ ...prev, status: 'success' }));
+      localStorage.removeItem(STORAGE_KEY);
+      
+      // Redirect to fairlaunch detail page
+      setTimeout(() => {
+        router.push(`/fairlaunch/${deploymentState.projectId}?deployed=true`);
+      }, 2000);
+
+    } catch (error: any) {
+      console.error('Post-deployment processing failed:', error);
+      setDeploymentState(prev => ({ 
+        ...prev, 
+        status: 'error',
+        error: error.message || 'Failed to process deployment'
+      }));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Handle write errors
+  useEffect(() => {
+    if (writeError) {
+      setDeploymentState({ 
+        status: 'error', 
+        error: writeError.message || 'Transaction failed' 
+      });
+      setIsSubmitting(false);
+    }
+  }, [writeError]);
+
+  // Compliance checks
+  const kycPassed = initialKycStatus === 'CONFIRMED';
+  const isLocalhost = wizardData?.basics?.network === 'localhost';
+  const scScanPassed = isLocalhost || ['PASS', 'OVERRIDE_PASS'].includes(initialScScanStatus);
+  const teamVestingValid =
+    wizardData?.team_vesting?.schedule?.reduce((sum: number, v: any) => sum + v.percentage, 0) === 100 || false;
+  const liquidityValid =
+    (wizardData?.liquidity?.liquidity_percent || 0) >= 70 && (wizardData?.liquidity?.lp_lock_months || 0) >= 12;
+
+  return (
+    <div className="max-w-4xl mx-auto">
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-white mb-2">Create Fairlaunch</h1>
+        <p className="text-gray-400">
+          Launch your fairlaunch in 7 steps. Pro-rata tokenomics with softcap only.
+        </p>
+
+        <div className="mt-4 bg-blue-950/30 border border-blue-800/40 rounded-lg p-4">
+          <div className="flex gap-3">
+            <AlertCircle className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
+            <div className="text-sm">
+              <p className="text-blue-300 font-medium mb-1">Fairlaunch Key Points:</p>
+              <ul className="text-blue-200/80 space-y-1 text-xs">
+                <li>
+                  • <strong>No hardcap</strong> - only softcap
+                </li>
+                <li>
+                  • <strong>Final price</strong> = total_raised / tokens_for_sale
+                </li>
+                <li>
+                  • <strong>Min 70% liquidity</strong> + 12+ month lock
+                </li>
+                <li>
+                  • <strong>Team vesting mandatory</strong>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Stepper - 7 STEPS */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between">
+          {FAIRLAUNCH_STEPS.map((step, index) => (
+            <div key={step.id} className="flex items-center flex-1">
+              <button
+                onClick={() =>
+                  currentStep > step.id || completedSteps.includes(step.id)
+                    ? setCurrentStep(step.id)
+                    : null
+                }
+                className={`flex flex-col items-center ${currentStep >= step.id ? 'opacity-100' : 'opacity-50'}`}
+              >
+                <div
+                  className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
+                    currentStep === step.id
+                      ? 'bg-purple-600 text-white'
+                      : completedSteps.includes(step.id)
+                        ? 'bg-green-600 text-white'
+                        : 'bg-gray-700 text-gray-400'
+                  }`}
+                >
+                  {completedSteps.includes(step.id) ? '✓' : step.id}
+                </div>
+                <span className="text-xs text-gray-400 mt-1 hidden md:block">{step.name}</span>
+              </button>
+              {index < FAIRLAUNCH_STEPS.length - 1 && (
+                <div
+                  className={`flex-1 h-0.5 mx-2 ${currentStep > step.id ? 'bg-purple-600' : 'bg-gray-700'}`}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="bg-gray-900 border border-gray-800 rounded-xl p-8 mb-6">
+        {/* Step 1: Basic Info */}
+        {currentStep === 1 && (
+          <div>
+            <h2 className="text-xl font-bold text-white mb-4">Basic Information</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Project Name</label>
+                <input
+                  type="text"
+                  value={wizardData.basics?.name || ''}
+                  onChange={(e) =>
+                    setWizardData({
+                      ...wizardData,
+                      basics: { ...wizardData.basics, name: e.target.value },
+                    })
+                  }
+                  className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white"
+                  placeholder="My Token"
+                />
+                {errors.name && <p className="text-red-400 text-sm mt-1">{errors.name}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Symbol</label>
+                <input
+                  type="text"
+                  value={wizardData.basics?.symbol || ''}
+                  onChange={(e) =>
+                    setWizardData({
+                      ...wizardData,
+                      basics: { ...wizardData.basics, symbol: e.target.value },
+                    })
+                  }
+                  className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white"
+                  placeholder="MTK"
+                />
+                {errors.symbol && <p className="text-red-400 text-sm mt-1">{errors.symbol}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Description</label>
+                <textarea
+                  value={wizardData.basics?.description || ''}
+                  onChange={(e) =>
+                    setWizardData({
+                      ...wizardData,
+                      basics: { ...wizardData.basics, description: e.target.value },
+                    })
+                  }
+                  className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white"
+                  rows={4}
+                  placeholder="Describe your project..."
+                />
+                {errors.description && (
+                  <p className="text-red-400 text-sm mt-1">{errors.description}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Network</label>
+                <select
+                  value={wizardData.basics?.network || 'ethereum'}
+                  onChange={(e) =>
+                    setWizardData({
+                      ...wizardData,
+                      basics: { ...wizardData.basics, network: e.target.value },
+                    })
+                  }
+                  className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white"
+                >
+                  <option value="localhost">Localhost (Hardhat)</option>
+                  <option value="ethereum">Ethereum</option>
+                  <option value="bnb">BNB Chain</option>
+                  <option value="base">Base</option>
+                  <option value="sepolia">Sepolia Testnet</option>
+                  <option value="bsc_testnet">BSC Testnet</option>
+                  <option value="base_sepolia">Base Sepolia</option>
+                  <option value="solana">Solana</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Step 2: Fairlaunch Params (NO HARDCAP!) */}
+        {currentStep === 2 && (
+          <div>
+            <h2 className="text-xl font-bold text-white mb-4">Fairlaunch Parameters</h2>
+            <div className="mb-4 bg-amber-950/30 border border-amber-800/40 rounded-lg p-3">
+              <p className="text-amber-200 text-sm">
+                <strong>No Hardcap:</strong> Final price = total_raised / tokens_for_sale
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              {/* Token Mode Selection */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-300 mb-3">
+                  Token Configuration
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setTokenMode('create')}
+                    className={`p-4 rounded-lg border-2 transition-all ${
+                      tokenMode === 'create'
+                        ? 'border-blue-500 bg-blue-500/10'
+                        : 'border-gray-700 bg-gray-800 hover:border-gray-600'
+                    }`}
+                  >
+                    <div className="text-left">
+                      <div className="font-semibold text-white mb-1">Create New Token</div>
+                      <div className="text-xs text-gray-400">Recommended • Auto-approved</div>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTokenMode('existing')}
+                    className={`p-4 rounded-lg border-2 transition-all ${
+                      tokenMode === 'existing'
+                        ? 'border-blue-500 bg-blue-500/10'
+                        : 'border-gray-700 bg-gray-800 hover:border-gray-600'
+                    }`}
+                  >
+                    <div className="text-left">
+                      <div className="font-semibold text-white mb-1">Use Existing Token</div>
+                      <div className="text-xs text-gray-400">Requires SC Scan</div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Create Token Mode */}
+              {tokenMode === 'create' && (
+                <div className="space-y-4 bg-blue-500/5 border border-blue-500/20 rounded-lg p-4 mb-4">
+                  <div className="flex items-start gap-2 text-sm text-blue-300 mb-3">
+                    <span>ℹ️</span>
+                    <span>Platform-created tokens are automatically approved and earn the Gold SAFU Shield.</span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                        Token Name
+                      </label>
+                      <input
+                        type="text"
+                        value={tokenCreationData.name}
+                        onChange={(e) =>
+                          setTokenCreationData({ ...tokenCreationData, name: e.target.value })
+                        }
+                        className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white"
+                        placeholder="My Token"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                        Symbol
+                      </label>
+                      <input
+                        type="text"
+                        value={tokenCreationData.symbol}
+                        onChange={(e) =>
+                          setTokenCreationData({ ...tokenCreationData, symbol: e.target.value.toUpperCase() })
+                        }
+                        className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white"
+                        placeholder="MTK"
+                        maxLength={10}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      Total Supply
+                    </label>
+                    <input
+                      type="number"
+                      value={tokenCreationData.totalSupply}
+                      onChange={(e) =>
+                        setTokenCreationData({ ...tokenCreationData, totalSupply: e.target.value })
+                      }
+                      className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white"
+                      placeholder="1000000"
+                    />
+                    <p className="text-gray-500 text-xs mt-1">
+                      Total tokens (before decimals). Example: 1000000 = 1M tokens
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      Decimals
+                    </label>
+                    <select
+                      value={tokenCreationData.decimals}
+                      onChange={(e) =>
+                        setTokenCreationData({ ...tokenCreationData, decimals: parseInt(e.target.value) })
+                      }
+                      className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white"
+                    >
+                      <option value={18}>18 (Standard)</option>
+                      <option value={9}>9 (Solana-style)</option>
+                      <option value={6}>6 (USDC-style)</option>
+                    </select>
+                  </div>
+
+                  <div className="border-t border-gray-700 pt-4">
+                    <div className="flex items-center justify-between text-sm mb-3">
+                      <span className="text-gray-400">Creation Fee:</span>
+                      <span className="text-white font-mono">
+                        {(() => {
+                           const network = wizardData.basics?.network || 'ethereum';
+                          const fee = getTokenCreationFee(network);
+                          return `${(Number(fee) / 1e18).toFixed(4)} ${network.includes('bsc') ? 'BNB' : 'ETH'}`;
+                        })()}
+                      </span>
+                    </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleCreateToken}
+                      disabled={isCreatingToken || !tokenCreationData.name || !tokenCreationData.symbol || !tokenCreationData.totalSupply}
+                      className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
+                    >
+                      {isCreatingToken ? 'Creating Token...' : 'Create Token'}
+                    </button>
+
+                    {createdTokenAddress && (
+                      <div className="mt-3 p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
+                        <div className="text-green-400 text-sm font-semibold mb-1">✅ Token Created!</div>
+                        <div className="text-xs text-gray-300 font-mono break-all">{createdTokenAddress}</div>
+                      </div>
+                    )}
+
+                    {errors.token_creation && (
+                      <div className="mt-3 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+                        <div className="text-red-400 text-sm">{errors.token_creation}</div>
+                      </div>
+                    )}
+
+                    {errors.token_creation_success && (
+                      <div className="mt-3 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                        <div className="text-blue-400 text-sm">{errors.token_creation_success}</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Existing Token Mode */}
+              {tokenMode === 'existing' && (
+                <div className="space-y-4">
+                  <div className="flex items-start gap-2 text-sm text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 mb-3">
+                    <span>⚠️</span>
+                    <span>Using an existing token requires passing our security scan. Creating a new token is recommended for guaranteed approval.</span>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      Token Address
+                    </label>
+                    <input
+                      type="text"
+                      value={wizardData.params?.token_address || ''}
+                      onChange={(e) =>
+                        setWizardData({
+                          ...wizardData,
+                          params: { ...wizardData.params, token_address: e.target.value },
+                        })
+                      }
+                      className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white font-mono text-sm"
+                      placeholder="0x..."
+                    />
+                    {errors.token_address && (
+                      <p className="text-red-400 text-sm mt-1">{errors.token_address}</p>
+                    )}
+                  </div>
+
+                  <div className="border-t border-gray-700 pt-4">
+                    <button
+                      type="button"
+                      className="w-full px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-colors"
+                      disabled={!wizardData.params?.token_address}
+                    >
+                      Scan Token Security
+                    </button>
+                    <p className="text-gray-500 text-xs mt-2 text-center">
+                      SC Scan integration coming soon. For MVP, proceed to next step.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Tokens For Sale
+                </label>
+                <input
+                  type="number"
+                  value={wizardData.params?.tokens_for_sale || ''}
+                  onChange={(e) =>
+                    setWizardData({
+                      ...wizardData,
+                      params: { ...wizardData.params, tokens_for_sale: e.target.value },
+                    })
+                  }
+                  className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white"
+                  placeholder="1000000"
+                />
+                {errors.tokens_for_sale && (
+                  <p className="text-red-400 text-sm mt-1">{errors.tokens_for_sale}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Softcap Only</label>
+                <input
+                  type="number"
+                  value={wizardData.params?.softcap || ''}
+                  onChange={(e) =>
+                    setWizardData({
+                      ...wizardData,
+                      params: { ...wizardData.params, softcap: e.target.value },
+                    })
+                  }
+                  className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white"
+                  placeholder="100"
+                />
+                <p className="text-gray-500 text-xs mt-1">
+                  Minimum funds to raise. If not met, refund issued.
+                </p>
+                {errors.softcap && <p className="text-red-400 text-sm mt-1">{errors.softcap}</p>}
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Start Time</label>
+                  <input
+                    type="datetime-local"
+                    value={wizardData.params?.start_at || ''}
+                    onChange={(e) =>
+                      setWizardData({
+                        ...wizardData,
+                        params: { ...wizardData.params, start_at: e.target.value },
+                      })
+                    }
+                    className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">End Time</label>
+                  <input
+                    type="datetime-local"
+                    value={wizardData.params?.end_at || ''}
+                    onChange={(e) =>
+                      setWizardData({
+                        ...wizardData,
+                        params: { ...wizardData.params, end_at: e.target.value },
+                      })
+                    }
+                    className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: Liquidity Plan (>=70%, >=12mo) */}
+        {currentStep === 3 && (
+          <div>
+            <h2 className="text-xl font-bold text-white mb-4">Liquidity Plan</h2>
+            <div className="mb-4 bg-purple-950/30 border border-purple-800/40 rounded-lg p-3">
+              <p className="text-purple-200 text-sm">
+                <strong>Fairlaunch Requirement:</strong> Min 70% liquidity + 12+ month lock
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Liquidity Percentage (%)
+                </label>
+                <input
+                  type="number"
+                  min="70"
+                  max="100"
+                  value={wizardData.liquidity?.liquidity_percent || 70}
+                  onChange={(e) =>
+                    setWizardData({
+                      ...wizardData,
+                      liquidity: {
+                        ...wizardData.liquidity,
+                        liquidity_percent: parseInt(e.target.value),
+                      },
+                    })
+                  }
+                  className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white"
+                />
+                <p className="text-gray-500 text-xs mt-1">Minimum 70% for fairlaunch</p>
+                {errors.liquidity_percent && (
+                  <p className="text-red-400 text-sm mt-1">{errors.liquidity_percent}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  LP Lock Duration (months)
+                </label>
+                <input
+                  type="number"
+                  min="12"
+                  value={wizardData.liquidity?.lp_lock_months || 12}
+                  onChange={(e) =>
+                    setWizardData({
+                      ...wizardData,
+                      liquidity: {
+                        ...wizardData.liquidity,
+                        lp_lock_months: parseInt(e.target.value),
+                      },
+                    })
+                  }
+                  className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white"
+                />
+                <p className="text-gray-500 text-xs mt-1">Minimum 12 months</p>
+                {errors.lp_lock_months && (
+                  <p className="text-red-400 text-sm mt-1">{errors.lp_lock_months}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Listing Platform
+                </label>
+                <select
+                  value={wizardData.liquidity?.listing_platform || 'Uniswap'}
+                  onChange={(e) =>
+                    setWizardData({
+                      ...wizardData,
+                      liquidity: { ...wizardData.liquidity, listing_platform: e.target.value },
+                    })
+                  }
+                  className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white"
+                >
+                  <option value="Uniswap">Uniswap</option>
+                  <option value="PancakeSwap">PancakeSwap</option>
+                  <option value="Raydium">Raydium (Solana)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Step 4: Team Vesting (MANDATORY) */}
+        {currentStep === 4 && (
+          <div>
+            <h2 className="text-xl font-bold text-white mb-4">Team Vesting (Mandatory)</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Team Allocation
+                </label>
+                <input
+                  type="number"
+                  value={wizardData.team_vesting?.team_allocation || ''}
+                  onChange={(e) =>
+                    setWizardData({
+                      ...wizardData,
+                      team_vesting: { ...wizardData.team_vesting, team_allocation: e.target.value },
+                    })
+                  }
+                  className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white"
+                  placeholder="100000"
+                />
+              </div>
+
+              <div>
+                <p className="text-sm text-gray-400 mb-2">Vesting Schedule (must total 100%)</p>
+                
+                {vestingPeriods.map((period, index) => (
+                  <div key={index} className="flex gap-3 mb-3">
+                    <div className="flex-1">
+                      <input
+                        type="number"
+                        value={period.month}
+                        onChange={(e) => {
+                          const newPeriods = [...vestingPeriods];
+                          newPeriods[index].month = e.target.value;
+                          setVestingPeriods(newPeriods);
+                        }}
+                        className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white"
+                        placeholder="Month (e.g., 3)"
+                        min="0"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <input
+                        type="number"
+                        value={period.percentage}
+                        onChange={(e) => {
+                          const newPeriods = [...vestingPeriods];
+                          newPeriods[index].percentage = e.target.value;
+                          setVestingPeriods(newPeriods);
+                        }}
+                        className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white"
+                        placeholder="% (e.g., 25)"
+                        min="0"
+                        max="100"
+                      />
+                    </div>
+                    {vestingPeriods.length > 1 && (
+                      <button
+                        onClick={() => {
+                          const newPeriods = vestingPeriods.filter((_, i) => i !== index);
+                          setVestingPeriods(newPeriods);
+                        }}
+                        className="px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                ))}
+                
+                <button
+                  onClick={() => setVestingPeriods([...vestingPeriods, { month: '', percentage: '' }])}
+                  className="w-full px-4 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg mb-2"
+                >
+                  + Add Vesting Period
+                </button>
+                
+                <div className="bg-blue-950/30 border border-blue-800/40 rounded-lg p-3 mt-3">
+                  <p className="text-xs text-blue-300">
+                    Total: {vestingPeriods.reduce((sum, p) => sum + (parseFloat(p.percentage) || 0), 0).toFixed(1)}%
+                    {vestingPeriods.reduce((sum, p) => sum + (parseFloat(p.percentage) || 0), 0) === 100 && ' ✅'}
+                  </p>
+                </div>
+                
+                {errors.schedule && <p className="text-red-400 text-sm mt-1">{errors.schedule}</p>}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Step 5: Fees */}
+        {currentStep === 5 && (
+          <div>
+            <h2 className="text-xl font-bold text-white mb-4">Fee Structure</h2>
+            <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
+              <div className="space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Platform Success Fee</span>
+                  <span className="text-white font-medium">5%</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Referral Rewards</span>
+                  <span className="text-white font-medium">1%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Step 6: Review */}
+        {currentStep === 6 && (
+          <div>
+            <h2 className="text-xl font-bold text-white mb-4">Review & Terms</h2>
+            <div className="bg-gray-800 border border-gray-700 rounded-lg p-6 mb-4">
+              <h3 className="font-semibold text-white mb-2">Summary</h3>
+              <div className="space-y-2 text-sm">
+                <p>
+                  <span className="text-gray-400">Project:</span>{' '}
+                  <span className="text-white">{wizardData.basics?.name || 'N/A'}</span>
+                </p>
+                <p>
+                  <span className="text-gray-400">Network:</span>{' '}
+                  <span className="text-white">{wizardData.basics?.network}</span>
+                </p>
+                <p>
+                  <span className="text-gray-400">Tokens for Sale:</span>{' '}
+                  <span className="text-white">{wizardData.params?.tokens_for_sale || 'N/A'}</span>
+                </p>
+                <p>
+                  <span className="text-gray-400">Softcap:</span>{' '}
+                  <span className="text-white">{wizardData.params?.softcap || 'N/A'}</span>
+                </p>
+                <p>
+                  <span className="text-gray-400">Hardcap:</span>{' '}
+                  <span className="text-amber-400">NO HARDCAP (Fairlaunch)</span>
+                </p>
+                <p>
+                  <span className="text-gray-400">Liquidity:</span>{' '}
+                  <span className="text-white">
+                    {wizardData.liquidity?.liquidity_percent}% locked for{' '}
+                    {wizardData.liquidity?.lp_lock_months} months
+                  </span>
+                </p>
+              </div>
+            </div>
+
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={termsAccepted}
+                onChange={(e) => setTermsAccepted(e.target.checked)}
+                className="mt-1"
+              />
+              <span className="text-sm text-gray-300">
+                I accept the terms and understand that fairlaunch uses pro-rata pricing (final_price
+                = total_raised / tokens_for_sale)
+              </span>
+            </label>
+          </div>
+        )}
+
+        {/* Step 7: Submit (Compliance) */}
+        {currentStep === 7 && (
+          <div className="text-center py-8">
+            <h2 className="text-2xl font-bold text-white mb-6">Compliance Check</h2>
+
+            <div className="space-y-3 mb-6 text-left max-w-md mx-auto">
+              <div
+                className={`flex items-center gap-3 ${scScanPassed ? 'text-green-400' : 'text-red-400'}`}
+              >
+                {scScanPassed ? (
+                  <CheckCircle2 className="w-5 h-5" />
+                ) : (
+                  <AlertCircle className="w-5 h-5" />
+                )}
+                <span>
+                  Smart Contract Scan {scScanPassed ? 'Passed' : 'Required'}
+                  {isLocalhost && ' (Bypassed for localhost)'}
+                </span>
+              </div>
+              <div
+                className={`flex items-center gap-3 ${teamVestingValid ? 'text-green-400' : 'text-red-400'}`}
+              >
+                {teamVestingValid ? (
+                  <CheckCircle2 className="w-5 h-5" />
+                ) : (
+                  <AlertCircle className="w-5 h-5" />
+                )}
+                <span>Team Vesting {teamVestingValid ? 'Configured' : 'Required'}</span>
+              </div>
+              <div
+                className={`flex items-center gap-3 ${liquidityValid ? 'text-green-400' : 'text-red-400'}`}
+              >
+                {liquidityValid ? (
+                  <CheckCircle2 className="w-5 h-5" />
+                ) : (
+                  <AlertCircle className="w-5 h-5" />
+                )}
+                <span>Liquidity Plan {liquidityValid ? 'Valid' : 'Invalid'}</span>
+              </div>
+            </div>
+
+            <button
+              onClick={handleSubmit}
+              disabled={
+                isSubmitting || !scScanPassed || !teamVestingValid || !liquidityValid
+              }
+              className="px-8 py-4 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSubmitting ? 'Submitting...' : 'Submit Fairlaunch'}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Navigation */}
+      <div className="flex justify-between">
+        <button
+          onClick={handleBack}
+          disabled={currentStep === 1}
+          className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium ${
+            currentStep === 1
+              ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
+              : 'bg-gray-800 text-white hover:bg-gray-700'
+          }`}
+        >
+          <ArrowLeft className="w-5 h-5" />
+          Back
+        </button>
+
+        <div className="flex gap-3">
+          {currentStep < 7 && (
+            <>
+              <button
+                onClick={handleSaveDraft}
+                className="flex items-center gap-2 px-6 py-3 rounded-lg font-medium bg-gray-800 text-gray-300 hover:bg-gray-700"
+              >
+                <Save className="w-5 h-5" />
+                Save Draft
+              </button>
+              <button
+                onClick={handleNext}
+                className="flex items-center gap-2 px-6 py-3 rounded-lg font-medium bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white"
+              >
+                Next
+                <ArrowRight className="w-5 h-5" />
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

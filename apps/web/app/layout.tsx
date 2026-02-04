@@ -4,6 +4,7 @@ import '../src/styles/globals.css';
 import { ConditionalBottomNav } from '@/components/layout/ConditionalBottomNav';
 import { ToastProvider } from '@/components/ui';
 import { MultiChainWalletProvider } from '@/lib/wallet/MultiChainWalletProvider';
+import { GlobalBackButton } from '@/components/ui/GlobalBackButton';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -22,6 +23,7 @@ export default function RootLayout({
       <body className={inter.className}>
         <MultiChainWalletProvider>
           <ToastProvider>
+            <GlobalBackButton />
             {children}
             <ConditionalBottomNav />
           </ToastProvider>

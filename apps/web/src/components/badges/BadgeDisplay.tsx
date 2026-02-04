@@ -38,14 +38,26 @@ export function BadgeDisplay({ badge, size = 'md', showTooltip = true }: BadgeDi
   const emoji = BADGE_EMOJI_MAP[badge.key] || '🏅';
 
   const sizeClasses = {
-    sm: 'text-sm',
-    md: 'text-base',
-    lg: 'text-lg',
+    sm: 'w-4 h-4',
+    md: 'w-5 h-5',
+    lg: 'w-6 h-6',
   };
+
+  // If icon_url is provided, show image instead of emoji
+  if (badge.icon_url) {
+    return (
+      <img
+        src={badge.icon_url}
+        alt={badge.display_name}
+        className={`inline-flex ${sizeClasses[size]}`}
+        title={showTooltip ? badge.display_name : undefined}
+      />
+    );
+  }
 
   return (
     <span
-      className={`inline-flex items-center ${sizeClasses[size]}`}
+      className={`inline-flex items-center text-${size === 'sm' ? 'sm' : size === 'md' ? 'base' : 'lg'}`}
       title={showTooltip ? badge.display_name : undefined}
       aria-label={badge.display_name}
     >

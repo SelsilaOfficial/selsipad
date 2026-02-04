@@ -1,14 +1,16 @@
 /**
- * Rewards Page - Multi-Chain Support
- * Server-side data fetching with multi-chain display
+ * Rewards Page - Referral Dashboard
+ * Shows user's referral statistics, earnings, and referred users
  */
 
 import { redirect } from 'next/navigation';
 import { getServerSession } from '@/lib/auth/session';
-import { getRewardsByChain } from '@/lib/data/multi-chain-rewards';
-import { MultiChainRewardsContent } from '@/components/rewards/MultiChainRewardsContent';
+import { getReferralStats } from '@/actions/referral/get-stats';
 import { PageHeader, PageContainer } from '@/components/layout';
-import { Card, CardContent } from '@/components/ui';
+import { ReferralStatsCards } from '@/components/referral/ReferralStatsCards';
+import { ReferralList } from '@/components/referral/ReferralList';
+import { ReferralExplainer } from '@/components/referral/ReferralExplainer';
+import { ReferralCodeDisplay } from '@/components/referral/ReferralCodeDisplay';
 
 export default async function RewardsPage() {
   const session = await getServerSession();
@@ -17,27 +19,45 @@ export default async function RewardsPage() {
     redirect('/');
   }
 
-  // Fetch multi-chain rewards
-  const rewardsByChain = await getRewardsByChain(session.userId);
+  // Fetch referral statistics
+  const { success, stats, error } = await getReferralStats();
 
-  // If no rewards, show empty state
-  if (rewardsByChain.length === 0) {
-    return (
-      <div className="min-h-screen bg-bg-page pb-20">
-        <PageHeader title="Rewards" />
-        <PageContainer className="py-4">
-          <Card>
-            <CardContent className="text-center py-12">
-              <p className="text-heading-lg mb-2">No rewards yet</p>
-              <p className="text-body-sm text-text-secondary">
-                Start participating to earn rewards!
-              </p>
-            </CardContent>
-          </Card>
-        </PageContainer>
-      </div>
-    );
+  if (!success || !stats) {
+    console.error('Failed to load referral stats:', error);
+    // Show empty state but don't redirect
   }
 
-  return <MultiChainRewardsContent initialRewards={rewardsByChain} />;
+  return (
+    <div className="min-h-screen bg-bg-page pb-20">
+      <PageHeader title="Referral Rewards" />
+      <PageContainer className="py-6">
+        {stats ? (
+          <div className="space-y-6">
+            {/* Stats Cards */}
+            <ReferralStatsCards stats={stats} />
+
+            {/* Main Content Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Main Content - 2/3 width on desktop */}
+              <div className="lg:col-span-2 space-y-6">
+                <ReferralList referredUsers={stats.referredUsers} />
+              </div>
+
+              {/* Sidebar - 1/3 width on desktop */}
+              <div className="space-y-6">
+                <ReferralCodeDisplay />
+                <ReferralExplainer />
+              </div>
+            </div>
+          </div>
+        ) : (
+          // Error state
+          <div className="text-center py-12">
+            <p className="text-xl mb-2">Failed to load referral data</p>
+            <p className="text-sm text-gray-400">{error || 'Please try again later'}</p>
+          </div>
+        )}
+      </PageContainer>
+    </div>
+  );
 }

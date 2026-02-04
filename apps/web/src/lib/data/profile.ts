@@ -1,7 +1,7 @@
 // Data layer for User Profile and Wallets - REAL API INTEGRATION
 // Replaces stub data with Supabase queries
 
-import { createClient } from '@/lib/supabase/client';
+import { createClient } from '@/lib/supabase/server';
 import { getServerSession } from '@/lib/auth/session';
 
 export interface Wallet {

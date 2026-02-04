@@ -3,12 +3,12 @@
 import { useState, useEffect } from 'react';
 import { Shield, AlertTriangle, CheckCircle, Loader2, RefreshCw } from 'lucide-react';
 import {
-  startContractScan,
-  getContractScanStatus,
-} from '../../../../../app/projects/[id]/contract/actions';
+  scanContractAddress,
+  getScanStatus,
+} from '../actions/scan-contract';
 
 export interface ExternalScanStepProps {
-  projectId: string;
+  projectId: string; // Can be 'temp' for new projects
   network: string;
   contractAddress: string;
   onContractAddressChange: (address: string) => void;
@@ -22,16 +22,17 @@ export function ExternalScanStep({
   onContractAddressChange,
   onScanComplete,
 }: ExternalScanStepProps) {
+  const [scanId, setScanId] = useState<string | null>(null);
   const [scanStatus, setScanStatus] = useState<string | null>(null);
   const [scanResult, setScanResult] = useState<any>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [error, setError] = useState('');
 
-  // Poll scan status
+  // Poll scan status by scan_id (not projectId)
   useEffect(() => {
-    if (scanStatus === 'RUNNING' || scanStatus === 'PENDING') {
+    if (scanId && (scanStatus === 'RUNNING' || scanStatus === 'PENDING')) {
       const interval = setInterval(async () => {
-        const result = await getContractScanStatus(projectId);
+        const result = await getScanStatus(scanId);
 
         if (result.success && result.data) {
           setScanStatus(result.data.status);
@@ -46,7 +47,7 @@ export function ExternalScanStep({
 
       return () => clearInterval(interval);
     }
-  }, [scanStatus, projectId, onScanComplete]);
+  }, [scanId, scanStatus, onScanComplete]);
 
   const handleStartScan = async () => {
     setError('');
@@ -59,14 +60,10 @@ export function ExternalScanStep({
     setIsScanning(true);
     setScanStatus('PENDING');
 
-    const result = await startContractScan(
-      projectId,
-      network as any,
-      contractAddress,
-      `scan_${Date.now()}`
-    );
+    const result = await scanContractAddress(contractAddress, network);
 
     if (result.success && result.data) {
+      setScanId(result.data.scan_id);
       setScanStatus(result.data.status);
     } else {
       setError(result.error || 'Failed to start scan');

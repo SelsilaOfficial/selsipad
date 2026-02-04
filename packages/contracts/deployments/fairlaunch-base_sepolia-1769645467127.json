@@ -1,0 +1,16 @@
+{
+  "network": "base_sepolia",
+  "chainId": "84532",
+  "timestamp": "2026-01-29T00:11:07.127Z",
+  "deployer": "0x95D94D86CfC550897d2b80672a3c94c12429a90D",
+  "contracts": {
+    "fairlaunchFactory": "0x6eA1044Caf6CEdf36A9F7D978384a634a3f04FbE",
+    "feeSplitter": "0x99470899b8C0e229d79ad0c96619210CbDD07755"
+  },
+  "config": {
+    "deploymentFee": "0.01",
+    "treasuryVault": "0x95D94D86CfC550897d2b80672a3c94c12429a90D",
+    "adminExecutor": "0x95D94D86CfC550897d2b80672a3c94c12429a90D"
+  },
+  "explorer": "https://sepolia.basescan.org"
+}

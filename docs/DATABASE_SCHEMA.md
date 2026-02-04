@@ -266,6 +266,8 @@ The Selsipad database consists of **46 tables** organized into 13 functional mod
 | `submitted_at`     | timestamptz | YES      | `now()`             |
 | `updated_at`       | timestamptz | YES      | `now()`             |
 
+**Note**: There is NO `document_type` column. All submissions are Developer KYC by default.
+
 **Status Values**: `PENDING`, `APPROVED`, `REJECTED`
 
 ---
@@ -299,33 +301,51 @@ The Selsipad database consists of **46 tables** organized into 13 functional mod
 #### `launch_rounds`
 
 **Purpose**: Presale/Fairlaunch rounds configuration  
-**Size**: 128 kB | **Columns**: 36
+**Size**: 128 kB | **Columns**: 41
 
-| Column                  | Type        | Nullable | Default             | Notes                     |
-| ----------------------- | ----------- | -------- | ------------------- | ------------------------- |
-| `id`                    | uuid        | NO       | `gen_random_uuid()` | Primary key               |
-| `project_id`            | uuid        | NO       | -                   | FK to projects            |
-| `round_type`            | text        | NO       | -                   | `PRESALE` or `FAIRLAUNCH` |
-| `token_address`         | text        | YES      | -                   | Token contract            |
-| `token_price`           | numeric     | YES      | -                   | Price per token           |
-| `soft_cap`              | numeric     | YES      | -                   | Minimum goal              |
-| `hard_cap`              | numeric     | YES      | -                   | Maximum goal              |
-| `min_contribution`      | numeric     | YES      | -                   | Min per user              |
-| `max_contribution`      | numeric     | YES      | -                   | Max per user              |
-| `start_time`            | timestamptz | YES      | -                   | Round starts              |
-| `end_time`              | timestamptz | YES      | -                   | Round ends                |
-| `status`                | text        | YES      | `'UPCOMING'`        | Current state             |
-| `total_raised`          | numeric     | YES      | `0`                 | Current total             |
-| `participant_count`     | integer     | YES      | `0`                 | Unique contributors       |
-| `chain_id`              | integer     | YES      | -                   | Blockchain ID             |
-| `round_address`         | text        | YES      | -                   | Presale contract address  |
-| `vesting_vault_address` | text        | YES      | -                   | MerkleVesting contract    |
-| `schedule_salt`         | text        | YES      | -                   | Vesting salt              |
-| `merkle_root`           | text        | YES      | -                   | Allocation Merkle root    |
-| `tge_timestamp`         | bigint      | YES      | -                   | Token Generation Event    |
-| `finalized_at`          | timestamptz | YES      | -                   | Finalization time         |
-| `fee_splitter_address`  | text        | YES      | -                   | FeeSplitter contract      |
-| (+ vesting/LP config)   | -           | -        | -                   | See full schema           |
+| Column                  | Type        | Nullable | Default             | Notes                       |
+| ----------------------- | ----------- | -------- | ------------------- | --------------------------- |
+| `id`                    | uuid        | NO       | `gen_random_uuid()` | Primary key                 |
+| `project_id`            | uuid        | NO       | -                   | FK to projects              |
+| `type`                  | text        | NO       | -                   | Round type identifier       |
+| `sale_type`             | text        | YES      | -                   | `presale` or `fairlaunch`   |
+| `chain`                 | text        | NO       | -                   | Blockchain identifier       |
+| `token_address`         | text        | NO       | -                   | Token contract              |
+| `raise_asset`           | text        | NO       | -                   | Asset used for fundraising  |
+| `start_at`              | timestamptz | NO       | -                   | Round starts                |
+| `end_at`                | timestamptz | NO       | -                   | Round ends                  |
+| `status`                | text        | YES      | -                   | Current state               |
+| `result`                | text        | YES      | -                   | Round outcome               |
+| `kyc_status_at_submit`  | text        | YES      | -                   | KYC status at submission    |
+| `scan_status_at_submit` | text        | YES      | -                   | Security scan status        |
+| `params`                | jsonb       | NO       | -                   | Round configuration (JSONB) |
+| `total_raised`          | numeric     | YES      | `0`                 | Current total               |
+| `total_participants`    | integer     | YES      | `0`                 | Unique contributors         |
+| `rejection_reason`      | text        | YES      | -                   | Admin rejection reason      |
+| `approved_by`           | uuid        | YES      | -                   | Admin who approved          |
+| `approved_at`           | timestamptz | YES      | -                   | Approval timestamp          |
+| `reviewed_by`           | uuid        | YES      | -                   | Admin who reviewed          |
+| `reviewed_at`           | timestamptz | YES      | -                   | Review timestamp            |
+| `finalized_by`          | uuid        | YES      | -                   | Finalizer user              |
+| `finalized_at`          | timestamptz | YES      | -                   | Finalization time           |
+| `created_by`            | uuid        | NO       | -                   | Creator user                |
+| `created_at`            | timestamptz | YES      | `now()`             | -                           |
+| `updated_at`            | timestamptz | YES      | `now()`             | -                           |
+| `vesting_status`        | text        | YES      | -                   | Vesting state               |
+| `lock_status`           | text        | YES      | -                   | LP lock state               |
+| `success_gated_at`      | timestamptz | YES      | -                   | Success gate timestamp      |
+| `chain_id`              | integer     | YES      | -                   | Blockchain ID               |
+| `round_address`         | text        | YES      | -                   | Presale contract address    |
+| `vesting_vault_address` | text        | YES      | -                   | MerkleVesting contract      |
+| `schedule_salt`         | text        | YES      | -                   | Vesting salt                |
+| `merkle_root`           | text        | YES      | -                   | Allocation Merkle root      |
+| `tge_timestamp`         | bigint      | YES      | -                   | Token Generation Event      |
+| `fee_splitter_address`  | text        | YES      | -                   | FeeSplitter contract        |
+| `created_token_id`      | uuid        | YES      | -                   | FK to created tokens        |
+| `listing_premium_bps`   | integer     | YES      | -                   | Listing price premium (bps) |
+| `final_price`           | numeric     | YES      | -                   | Final sale price            |
+| `listing_price`         | numeric     | YES      | -                   | DEX listing price           |
+| `tokens_deposited_at`   | timestamptz | YES      | -                   | Token deposit timestamp     |
 
 **Indexes**:
 
@@ -335,7 +355,12 @@ The Selsipad database consists of **46 tables** organized into 13 functional mod
 - `idx_launch_rounds_fee_splitter` (on `fee_splitter_address`)
 
 **Status Values**:
-`UPCOMING`, `ACTIVE`, `ENDED`, `FINALIZED_SUCCESS`, `FINALIZED_FAILED`, `CANCELLED`
+`SUBMITTED`, `SUBMITTED_FOR_REVIEW`, `APPROVED_TO_DEPLOY`, `REJECTED`, `UPCOMING`, `ACTIVE`, `ENDED`, `FINALIZED_SUCCESS`, `FINALIZED_FAILED`, `CANCELLED`
+
+**Sale Type Values**:
+
+- `presale` - Traditional presale with hardcap/softcap
+- `fairlaunch` - Fair launch (70%+ liquidity, no hardcap)
 
 ---
 

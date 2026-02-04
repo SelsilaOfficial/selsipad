@@ -26,13 +26,16 @@ export default async function FairlaunchDetailPage({ params }: { params: { id: s
   // Fetch fairlaunch detail
   const { data: fairlaunch, error } = await supabase
     .from('launch_rounds')
-    .select('*')
+    .select(`
+      *,
+      project:projects (*)
+    `)
     .eq('id', params.id)
-    .eq('sale_type', 'fairlaunch')
+    .eq('type', 'FAIRLAUNCH')
     .single();
 
   if (error || !fairlaunch) {
-    redirect('/fairlaunch');
+    redirect('/explore');
   }
 
   return (
