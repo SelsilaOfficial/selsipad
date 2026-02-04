@@ -994,8 +994,8 @@
       ]
     },
     "/home/selsipad/final-project/selsipad/packages/contracts/contracts/fairlaunch/Fairlaunch.sol": {
-      "lastModificationDate": 1770085558246,
-      "contentHash": "bafdf02286ce0b26dfada6eb2c65d8b2",
+      "lastModificationDate": 1770167029323,
+      "contentHash": "0f50382f1fe0e38404f97d57fbdef510",
       "sourceName": "contracts/fairlaunch/Fairlaunch.sol",
       "solcConfig": {
         "version": "0.8.20",
@@ -2039,6 +2039,47 @@
       ],
       "artifacts": [
         "Hashes"
+      ]
+    },
+    "/home/selsipad/final-project/selsipad/packages/contracts/contracts/fairlaunch/LPLocker.sol": {
+      "lastModificationDate": 1770166677189,
+      "contentHash": "c49cba6da1f7ffc35acee9b8fb4c9bfa",
+      "sourceName": "contracts/fairlaunch/LPLocker.sol",
+      "solcConfig": {
+        "version": "0.8.20",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "@openzeppelin/contracts/token/ERC20/IERC20.sol",
+        "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol",
+        "@openzeppelin/contracts/utils/ReentrancyGuard.sol"
+      ],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "LPLocker"
       ]
     }
   }

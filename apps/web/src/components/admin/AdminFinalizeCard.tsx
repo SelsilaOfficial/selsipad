@@ -145,9 +145,25 @@ export function AdminFinalizeCard({ fairlaunch, onFinalize }: AdminFinalizeCardP
               )}
             </button>
           ) : (
-            <div className="px-6 py-3 bg-yellow-500/10 border border-yellow-500 text-yellow-400 font-semibold rounded-xl text-center text-sm">
-              Refunds Available
-            </div>
+            <button
+              onClick={handleFinalize}
+              disabled={loading || fairlaunch.status === 'FAILED'}
+              className="px-6 py-3 bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed text-white font-bold rounded-xl transition flex items-center gap-2"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Processing...
+                </>
+              ) : fairlaunch.status === 'FAILED' ? (
+                'Refunds Enabled ✓'
+              ) : (
+                <>
+                  <AlertCircle className="w-5 h-5" />
+                  Enable Refunds
+                </>
+              )}
+            </button>
           )}
         </div>
       </div>

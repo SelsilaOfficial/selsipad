@@ -41,7 +41,7 @@ interface IFeeSplitter {
 }
 
 interface ILPLocker {
-    function lockTokens(address lpToken, uint256 amount, uint256 unlockTime) external;
+    function lockTokens(address lpToken, uint256 amount, uint256 unlockTime, address beneficiary) external returns (uint256 lockId);
 }
 
 /**
@@ -174,6 +174,13 @@ contract Fairlaunch is AccessControl, ReentrancyGuard {
     }
 
     /**
+     * @notice Set LP Locker address (admin only, must be set before finalization)
+     */
+    function setLPLocker(address _lpLocker) external onlyRole(ADMIN_ROLE) {
+        lpLocker = ILPLocker(_lpLocker);
+    }
+
+    /**
      * @notice Contribute native token (BNB/ETH)
      */
     function contribute() external payable nonReentrant {
@@ -261,13 +268,20 @@ contract Fairlaunch is AccessControl, ReentrancyGuard {
         // Add liquidity to DEX
         address lpToken = _addLiquidity(liquidityTokens, liquidityFunds);
 
-        // Lock LP tokens (implementation depends on locker provider)
+        // Lock LP tokens in vault for specified duration
         uint256 lpBalance = IERC20(lpToken).balanceOf(address(this));
         uint256 unlockTime = block.timestamp + (lpLockMonths * 30 days);
         
-        // TODO: Integrate with actual LP locker
-        // For now, transfer to project owner (UNSAFE - replace with locker)
-        IERC20(lpToken).safeTransfer(projectOwner, lpBalance);
+        // Approve LP locker to manage tokens
+        IERC20(lpToken).approve(address(lpLocker), lpBalance);
+        
+        // Lock LP tokens with project owner as beneficiary
+        uint256 lockId = lpLocker.lockTokens(
+            lpToken,
+            lpBalance,
+            unlockTime,
+            projectOwner
+        );
         
         emit LiquidityAdded(lpToken, lpBalance, unlockTime);
 

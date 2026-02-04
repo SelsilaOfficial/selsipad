@@ -81,6 +81,19 @@ contract FeeSplitter is ReentrancyGuard, AccessControl {
     }
     
     /**
+     * @notice Distribute Fairlaunch platform fees (native token)
+     * @dev Called by Fairlaunch contracts during finalization
+     */
+    function distributeFairlaunchFee(address fairlaunch) external payable nonReentrant {
+        uint256 totalAmount = msg.value;
+        if (totalAmount == 0) revert ZeroAmount();
+        
+        _distributeFee(address(0), totalAmount);
+        
+        emit FeeCollected(address(0), totalAmount);
+    }
+    
+    /**
      * @notice Distribute ERC20 token fees
      * @param token ERC20 token address
      * @param totalAmount Total fee amount

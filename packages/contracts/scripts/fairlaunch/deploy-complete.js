@@ -102,9 +102,28 @@ async function main() {
   log('✅ Confirmed!', 'green');
 
   // ============================================
-  // 2. Deploy FairlaunchFactory
+  // 2. Deploy LPLocker
   // ============================================
-  logSection('2️⃣  Deploying FairlaunchFactory');
+  logSection('2️⃣  Deploying LPLocker');
+
+  const LPLocker = await hre.ethers.getContractFactory('LPLocker');
+  log('📦 Deploying LP Locker vault...', 'yellow');
+
+  const lpLocker = await LPLocker.deploy();
+  await lpLocker.waitForDeployment();
+  const lpLockerAddress = await lpLocker.getAddress();
+  deployments.lpLocker = lpLockerAddress;
+
+  log(`✅ LPLocker deployed to: ${lpLockerAddress}`, 'green');
+
+  log(`⏳ Waiting for ${confirmations} confirmations...`, 'yellow');
+  await lpLocker.deploymentTransaction().wait(confirmations);
+  log('✅ Confirmed!', 'green');
+
+  // ============================================
+  // 3. Deploy FairlaunchFactory
+  // ============================================
+  logSection('3️⃣  Deploying FairlaunchFactory');
 
   const FairlaunchFactory = await hre.ethers.getContractFactory('FairlaunchFactory');
   log('📦 Deploying contract...', 'yellow');
@@ -190,6 +209,7 @@ async function main() {
     admin: admin.address,
     contracts: {
       feeSplitter: feeSplitterAddress,
+      lpLocker: lpLockerAddress,
       fairlaunchFactory: factoryAddress,
     },
     config: {
@@ -225,10 +245,12 @@ async function main() {
   log(`Admin: ${admin.address}`, 'blue');
   console.log('');
   log(`FeeSplitter: ${feeSplitterAddress}`, 'green');
+  log(`LPLocker: ${lpLockerAddress}`, 'green');
   log(`FairlaunchFactory: ${factoryAddress}`, 'green');
   console.log('');
   log(`🔗 View on Explorer:`, 'yellow');
   log(`   ${explorerBaseUrl}/address/${feeSplitterAddress}`, 'blue');
+  log(`   ${explorerBaseUrl}/address/${lpLockerAddress}`, 'blue');
   log(`   ${explorerBaseUrl}/address/${factoryAddress}`, 'blue');
   console.log('');
   log(`💾 Config saved to: ${filepath}`, 'cyan');

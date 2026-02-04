@@ -3,12 +3,13 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useWalletClient, usePublicClient } from 'wagmi';
-import { ArrowLeft, ExternalLink, Globe, Twitter, Send, MessageCircle, Shield, CheckCircle, Copy, Clock, TrendingUp, Lock, Users } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Globe, Twitter, Send, MessageCircle, Shield, CheckCircle, Copy, Clock, TrendingUp, Lock, Users, AlertCircle, Loader2, DollarSign } from 'lucide-react';
 import { NetworkBadge } from '@/components/presale/NetworkBadge';
 import { StatusPill } from '@/components/presale/StatusPill';
 
 import { useRouter } from 'next/navigation';
 import { Countdown } from '@/components/ui/Countdown';
+import { ethers } from 'ethers';
 
 interface Fairlaunch {
   id: string;
@@ -214,15 +215,16 @@ export function FairlaunchDetail({ fairlaunch, userAddress }: FairlaunchDetailPr
     { 
       key: 'claim', 
       label: 'Claim', 
-      // Enable if ended OR status is ENDED
-      enabled: isEnded || fairlaunch.status === 'ENDED',
-      hasIndicator: isEnded || fairlaunch.status === 'ENDED'
+      // Enable if ended AND softcap reached, OR status is ENDED/SUCCESS
+      enabled: (isEnded && raised >= softcap) || fairlaunch.status === 'ENDED' || fairlaunch.status === 'SUCCESS',
+      hasIndicator: (isEnded && raised >= softcap) || fairlaunch.status === 'ENDED'
     },
     {
       key: 'refund',
       label: 'Refund',
-      // Enable if ended and finalized as fail, or in refunding status
-      enabled: (isEnded && fairlaunch.status === 'FINALIZED_FAIL') || fairlaunch.status === 'REFUNDING'
+      // Enable if ended below softcap OR finalized as fail/refunding
+      enabled: (isEnded && raised < softcap) || fairlaunch.status === 'FINALIZED_FAIL' || fairlaunch.status === 'FAILED' || fairlaunch.status === 'REFUNDING',
+      hasIndicator: (isEnded && raised < softcap) || fairlaunch.status === 'FAILED'
     },
     { key: 'transactions', label: 'Transactions', enabled: !!userAddress },
   ];
@@ -492,7 +494,7 @@ export function FairlaunchDetail({ fairlaunch, userAddress }: FairlaunchDetailPr
         )}
         {activeTab === 'contribute' && <ContributeTab userAddress={userAddress} fairlaunch={fairlaunch} />}
         {activeTab === 'claim' && <ClaimTab fairlaunch={fairlaunch} userAddress={userAddress} />}
-        {activeTab === 'refund' && <RefundTab />}
+        {activeTab === 'refund' && <RefundTab userAddress={userAddress} fairlaunch={fairlaunch} />}
         {activeTab === 'transactions' && <TransactionsTab roundId={fairlaunch.id} chain={fairlaunch.chain} />}
       </div>
     </div>
@@ -1271,12 +1273,166 @@ Check your wallet!`);
   );
 }
 
-function RefundTab() {
+function RefundTab({ userAddress, fairlaunch }: { userAddress?: string; fairlaunch: Fairlaunch }) {
+  const [refunding, setRefunding] = useState(false);
+  const [contribution, setContribution] = useState<number | null>(null);
+  const [refunded, setRefunded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch user's contribution
+  useEffect(() => {
+    async function fetchContribution() {
+      if (!userAddress || !fairlaunch.contract_address) return;
+
+      try {
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const contract = new ethers.Contract(
+          fairlaunch.contract_address,
+          ['function contributions(address) view returns (uint256)'],
+          provider
+        );
+
+        const amount = await contract.contributions(userAddress);
+        setContribution(parseFloat(ethers.formatEther(amount)));
+      } catch (err: any) {
+        console.error('Error fetching contribution:', err);
+      }
+    }
+
+    fetchContribution();
+  }, [userAddress, fairlaunch.contract_address]);
+
+  const handleRefund = async () => {
+    if (!userAddress || !fairlaunch.contract_address) return;
+
+    setRefunding(true);
+    setError(null);
+
+    try {
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const contract = new ethers.Contract(
+        fairlaunch.contract_address,
+        ['function refund()'],
+        signer
+      );
+
+      const tx = await contract.refund();
+      console.log('Refund tx:', tx.hash);
+
+      await tx.wait();
+      
+      setRefunded(true);
+      setContribution(0);
+      alert('✅ Refund successful! BNB returned to your wallet.');
+    } catch (err: any) {
+      console.error('Refund error:', err);
+      setError(err.message || 'Refund failed');
+    } finally {
+      setRefunding(false);
+    }
+  };
+
+  if (!userAddress) {
+    return (
+      <div className="text-center py-12">
+        <div className="text-6xl mb-4">🔐</div>
+        <h3 className="text-xl font-semibold text-white mb-2">Connect Wallet</h3>
+        <p className="text-gray-400">Connect your wallet to claim refund</p>
+      </div>
+    );
+  }
+
+  if (contribution === null) {
+    return (
+      <div className="text-center py-12">
+        <div className="text-6xl mb-4">⏳</div>
+        <h3 className="text-xl font-semibold text-white mb-2">Loading...</h3>
+        <p className="text-gray-400">Checking your contribution</p>
+      </div>
+    );
+  }
+
+  if (contribution === 0 || refunded) {
+    return (
+      <div className="text-center py-12">
+        <div className="text-6xl mb-4">✅</div>
+        <h3 className="text-xl font-semibold text-white mb-2">
+          {refunded ? 'Refund Claimed!' : 'No Contribution Found'}
+        </h3>
+        <p className="text-gray-400">
+          {refunded 
+            ? 'Your funds have been returned to your wallet' 
+            : 'You did not contribute to this fairlaunch'}
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <div className="text-center py-12">
-      <div className="text-6xl mb-4">💸</div>
-      <h3 className="text-xl font-semibold text-white mb-2">Refund Coming Soon</h3>
-      <p className="text-gray-400">Refund functionality will be available if softcap not met</p>
+    <div className="space-y-6">
+      {/* Refund Info Card */}
+      <div className="bg-gradient-to-br from-orange-500/10 to-red-500/10 border border-orange-500/20 rounded-2xl p-6">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="p-3 bg-orange-500/20 rounded-xl">
+            <AlertCircle className="w-6 h-6 text-orange-400" />
+          </div>
+          <div>
+            <h3 className="text-xl font-bold text-white">Claim Your Refund</h3>
+            <p className="text-sm text-gray-400">Softcap not reached - Get your funds back</p>
+          </div>
+        </div>
+
+        <div className="grid gap-4 mb-6">
+          <div className="bg-black/20 rounded-xl p-4">
+            <p className="text-sm text-gray-400 mb-1">Your Contribution</p>
+            <p className="text-2xl font-bold text-white">{contribution.toFixed(4)} BNB</p>
+          </div>
+
+          <div className="bg-black/20 rounded-xl p-4">
+            <p className="text-sm text-gray-400 mb-1">Status</p>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
+              <p className="text-white font-semibold">Refund Available</p>
+            </div>
+          </div>
+        </div>
+
+        <button
+          onClick={handleRefund}
+          disabled={refunding}
+          className="w-full py-4 bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 disabled:from-gray-600 disabled:to-gray-700 text-white font-bold rounded-xl transition flex items-center justify-center gap-2"
+        >
+          {refunding ? (
+            <>
+              <Loader2 className="w-5 h-5 animate-spin" />
+              Processing Refund...
+            </>
+          ) : (
+            <>
+              <DollarSign className="w-5 h-5" />
+              Claim Refund ({contribution.toFixed(4)} BNB)
+            </>
+          )}
+        </button>
+
+        {error && (
+          <div className="mt-4 bg-red-500/10 border border-red-500 rounded-lg p-3">
+            <p className="text-sm text-red-400">{error}</p>
+          </div>
+        )}
+      </div>
+
+      {/* Info */}
+      <div className="bg-gray-800/50 rounded-xl p-4">
+        <h4 className="font-semibold text-white mb-2">ℹ️ Refund Information</h4>
+        <ul className="text-sm text-gray-400 space-y-1">
+          <li>• Softcap was not reached - all contributions can be refunded</li>
+          <li>• You will receive 100% of your contribution back</li>
+          <li>• Gas fees apply for the refund transaction</li>
+          <li>• Funds will be sent directly to your wallet</li>
+        </ul>
+      </div>
     </div>
   );
 }

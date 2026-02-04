@@ -234,8 +234,8 @@ export async function getAllProjects(filters?: {
         .filter((round: any) => {
           const status = round.status?.toUpperCase();
           console.log('[Explore Debug] Round status:', status, 'for project:', project.name);
-          // Show if: APPROVED_TO_DEPLOY (approved by admin), DEPLOYED, LIVE, ACTIVE, or ENDED
-          return status === 'APPROVED_TO_DEPLOY' || status === 'APPROVED' || status === 'DEPLOYED' || status === 'LIVE' || status === 'ACTIVE' || status === 'ENDED';
+          // Show if: APPROVED_TO_DEPLOY (approved by admin), DEPLOYED, LIVE, ACTIVE, ENDED, or FAILED (refunds available)
+          return status === 'APPROVED_TO_DEPLOY' || status === 'APPROVED' || status === 'DEPLOYED' || status === 'LIVE' || status === 'ACTIVE' || status === 'ENDED' || status === 'FAILED';
         })
         .map((round: any) => {
         const params = round.params || {};

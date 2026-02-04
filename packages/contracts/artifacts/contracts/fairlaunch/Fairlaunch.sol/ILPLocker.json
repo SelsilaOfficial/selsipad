@@ -19,10 +19,21 @@
           "internalType": "uint256",
           "name": "unlockTime",
           "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "beneficiary",
+          "type": "address"
         }
       ],
       "name": "lockTokens",
-      "outputs": [],
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "lockId",
+          "type": "uint256"
+        }
+      ],
       "stateMutability": "nonpayable",
       "type": "function"
     }
