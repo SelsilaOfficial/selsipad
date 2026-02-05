@@ -2123,6 +2123,45 @@
         "AMAPurchaseRegistry",
         "AggregatorV3Interface"
       ]
+    },
+    "/home/selsipad/final-project/selsipad/packages/contracts/contracts/test/TestToken.sol": {
+      "lastModificationDate": 1770236907494,
+      "contentHash": "48cb7a393e447723c32e1f5f53fe250f",
+      "sourceName": "contracts/test/TestToken.sol",
+      "solcConfig": {
+        "version": "0.8.20",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "@openzeppelin/contracts/token/ERC20/ERC20.sol"
+      ],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "TestToken"
+      ]
     }
   }
 }

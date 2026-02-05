@@ -38,3 +38,6 @@ export type { FilterPillsProps, FilterPill } from './FilterPills';
 
 export { ActionMenu } from './ActionMenu';
 export type { ActionMenuProps, MenuItem } from './ActionMenu';
+
+export { Countdown } from './Countdown';
+export type { CountdownProps } from './Countdown';

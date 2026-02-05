@@ -39,10 +39,20 @@ export default function ProjectsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<'ALL' | 'FAIRLAUNCH' | 'PRESALE'>('ALL');
+  const [, setTick] = useState(0); // Force re-render for real-time status
 
   useEffect(() => {
     fetchProjects();
+
   }, [filter]);
+  // Update every second for real-time status changes
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTick((t) => t + 1);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   const fetchProjects = async () => {
     try {
@@ -75,7 +85,12 @@ export default function ProjectsPage() {
   const getDynamicStatus = (project: Project) => {
     const round = project.launch_rounds?.[0];
     
-    if (project.status !== 'DEPLOYED' || !round?.start_time || !round?.end_time) {
+    
+const isDeployedOrApproved = 
+      project.status === 'DEPLOYED' || 
+      project.status === 'APPROVED_TO_DEPLOY' || 
+      project.status === 'APPROVED';
+    if (!isDeployedOrApproved || !round?.start_time || !round?.end_time) {
       return project.status;
     }
 

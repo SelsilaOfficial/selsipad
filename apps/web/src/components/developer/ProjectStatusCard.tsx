@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
 import { ExternalLink, Clock, CheckCircle, XCircle, Rocket } from 'lucide-react';
 
 interface Project {
@@ -38,9 +39,14 @@ export function ProjectStatusCard({ project }: ProjectStatusCardProps) {
   const round = project.launch_rounds?.[0];
 
   // Calculate dynamic status based on deployment and time
-  const getDynamicStatus = () => {
-    // If not deployed yet, use database status
-    if (project.status !== 'DEPLOYED' || !round?.start_time || !round?.end_time) {
+  const calculateDynamicStatus = () => {
+    // For projects that have been approved or deployed, calculate based on time
+    const isDeployedOrApproved =
+      project.status === 'DEPLOYED' ||
+      project.status === 'APPROVED_TO_DEPLOY' ||
+      project.status === 'APPROVED';
+
+    if (!isDeployedOrApproved || !round?.start_time || !round?.end_time) {
       return project.status;
     }
 
@@ -58,24 +64,78 @@ export function ProjectStatusCard({ project }: ProjectStatusCardProps) {
     }
   };
 
+  // Use state to track dynamic status
+  const [dynamicStatus, setDynamicStatus] = useState(calculateDynamicStatus());
+
+  // Update status every second for real-time updates
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setDynamicStatus(calculateDynamicStatus());
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [project, round]);
+
   const getStatusBadge = (status: string) => {
     const badges: Record<string, { label: string; color: string; icon: any }> = {
-      SUBMITTED: { label: 'Pending Review', color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500', icon: Clock },
-      IN_REVIEW: { label: 'In Review', color: 'bg-blue-500/20 text-blue-400 border-blue-500', icon: Clock },
-      APPROVED: { label: 'Approved', color: 'bg-green-500/20 text-green-400 border-green-500', icon: CheckCircle },
-      APPROVED_TO_DEPLOY: { label: 'Approved', color: 'bg-green-500/20 text-green-400 border-green-500', icon: CheckCircle },
-      DEPLOYED: { label: 'Deployed', color: 'bg-blue-500/20 text-blue-400 border-blue-500', icon: Rocket },
-      UPCOMING: { label: 'Upcoming', color: 'bg-cyan-500/20 text-cyan-400 border-cyan-500', icon: Clock },
-      REJECTED: { label: 'Rejected', color: 'bg-red-500/20 text-red-400 border-red-500', icon: XCircle },
-      LIVE: { label: 'Live', color: 'bg-purple-500/20 text-purple-400 border-purple-500', icon: Rocket },
-      ENDED: { label: 'Ended', color: 'bg-gray-500/20 text-gray-400 border-gray-500', icon: CheckCircle },
+      SUBMITTED: {
+        label: 'Pending Review',
+        color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500',
+        icon: Clock,
+      },
+      IN_REVIEW: {
+        label: 'In Review',
+        color: 'bg-blue-500/20 text-blue-400 border-blue-500',
+        icon: Clock,
+      },
+      APPROVED: {
+        label: 'Approved',
+        color: 'bg-green-500/20 text-green-400 border-green-500',
+        icon: CheckCircle,
+      },
+      APPROVED_TO_DEPLOY: {
+        label: 'Approved',
+        color: 'bg-green-500/20 text-green-400 border-green-500',
+        icon: CheckCircle,
+      },
+      DEPLOYED: {
+        label: 'Deployed',
+        color: 'bg-blue-500/20 text-blue-400 border-blue-500',
+        icon: Rocket,
+      },
+      UPCOMING: {
+        label: 'Upcoming',
+        color: 'bg-cyan-500/20 text-cyan-400 border-cyan-500',
+        icon: Clock,
+      },
+      REJECTED: {
+        label: 'Rejected',
+        color: 'bg-red-500/20 text-red-400 border-red-500',
+        icon: XCircle,
+      },
+      LIVE: {
+        label: 'Live',
+        color: 'bg-purple-500/20 text-purple-400 border-purple-500',
+        icon: Rocket,
+      },
+      ENDED: {
+        label: 'Ended',
+        color: 'bg-gray-500/20 text-gray-400 border-gray-500',
+        icon: CheckCircle,
+      },
     };
 
-    const badge = badges[status] || { label: status, color: 'bg-gray-500/20 text-gray-400 border-gray-500', icon: Clock };
+    const badge = badges[status] || {
+      label: status,
+      color: 'bg-gray-500/20 text-gray-400 border-gray-500',
+      icon: Clock,
+    };
     const Icon = badge.icon;
 
     return (
-      <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm border ${badge.color}`}>
+      <div
+        className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm border ${badge.color}`}
+      >
         <Icon className="w-4 h-4" />
         {badge.label}
       </div>
@@ -83,7 +143,7 @@ export function ProjectStatusCard({ project }: ProjectStatusCardProps) {
   };
 
   return (
-    <div 
+    <div
       onClick={() => router.push(`/fairlaunch/${project.id}`)}
       className="bg-gray-800/50 border border-gray-700 hover:border-purple-500 rounded-xl p-6 cursor-pointer transition-all hover:scale-[1.02]"
     >
@@ -91,11 +151,7 @@ export function ProjectStatusCard({ project }: ProjectStatusCardProps) {
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-3">
           {project.logo_url ? (
-            <img 
-              src={project.logo_url} 
-              alt={project.name} 
-              className="w-12 h-12 rounded-full"
-            />
+            <img src={project.logo_url} alt={project.name} className="w-12 h-12 rounded-full" />
           ) : (
             <div className="w-12 h-12 rounded-full bg-purple-600/20 flex items-center justify-center">
               <Rocket className="w-6 h-6 text-purple-400" />
@@ -106,14 +162,12 @@ export function ProjectStatusCard({ project }: ProjectStatusCardProps) {
             <p className="text-sm text-gray-400">{project.type}</p>
           </div>
         </div>
-        {getStatusBadge(getDynamicStatus())}
+        {getStatusBadge(dynamicStatus)}
       </div>
 
       {/* Description */}
       {project.description && (
-        <p className="text-gray-400 text-sm mb-4 line-clamp-2">
-          {project.description}
-        </p>
+        <p className="text-gray-400 text-sm mb-4 line-clamp-2">{project.description}</p>
       )}
 
       {/* Details */}

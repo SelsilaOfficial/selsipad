@@ -2,12 +2,12 @@
 
 /**
  * Prepare fairlaunch deployment parameters for client-side transaction
- * 
+ *
  * NOTE: Actual deployment MUST happen client-side via wagmi/viem because:
  * 1. User must sign the transaction with their wallet
  * 2. Server cannot access user's private keys
  * 3. Transaction needs to be sent from user's address
- * 
+ *
  * This action prepares and validates parameters only.
  */
 
@@ -45,7 +45,7 @@ const FAIRLAUNCH_FACTORY_ADDRESSES: Record<string, string> = {
   ethereum: '0x0000000000000000000000000000000000000000', // TODO: Deploy factory
   sepolia: '0x6eA1044Caf6CEdf36A9F7D978384a634a3f04FbE', // Deployed
   bnb: '0x0000000000000000000000000000000000000000', // TODO: Deploy factory
-  bsc_testnet: '0xa7CA8Ada6a76E43D2BB9F43C8E95b99D253419d2', // NEW: Deployed with token transfer!
+  bsc_testnet: '0xeB4f1508102dbA065D0cEd8F003518F65ecc8EA4', // UPDATED: Deployed with setLPLocker!
   base: '0x0000000000000000000000000000000000000000', // TODO: Deploy factory
   base_sepolia: '0x6eA1044Caf6CEdf36A9F7D978384a634a3f04FbE', // Deployed
 };
@@ -85,17 +85,24 @@ export async function prepareFairlaunchDeployment(wizardData: {
   try {
     // 1. Validate network
     const factoryAddress = FAIRLAUNCH_FACTORY_ADDRESSES[wizardData.network];
-    
+
     // Allow mock addresses for testing (will need real deployment for production)
-    const isMockAddress = !factoryAddress || factoryAddress === '0x0000000000000000000000000000000000000000';
+    const isMockAddress =
+      !factoryAddress || factoryAddress === '0x0000000000000000000000000000000000000000';
     if (isMockAddress) {
-      console.warn(`⚠️  Using mock factory address for ${wizardData.network} - deployment will be simulated`);
+      console.warn(
+        `⚠️  Using mock factory address for ${wizardData.network} - deployment will be simulated`
+      );
       // Use mock address for testing
-      FAIRLAUNCH_FACTORY_ADDRESSES[wizardData.network] = '0x0000000000000000000000000000000000000001';
+      FAIRLAUNCH_FACTORY_ADDRESSES[wizardData.network] =
+        '0x0000000000000000000000000000000000000001';
     }
 
     // 2. Convert times to Unix timestamps
-    const endTime = Math.floor(new Date(wizardData.endTime).getTime() / 1000);
+    // IMPORTANT: Wizard inputs are in UTC+7 (WIB), need to convert to UTC
+    const endTimeUTC7 = new Date(wizardData.endTime);
+    // Subtract 7 hours to get UTC
+    const endTime = Math.floor((endTimeUTC7.getTime() - 7 * 60 * 60 * 1000) / 1000);
 
     // 3. Convert vesting schedule to smart contract format with all required params
     const vestingParams = convertVestingForSC(
@@ -105,7 +112,6 @@ export async function prepareFairlaunchDeployment(wizardData: {
       wizardData.vestingBeneficiary,
       wizardData.tokenDecimals || 18 // ✅ Pass token decimals for proper conversion
     );
-
 
     // 4. Get DEX ID as bytes32
     let dexId: string;
@@ -121,13 +127,14 @@ export async function prepareFairlaunchDeployment(wizardData: {
       };
     }
 
-    // 5. Convert times to Unix timestamps
-    const startTime = Math.floor(new Date(wizardData.startTime).getTime() / 1000);
+    // 5. Convert times to Unix timestamps (UTC+7 to UTC)
+    const startTimeUTC7 = new Date(wizardData.startTime);
+    const startTime = Math.floor((startTimeUTC7.getTime() - 7 * 60 * 60 * 1000) / 1000);
 
     // 6. Validate times with buffer (add 5 min buffer for transaction confirmation time)
     const now = Math.floor(Date.now() / 1000);
     const MIN_FUTURE_BUFFER = 5 * 60; // 5 minutes in seconds
-    
+
     if (startTime < now + MIN_FUTURE_BUFFER) {
       return {
         success: false,

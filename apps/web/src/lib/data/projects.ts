@@ -16,9 +16,11 @@ export interface Project {
   raised: number;
   target: number;
   kyc_verified: boolean;
-  audit_status: 'pass' |'pending' | null;
+  audit_status: 'pass' | 'pending' | null;
   lp_lock: boolean;
   contract_address?: string; // Fairlaunch/Presale contract address
+  startDate?: string; // ISO timestamp for countdown
+  endDate?: string; // ISO timestamp for countdown
 }
 
 /**
@@ -187,7 +189,8 @@ export async function getAllProjects(filters?: {
     // Query projects with launch_rounds joined
     const { data, error } = await supabase
       .from('projects')
-      .select(`
+      .select(
+        `
         *,
         launch_rounds (
           id,
@@ -201,7 +204,8 @@ export async function getAllProjects(filters?: {
           total_participants,
           params
         )
-      `)
+      `
+      )
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -210,16 +214,21 @@ export async function getAllProjects(filters?: {
     }
 
     console.log('[Explore Debug] Total projects from DB:', data?.length || 0);
-    console.log('[Explore Debug] Sample project with rounds:', data?.[0] ? {
-      projectName: data[0].name,
-      projectStatus: data[0].status,
-      roundsCount: data[0].launch_rounds?.length || 0,
-      rounds: data[0].launch_rounds?.map((r: any) => ({
-        id: r.id,
-        status: r.status,
-        type: r.type,
-      }))
-    } : 'No projects');
+    console.log(
+      '[Explore Debug] Sample project with rounds:',
+      data?.[0]
+        ? {
+            projectName: data[0].name,
+            projectStatus: data[0].status,
+            roundsCount: data[0].launch_rounds?.length || 0,
+            rounds: data[0].launch_rounds?.map((r: any) => ({
+              id: r.id,
+              status: r.status,
+              type: r.type,
+            })),
+          }
+        : 'No projects'
+    );
 
     // Map each project with its launch_round data
     let projects = (data || []).flatMap((project: any) => {
@@ -235,29 +244,39 @@ export async function getAllProjects(filters?: {
           const status = round.status?.toUpperCase();
           console.log('[Explore Debug] Round status:', status, 'for project:', project.name);
           // Show if: APPROVED_TO_DEPLOY (approved by admin), DEPLOYED, LIVE, ACTIVE, ENDED, or FAILED (refunds available)
-          return status === 'APPROVED_TO_DEPLOY' || status === 'APPROVED' || status === 'DEPLOYED' || status === 'LIVE' || status === 'ACTIVE' || status === 'ENDED' || status === 'FAILED';
+          return (
+            status === 'APPROVED_TO_DEPLOY' ||
+            status === 'APPROVED' ||
+            status === 'DEPLOYED' ||
+            status === 'LIVE' ||
+            status === 'ACTIVE' ||
+            status === 'ENDED' ||
+            status === 'FAILED'
+          );
         })
         .map((round: any) => {
-        const params = round.params || {};
-        
-        return {
-          id: round.id, // Use launch_round ID for correct detail page routing
-          name: params.project_name || project.name,
-          symbol: params.token_symbol || project.symbol || 'TBD',
-          logo: params.logo_url || project.logo_url || '/placeholder-logo.png',
-          description: params.project_description || project.description || '',
-          type: round.type?.toLowerCase() as 'presale' | 'fairlaunch',
-          network: mapChainToNetwork(round.chain),
-          chain: round.chain, // Add specific chain ID
-          status: calculateRealTimeStatus(round),
-          raised: Number(round.total_raised) || 0,
-          target: params.softcap || params.hardcap || 1000,
-          kyc_verified: !!project.kyc_submission_id,
-          audit_status: project.scan_result_id ? 'pass' : null,
-          lp_lock: params.lp_lock || false,
-          contract_address: round.contract_address, // Add contract address
-        };
-      });
+          const params = round.params || {};
+
+          return {
+            id: round.id, // Use launch_round ID for correct detail page routing
+            name: params.project_name || project.name,
+            symbol: params.token_symbol || project.symbol || 'TBD',
+            logo: params.logo_url || project.logo_url || '/placeholder-logo.png',
+            description: params.project_description || project.description || '',
+            type: round.type?.toLowerCase() as 'presale' | 'fairlaunch',
+            network: mapChainToNetwork(round.chain),
+            chain: round.chain, // Add specific chain ID
+            status: calculateRealTimeStatus(round),
+            raised: Number(round.total_raised) || 0,
+            target: params.softcap || params.hardcap || 1000,
+            kyc_verified: !!project.kyc_submission_id,
+            audit_status: project.scan_result_id ? 'pass' : null,
+            lp_lock: params.lp_lock || false,
+            contract_address: round.contract_address, // Add contract address
+            startDate: round.start_at, // ISO timestamp for countdown
+            endDate: round.end_at, // ISO timestamp for countdown
+          };
+        });
     });
 
     console.log('[Explore Debug] Projects after filtering:', projects.length);
@@ -369,15 +388,15 @@ function mapLaunchRoundStatus(dbStatus: string): 'live' | 'upcoming' | 'ended' {
 
 /**
  * Calculate Real-Time Status
- * 
+ *
  * This function determines the ACTUAL status of a launch round by checking
  * the current time against start_at and end_at timestamps.
- * 
+ *
  * Priority:
  * 1. If current time >= end_at → ENDED
  * 2. If current time >= start_at && current time < end_at → LIVE
  * 3. If current time < start_at → UPCOMING
- * 
+ *
  * This OVERRIDES the database status field when necessary to ensure
  * the UI always reflects the real-time state.
  */

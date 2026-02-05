@@ -1,6 +1,6 @@
 /**
  * POST /api/admin/fairlaunch/deploy
- * 
+ *
  * Admin-controlled deployment via FairlaunchFactory (v12.5)
  * v11 Hybrid Admin-Controlled Deployment Model
  */
@@ -17,11 +17,14 @@ const supabase = createClient(
 );
 
 const FACTORY_ADDRESSES = {
-  bsc_testnet: process.env.NEXT_PUBLIC_FAIRLAUNCH_FACTORY_BSC_TESTNET || '0x9c01770816C81D4c356DBD6335839Ba65e33d7e8',
+  bsc_testnet:
+    process.env.NEXT_PUBLIC_FAIRLAUNCH_FACTORY_BSC_TESTNET ||
+    '0x9c01770816C81D4c356DBD6335839Ba65e33d7e8',
   bnb: process.env.NEXT_PUBLIC_FAIRLAUNCH_FACTORY_BSC_MAINNET,
 };
 
-const ESCROW_VAULT_ADDRESS = process.env.NEXT_PUBLIC_TOKEN_ESCROW_BSC_TESTNET || '0x6849A09c27F26fF0e58a2E36Dd5CAB2F9d0c617F'; // Must match submit API!
+const ESCROW_VAULT_ADDRESS =
+  process.env.NEXT_PUBLIC_TOKEN_ESCROW_BSC_TESTNET || '0x6849A09c27F26fF0e58a2E36Dd5CAB2F9d0c617F'; // Must match submit API!
 
 export async function POST(request: NextRequest) {
   try {
@@ -98,7 +101,9 @@ export async function POST(request: NextRequest) {
     // 5. Validate status (should be APPROVED_TO_DEPLOY after admin approval)
     if (!['APPROVED', 'SUBMITTED', 'APPROVED_TO_DEPLOY'].includes(launchRound.status)) {
       return NextResponse.json(
-        { error: `Invalid status: ${launchRound.status}. Must be APPROVED, SUBMITTED, or APPROVED_TO_DEPLOY.` },
+        {
+          error: `Invalid status: ${launchRound.status}. Must be APPROVED, SUBMITTED, or APPROVED_TO_DEPLOY.`,
+        },
         { status: 400 }
       );
     }
@@ -127,88 +132,96 @@ export async function POST(request: NextRequest) {
     // 7a. FIRST: Get projectId from escrow transaction (decode from logs)
     // Wizard generates random UUID and hashes it, we need to extract that bytes32
     const escrowVault = new ethers.Contract(ESCROW_VAULT_ADDRESS, EscrowVaultABI.abi, signer);
-    
+
     console.log('[Admin Deploy] Decoding projectId from escrow TX:', launchRound.escrow_tx_hash);
-    
+
     const escrowReceipt = await provider.getTransactionReceipt(launchRound.escrow_tx_hash);
     if (!escrowReceipt) {
-      return NextResponse.json(
-        { error: 'Escrow transaction not found on-chain' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Escrow transaction not found on-chain' }, { status: 400 });
     }
-    
+
     // Find the Deposited event log
     const depositedEventTopic = ethers.id('Deposited(bytes32,address,uint256,address)');
-    const depositLog = escrowReceipt.logs.find(log => 
-      log.topics[0] === depositedEventTopic && 
-      log.address.toLowerCase() === ESCROW_VAULT_ADDRESS.toLowerCase()
+    const depositLog = escrowReceipt.logs.find(
+      (log) =>
+        log.topics[0] === depositedEventTopic &&
+        log.address.toLowerCase() === ESCROW_VAULT_ADDRESS.toLowerCase()
     );
-    
+
     if (!depositLog) {
       return NextResponse.json(
         { error: 'Deposited event not found in escrow transaction' },
         { status: 400 }
       );
     }
-    
+
     // Extract projectId from event topics (topic[1] is the indexed projectId)
     const projectIdBytes32 = depositLog.topics[1];
-    
+
     console.log('[Admin Deploy] Extracted projectId from escrow:', projectIdBytes32);
-    
+
     // Check escrow balance
     const escrowBalance = await (escrowVault as any).getBalance(projectIdBytes32);
-    
+
     if (escrowBalance === 0n) {
       console.log('[Admin Deploy] ⚠️ No tokens in escrow - tokens may have been released already');
       console.log('[Admin Deploy] Proceeding to check admin wallet token balance...');
-      
+
       // Verify admin wallet has tokens (from previous release)
       const tokenContract = new ethers.Contract(
         project.token_address,
         ['function balanceOf(address) view returns (uint256)'],
         provider
       );
-      
+
       const adminBalance = await (tokenContract as any).balanceOf(signer.address);
       if (adminBalance === 0n) {
         return NextResponse.json(
-          { error: 'No tokens in escrow and admin wallet has no tokens. Cannot proceed with deployment.' },
+          {
+            error:
+              'No tokens in escrow and admin wallet has no tokens. Cannot proceed with deployment.',
+          },
           { status: 400 }
         );
       }
-      
-      console.log('[Admin Deploy] ✅ Admin wallet has tokens:', ethers.formatUnits(adminBalance, 18));
+
+      console.log(
+        '[Admin Deploy] ✅ Admin wallet has tokens:',
+        ethers.formatUnits(adminBalance, 18)
+      );
       console.log('[Admin Deploy] Skipping escrow release, proceeding to factory approval...');
     } else {
-      console.log('[Admin Deploy] Escrow balance:', ethers.formatUnits(escrowBalance, 18), 'tokens');
-      
+      console.log(
+        '[Admin Deploy] Escrow balance:',
+        ethers.formatUnits(escrowBalance, 18),
+        'tokens'
+      );
+
       // Release tokens from escrow to admin wallet (for factory to pull)
       console.log('[Admin Deploy] Releasing tokens from escrow to admin wallet...');
       const releaseTx = await (escrowVault as any).release(projectIdBytes32, signer.address);
       await releaseTx.wait();
       console.log('[Admin Deploy] ✅ Tokens released from escrow');
     }
-    
+
     // 7b. Approve factory to spend tokens (always approve max to be safe)
     const tokenContract = new ethers.Contract(
       project.token_address,
       [
         'function balanceOf(address) view returns (uint256)',
         'function approve(address spender, uint256 amount) returns (bool)',
-        'function transfer(address to, uint256 amount) returns (bool)'
+        'function transfer(address to, uint256 amount) returns (bool)',
       ],
       signer
     );
-    
-    const factoryAddress = (chainId === 97 
-      ? FACTORY_ADDRESSES.bsc_testnet 
-      : FACTORY_ADDRESSES.bnb) as string;
-    
+
+    const factoryAddress = (
+      chainId === 97 ? FACTORY_ADDRESSES.bsc_testnet : FACTORY_ADDRESSES.bnb
+    ) as string;
+
     const adminBalance = await (tokenContract as any).balanceOf(signer.address);
     console.log('[Admin Deploy] Admin token balance:', ethers.formatUnits(adminBalance, 18));
-    
+
     // Always approve max uint256 to ensure factory can pull all required tokens
     // (tokensForSale + liquidityTokens + teamVestingTokens)
     console.log('[Admin Deploy] Approving factory for max uint256...');
@@ -218,15 +231,15 @@ export async function POST(request: NextRequest) {
     console.log('[Admin Deploy] ✅ Factory approved for unlimited spend');
 
     // 7c. Get factory contract and deployment fee
-    const factory = new ethers.Contract(
-      factoryAddress,
-      FairlaunchFactoryABI.abi,
-      signer
-    );
+    const factory = new ethers.Contract(factoryAddress, FairlaunchFactoryABI.abi, signer);
 
     // Fetch deployment fee from factory
     const deploymentFee = await (factory as any).DEPLOYMENT_FEE();
-    console.log('[Admin Deploy] Deployment fee required:', ethers.formatEther(deploymentFee), 'BNB');
+    console.log(
+      '[Admin Deploy] Deployment fee required:',
+      ethers.formatEther(deploymentFee),
+      'BNB'
+    );
 
     // 8. Build deployment parameters from JSONB params
     // Factory expects 3 tuples: CreateFairlaunchParams, TeamVestingParams, LPLockPlan
@@ -250,7 +263,9 @@ export async function POST(request: NextRequest) {
     const vestingParams = {
       beneficiary: params.vesting_address || project.creator_wallet,
       startTime: BigInt(Math.floor(new Date(launchRound.end_at).getTime() / 1000)), // After fairlaunch ends
-      durations: (params.vesting_schedule || []).map((s: any) => BigInt(s.month * 30 * 24 * 60 * 60)), // months to seconds
+      durations: (params.vesting_schedule || []).map((s: any) =>
+        BigInt(s.month * 30 * 24 * 60 * 60)
+      ), // months to seconds
       amounts: (params.vesting_schedule || []).map((s: any) => {
         const teamTokens = ethers.parseUnits((params.team_vesting_tokens || '0').toString(), 18);
         return (teamTokens * BigInt(Math.floor(s.percentage * 100))) / BigInt(10000);
@@ -274,7 +289,7 @@ export async function POST(request: NextRequest) {
     // 9. Deploy via factory (with 3 separate tuples + deployment fee)
     console.log('[Admin Deploy] Calling factory.createFairlaunch()...');
     const tx = await (factory as any).createFairlaunch(createParams, vestingParams, lpPlan, {
-      value: deploymentFee
+      value: deploymentFee,
     });
     console.log('[Admin Deploy] TX sent:', tx.hash);
 
@@ -308,13 +323,11 @@ export async function POST(request: NextRequest) {
     console.log('[Admin Deploy] ✅ Contract deployed:', contractAddress);
     console.log('[Admin Deploy] ✅ Vesting vault deployed:', vestingAddress);
 
-
     // 12. Factory handles token transfers automatically
     // The FairlaunchFactory contract uses safeTransferFrom to pull tokens from admin
     // and automatically transfers them to the deployed Fairlaunch and Vesting contracts.
     // No additional funding step needed - contracts are ready to use!
     console.log('[Admin Deploy] ✅ Contracts funded by factory during deployment');
-
 
     // 12. Update projects table
     const { error: updateProjectError } = await supabase
@@ -354,7 +367,7 @@ export async function POST(request: NextRequest) {
 
     // 14. Trigger auto-verification (non-blocking)
     console.log('[Admin Deploy] Triggering auto-verification...');
-    
+
     // Build constructor args for Fairlaunch
     const fairlaunchArgs = [
       project.token_address, // projectToken
@@ -376,17 +389,20 @@ export async function POST(request: NextRequest) {
     ];
 
     // Trigger Fairlaunch verification
-    fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001'}/api/internal/verify-contract`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contractAddress,
-        contractType: 'fairlaunch',
-        launchRoundId,
-        constructorArgs: fairlaunchArgs,
-        chainId: 97, // BSC Testnet
-      }),
-    }).catch(err => {
+    fetch(
+      `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/internal/verify-contract`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contractAddress,
+          contractType: 'fairlaunch',
+          launchRoundId,
+          constructorArgs: fairlaunchArgs,
+          chainId: 97, // BSC Testnet
+        }),
+      }
+    ).catch((err) => {
       console.error('[Admin Deploy] Failed to trigger Fairlaunch verification:', err);
     });
 
@@ -399,17 +415,20 @@ export async function POST(request: NextRequest) {
     ];
 
     // Trigger Vesting verification
-    fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001'}/api/internal/verify-contract`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contractAddress: vestingAddress,
-        contractType: 'vesting',
-        launchRoundId,
-        constructorArgs: vestingArgs,
-        chainId: 97,
-      }),
-    }).catch(err => {
+    fetch(
+      `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/internal/verify-contract`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contractAddress: vestingAddress,
+          contractType: 'vesting',
+          launchRoundId,
+          constructorArgs: vestingArgs,
+          chainId: 97,
+        }),
+      }
+    ).catch((err) => {
       console.error('[Admin Deploy] Failed to trigger Vesting verification:', err);
     });
 
@@ -426,7 +445,6 @@ export async function POST(request: NextRequest) {
       status: 'DEPLOYED',
       verified: false, // Will be updated by verification process
     });
-
   } catch (error: any) {
     console.error('[Admin Deploy] Error:', error);
     return NextResponse.json(

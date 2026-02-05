@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
+import { useEffect, useState } from 'react';
 
-interface CountdownProps {
+export interface CountdownProps {
   targetDate: Date | string;
   onComplete?: () => void;
 }
@@ -43,20 +43,34 @@ export function Countdown({ targetDate, onComplete }: CountdownProps) {
   // Don't render anything on server, only on client after mount
   if (!mounted) {
     return (
-      <div className="flex items-center gap-2">
-        <div className="w-16 h-6 bg-gray-800 animate-pulse rounded" />
+      <div className="flex items-center gap-1">
+        <div className="w-20 h-5 bg-bg-elevated animate-pulse rounded" />
       </div>
     );
   }
 
+  // If countdown complete, don't show anything
+  if (
+    timeLeft.days === 0 &&
+    timeLeft.hours === 0 &&
+    timeLeft.minutes === 0 &&
+    timeLeft.seconds === 0
+  ) {
+    return null;
+  }
+
   return (
-    <div className="flex items-center justify-center gap-2">
-      <TimeUnit value={timeLeft.days} label="d" />
-      <span className="text-gray-500">:</span>
+    <div className="flex items-center justify-center gap-1.5">
+      {timeLeft.days > 0 && (
+        <>
+          <TimeUnit value={timeLeft.days} label="d" />
+          <span className="text-text-tertiary text-xs">:</span>
+        </>
+      )}
       <TimeUnit value={timeLeft.hours} label="h" />
-      <span className="text-gray-500">:</span>
+      <span className="text-text-tertiary text-xs">:</span>
       <TimeUnit value={timeLeft.minutes} label="m" />
-      <span className="text-gray-500">:</span>
+      <span className="text-text-tertiary text-xs">:</span>
       <TimeUnit value={timeLeft.seconds} label="s" />
     </div>
   );
@@ -65,8 +79,10 @@ export function Countdown({ targetDate, onComplete }: CountdownProps) {
 function TimeUnit({ value, label }: { value: number; label: string }) {
   return (
     <div className="flex items-baseline gap-0.5">
-      <span className="font-mono">{value.toString().padStart(2, "0")}</span>
-      <span className="text-xs text-gray-500">{label}</span>
+      <span className="text-sm font-bold text-text-primary tabular-nums">
+        {value.toString().padStart(2, '0')}
+      </span>
+      <span className="text-[10px] text-text-tertiary font-medium">{label}</span>
     </div>
   );
 }
