@@ -46,6 +46,7 @@ export function RejectModal({
     try {
       const response = await fetch(`/api/admin/rounds/${presaleId}/reject`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },

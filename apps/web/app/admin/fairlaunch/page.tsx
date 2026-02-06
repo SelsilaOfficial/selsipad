@@ -220,12 +220,44 @@ export default function AdminFairlaunchPage() {
 
   const handleFinalize = async (roundId: string) => {
     try {
+      // #region agent log (debug-session)
+      fetch('http://localhost:7242/ingest/e157f851-f607-48b5-9469-ddb77df06b07', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          location: 'apps/web/app/admin/fairlaunch/page.tsx:handleFinalize:click',
+          message: 'Finalize clicked (client)',
+          data: { roundId },
+          timestamp: Date.now(),
+          sessionId: 'debug-session',
+          runId: 'pre-fix',
+          hypothesisId: 'C',
+        }),
+      }).catch(() => {});
+      // #endregion
+
       const { finalizeFairlaunch } = await import('@/actions/admin/finalize-fairlaunch');
       const result = await finalizeFairlaunch(roundId);
 
       if (!result.success) {
         throw new Error(result.error);
       }
+
+      // #region agent log (debug-session)
+      fetch('http://localhost:7242/ingest/e157f851-f607-48b5-9469-ddb77df06b07', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          location: 'apps/web/app/admin/fairlaunch/page.tsx:handleFinalize:result',
+          message: 'Finalize returned (client)',
+          data: { roundId, success: result.success, contractAddress: result.contractAddress, chain: result.chain },
+          timestamp: Date.now(),
+          sessionId: 'debug-session',
+          runId: 'pre-fix',
+          hypothesisId: 'C',
+        }),
+      }).catch(() => {});
+      // #endregion
 
       alert(
         `✅ Fairlaunch marked as FINALIZING!\n\nNext step: Call finalize() on contract\nContract: ${result.contractAddress}\nChain: ${result.chain}`
@@ -234,7 +266,39 @@ export default function AdminFairlaunchPage() {
       // Refresh
       await fetchProjects();
     } catch (err: any) {
+      // #region agent log (debug-session)
+      fetch('http://localhost:7242/ingest/e157f851-f607-48b5-9469-ddb77df06b07', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          location: 'apps/web/app/admin/fairlaunch/page.tsx:handleFinalize:error',
+          message: 'Finalize failed (client)',
+          data: { roundId, message: err?.message },
+          timestamp: Date.now(),
+          sessionId: 'debug-session',
+          runId: 'pre-fix',
+          hypothesisId: 'C',
+        }),
+      }).catch(() => {});
+      // #endregion
+
       alert(`❌ Finalize failed: ${err.message}`);
+    }
+  };
+
+  const handleCancel = async (roundId: string) => {
+    try {
+      const { cancelFairlaunch } = await import('@/actions/admin/cancel-fairlaunch');
+      const result = await cancelFairlaunch(roundId);
+
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+
+      alert(`✅ Cancelled on-chain.\nRefunds should now be available.\nRound: ${roundId}`);
+      await fetchProjects();
+    } catch (err: any) {
+      alert(`❌ Cancel failed: ${err.message}`);
     }
   };
 
@@ -359,6 +423,7 @@ export default function AdminFairlaunchPage() {
                     key={project.id}
                     fairlaunch={project}
                     onFinalize={handleFinalize}
+                    onCancel={handleCancel}
                   />
                 ))}
               </div>

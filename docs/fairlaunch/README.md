@@ -8,18 +8,33 @@
 
 ```
 docs/fairlaunch/
-├── 01_sc_vs_ui_mapping.md          # SC parameter mapping + gap analysis
-├── 02_complete_flow_diagram.md     # End-to-end flow dengan mermaid diagrams
-├── 03_ui_improvement_action_plan.md # Action items + code examples (OLD)
-├── 04_revised_wizard_spec.md       # NEW 7-step wizard specification ⭐
-├── 05_old_vs_new_comparison.md     # Old vs new design comparison
-├── 06_fee_structure.md             # Complete fee breakdown + FeeSplitter
-└── README.md                        # This file (quick reference)
+├── 01_sc_vs_ui_mapping.md              # SC parameter mapping + gap analysis
+├── 02_complete_flow_diagram.md         # End-to-end flow dengan mermaid diagrams
+├── 03_ui_improvement_action_plan.md    # Action items + code examples (OLD)
+├── 04_revised_wizard_spec.md           # NEW 7-step wizard specification ⭐
+├── 05_old_vs_new_comparison.md         # Old vs new design comparison
+├── 06_fee_structure.md                 # Complete fee breakdown + FeeSplitter
+├── lp-locker-integration-plan.md       # 🔴 CRITICAL: LP Locker implementation plan
+├── lp-locker-integration-tasks.md      # 🔴 CRITICAL: LP Locker task breakdown
+├── lp-locker-troubleshooting.md        # 🔴 CRITICAL: LP Locker troubleshooting guide
+└── README.md                            # This file (quick reference)
 ```
 
 ---
 
 ## 🎯 Quick Links
+
+### 🔴 LP Locker Integration (CRITICAL)
+
+**Status**: Blocks all Fairlaunch finalizations
+
+- [LP Locker Implementation Plan](./lp-locker-integration-plan.md) - Complete technical specification
+- [LP Locker Task Breakdown](./lp-locker-integration-tasks.md) - 7 phases, ~40 tasks with checkboxes
+- [LP Locker Troubleshooting](./lp-locker-troubleshooting.md) - Common issues and solutions
+
+**Quick Summary**: Fairlaunch contract missing `setLPLocker()` and `lpLockerAddress()` functions. Requires contract update, factory redeployment, and API integration. See plan for details.
+
+---
 
 ### For Product Managers
 
@@ -34,6 +49,7 @@ docs/fairlaunch/
 - [New Wizard Spec](./04_revised_wizard_spec.md) - Detailed implementation spec
 - [Fee Structure](./06_fee_structure.md) - Complete fee breakdown + FeeSplitter
 - [Action Plan (Old)](./03_ui_improvement_action_plan.md) - Legacy fixes for old design
+- **[LP Locker Integration](./lp-locker-integration-plan.md)** - 🔴 Required for finalization
 
 ### For Finance/Operations
 

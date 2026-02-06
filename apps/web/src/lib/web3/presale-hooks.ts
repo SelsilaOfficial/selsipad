@@ -228,13 +228,16 @@ export function useContribute() {
 
 /**
  * Hook for claiming refund from failed presale
+ * @param roundAddress - PresaleRound contract address (optional; can pass to claimRefund instead)
  */
-export function useClaimRefund() {
+export function useClaimRefund(roundAddress?: Address) {
   const { writeContract, data: hash, isPending, error } = useWriteContract();
 
-  const claimRefund = async (roundAddress: Address) => {
+  const claimRefund = async (address?: Address) => {
+    const target = address ?? roundAddress;
+    if (!target) throw new Error('Round address required');
     return writeContract({
-      address: roundAddress,
+      address: target,
       abi: PRESALE_ROUND_ABI,
       functionName: 'claimRefund',
     });

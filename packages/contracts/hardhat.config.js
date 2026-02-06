@@ -24,6 +24,16 @@ module.exports = {
   networks: {
     hardhat: {
       chainId: 31337,
+      // Required for forking BSC testnet reliably (chainId 97 has no built-in hardfork history here)
+      hardfork: 'shanghai',
+      chains: {
+        // Minimal override: treat all blocks as shanghai for chainId 97
+        97: {
+          hardforkHistory: {
+            shanghai: 0,
+          },
+        },
+      },
     },
     sepolia: {
       url: process.env.SEPOLIA_RPC_URL || '',

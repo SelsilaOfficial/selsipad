@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { validatePoolStatus, PoolValidationError } from '@selsipad/shared';
+import { getAuthUserId } from '@/lib/auth/require-admin';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -13,19 +14,15 @@ const supabase = createClient(
  */
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    // Get authenticated user
+    let userId: string | null = null;
     const authHeader = request.headers.get('authorization');
-    if (!authHeader) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.replace('Bearer ', '');
+      const { data: { user }, error } = await supabase.auth.getUser(token);
+      if (!error && user) userId = user.id;
     }
-
-    const token = authHeader.replace('Bearer ', '');
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser(token);
-
-    if (authError || !user) {
+    if (!userId) userId = await getAuthUserId(request);
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -52,7 +49,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     }
 
     // Check ownership
-    if (round.projects.owner_user_id !== user.id) {
+    if (round.projects.owner_user_id !== userId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -118,11 +115,11 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       );
     }
 
-    // Update round status to SUBMITTED
+    // Update round status to SUBMITTED_FOR_REVIEW
     const { data: updatedRound, error: updateError } = await supabase
       .from('launch_rounds')
       .update({
-        status: 'SUBMITTED',
+        status: 'SUBMITTED_FOR_REVIEW',
         // Update compliance snapshots
         kyc_status_at_submit: round.projects.kyc_status,
         scan_status_at_submit: round.projects.sc_scan_status,
@@ -141,7 +138,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       action: 'ROUND_SUBMITTED',
       entity_type: 'launch_round',
       entity_id: params.id,
-      user_id: user.id,
+      user_id: userId,
       metadata: {
         round_type: round.type,
         project_id: round.project_id,

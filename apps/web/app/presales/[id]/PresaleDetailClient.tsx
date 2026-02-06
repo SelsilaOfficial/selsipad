@@ -1,9 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+import { useAccount } from 'wagmi';
 import { NetworkBadge } from '@/components/presale/NetworkBadge';
 import { StatusPill } from '@/components/presale/StatusPill';
 import { ContributionForm } from '@/components/presale/ContributionForm';
+import VestingClaimer from '@/components/presale/VestingClaimer';
+import RefundCard from '@/components/presale/RefundCard';
 
 interface PresaleDetailClientProps {
   round: any;
@@ -11,12 +14,31 @@ interface PresaleDetailClientProps {
   isOwner: boolean;
 }
 
+const PRESALE_STATUS = {
+  UPCOMING: 0,
+  ACTIVE: 1,
+  ENDED: 2,
+  FINALIZED_SUCCESS: 3,
+  FINALIZED_FAILED: 4,
+  CANCELLED: 5,
+} as const;
+
 export function PresaleDetailClient({
   round,
   userContribution,
   isOwner,
 }: PresaleDetailClientProps) {
   const [activeTab, setActiveTab] = useState('overview');
+  const { address } = useAccount();
+  const roundAddress = round.round_address || round.contract_address;
+  const presaleStatus =
+    round.result === 'SUCCESS'
+      ? PRESALE_STATUS.FINALIZED_SUCCESS
+      : round.result === 'FAILED'
+        ? PRESALE_STATUS.FINALIZED_FAILED
+        : round.result === 'CANCELED' || round.result === 'CANCELLED'
+          ? PRESALE_STATUS.CANCELLED
+          : PRESALE_STATUS.ENDED;
 
   const tabs = [
     { id: 'overview', label: 'Overview' },
@@ -231,44 +253,49 @@ export function PresaleDetailClient({
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                   Contribute to Presale
                 </h3>
-                <ContributionForm
-                  roundId={round.id}
-                  network={round.chain}
-                  paymentToken={round.raise_asset}
-                  min={round.params.min_contribution}
-                  max={round.params.max_contribution}
-                  userContribution={userContribution}
-                />
+                {roundAddress ? (
+                  <ContributionForm
+                    roundId={round.id}
+                    roundAddress={roundAddress as `0x${string}`}
+                    paymentToken={round.raise_asset}
+                    min={round.params.min_contribution}
+                    max={round.params.max_contribution}
+                  />
+                ) : (
+                  <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                    Round contract not deployed yet. Contribution will be available after deployment.
+                  </div>
+                )}
               </div>
             )}
 
             {activeTab === 'claim' && (
-              <div className="text-center py-12">
-                <div className="text-5xl mb-4">🎉</div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                   Claim Your Tokens
                 </h3>
-                <p className="text-gray-600 dark:text-gray-400 mb-6">
-                  The presale was successful! Claim your allocated tokens.
-                </p>
-                <button className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg font-semibold hover:opacity-90 transition-opacity">
-                  Claim Tokens
-                </button>
+                {address && roundAddress ? (
+                  <VestingClaimer presaleId={round.id} userAddress={address} />
+                ) : (
+                  <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                    Connect your wallet to claim your allocated tokens.
+                  </div>
+                )}
               </div>
             )}
 
             {activeTab === 'refund' && (
-              <div className="text-center py-12">
-                <div className="text-5xl mb-4">💸</div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                   Claim Refund
                 </h3>
-                <p className="text-gray-600 dark:text-gray-400 mb-6">
-                  The presale did not meet its goal. You can claim a refund for your contribution.
-                </p>
-                <button className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg font-semibold hover:opacity-90 transition-opacity">
-                  Claim Refund
-                </button>
+                {roundAddress ? (
+                  <RefundCard roundAddress={roundAddress} presaleStatus={presaleStatus} />
+                ) : (
+                  <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                    Round contract not deployed; refunds not available.
+                  </div>
+                )}
               </div>
             )}
 

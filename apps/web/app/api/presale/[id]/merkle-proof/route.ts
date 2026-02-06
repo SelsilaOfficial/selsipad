@@ -34,12 +34,11 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ error: 'No allocation found for this wallet' }, { status: 404 });
     }
 
-    // Return allocation + proof
-    // Client CANNOT override these values
+    // Return allocation + proof (allocation and totalAllocation for backward compat)
     return NextResponse.json({
-      totalAllocation: data.allocation, // Stored as TEXT to avoid precision loss
-      proof: data.proof, // JSONB array of hex strings
-      message: 'Proof retrieved from server. Do not modify allocation value.',
+      allocation: data.allocation,
+      totalAllocation: data.allocation,
+      proof: data.proof,
     });
   } catch (error: any) {
     console.error('Merkle proof error:', error);

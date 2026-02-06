@@ -19,6 +19,8 @@ const supabase = createClient(
  */
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const roundId = params.id;
+
     // Get authenticated user
     const authHeader = request.headers.get('authorization');
     if (!authHeader) {
@@ -47,11 +49,19 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       throw err;
     }
 
+    // Ensure payload round_id matches route round id
+    if (validatedData.round_id !== roundId) {
+      return NextResponse.json(
+        { error: 'round_id mismatch', expected: roundId, received: validatedData.round_id },
+        { status: 400 }
+      );
+    }
+
     // Get round details
     const { data: round, error: fetchError } = await supabase
       .from('launch_rounds')
       .select('*')
-      .eq('id', params.id)
+      .eq('id', roundId)
       .single();
 
     if (fetchError || !round) {
@@ -83,13 +93,13 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
     // For PRESALE, validate contribution amount
     if (round.type === 'PRESALE') {
-      const params = round.params as PresaleParams;
+      const roundParams = round.params as PresaleParams;
 
       // Get user's total contributions so far
       const { data: userContributions } = await supabase
         .from('contributions')
         .select('amount')
-        .eq('round_id', params.id)
+        .eq('round_id', roundId)
         .eq('user_id', user.id)
         .eq('status', 'CONFIRMED');
 
@@ -97,7 +107,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         userContributions?.reduce((sum, c) => sum + parseFloat(c.amount.toString()), 0) || 0;
 
       try {
-        validateContributionAmount(validatedData.amount, params, userTotalContributed);
+        validateContributionAmount(validatedData.amount, roundParams, userTotalContributed);
       } catch (err) {
         if (err instanceof PoolValidationError) {
           return NextResponse.json({ error: err.message }, { status: 400 });
@@ -107,11 +117,11 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
       // Check if hardcap would be exceeded
       const totalRaised = parseFloat(round.total_raised.toString());
-      if (totalRaised + validatedData.amount > params.hardcap) {
+      if (totalRaised + validatedData.amount > roundParams.hardcap) {
         return NextResponse.json(
           {
             error: 'Contribution would exceed hardcap',
-            available: params.hardcap - totalRaised,
+            available: roundParams.hardcap - totalRaised,
           },
           { status: 400 }
         );
@@ -128,7 +138,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       .from('contributions')
       .insert({
         id: intentId,
-        round_id: params.id,
+        round_id: roundId,
         user_id: user.id,
         wallet_address: validatedData.wallet_address,
         amount: validatedData.amount,
@@ -148,7 +158,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     // In production, this would include contract address, calldata, etc.
     return NextResponse.json({
       intent_id: intentId,
-      round_id: params.id,
+      round_id: roundId,
       amount: validatedData.amount,
       expires_at: expiresAt.toISOString(),
       // For EVM: contract_address, function signature, calldata

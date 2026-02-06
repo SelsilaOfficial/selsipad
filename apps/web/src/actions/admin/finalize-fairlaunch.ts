@@ -10,6 +10,22 @@ import { ethers } from 'ethers';
  */
 export async function finalizeFairlaunch(roundId: string) {
   try {
+    // #region agent log (debug-session)
+    fetch('http://localhost:7242/ingest/e157f851-f607-48b5-9469-ddb77df06b07', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        location: 'apps/web/src/actions/admin/finalize-fairlaunch.ts:finalizeFairlaunch:entry',
+        message: 'finalizeFairlaunch entry',
+        data: { roundId },
+        timestamp: Date.now(),
+        sessionId: 'debug-session',
+        runId: 'pre-fix',
+        hypothesisId: 'A',
+      }),
+    }).catch(() => {});
+    // #endregion
+
     // Verify admin
     const session = await getServerSession();
     if (!session) {
@@ -57,12 +73,37 @@ export async function finalizeFairlaunch(roundId: string) {
       softcapReached,
     });
 
+    // #region agent log (debug-session)
+    fetch('http://localhost:7242/ingest/e157f851-f607-48b5-9469-ddb77df06b07', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        location: 'apps/web/src/actions/admin/finalize-fairlaunch.ts:finalizeFairlaunch:roundLoaded',
+        message: 'round loaded from db',
+        data: {
+          roundId,
+          chain: round.chain,
+          contractAddress: round.contract_address,
+          dbStatus: round.status,
+          totalRaised,
+          softcap,
+          softcapReached,
+        },
+        timestamp: Date.now(),
+        sessionId: 'debug-session',
+        runId: 'pre-fix',
+        hypothesisId: 'B',
+      }),
+    }).catch(() => {});
+    // #endregion
+
     // ===== NEW: Automatic On-Chain Finalization =====
     try {
-      // Get admin private key from environment
-      const adminPrivateKey = process.env.ADMIN_PRIVATE_KEY || process.env.PRIVATE_KEY;
+      // CRITICAL: Use DEPLOYER_PRIVATE_KEY (adminExecutor) to match deploy wallet
+      // This ensures consistency - same wallet deploys AND finalizes
+      const adminPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
       if (!adminPrivateKey) {
-        return { success: false, error: 'Admin private key not configured in environment' };
+        return { success: false, error: 'DEPLOYER_PRIVATE_KEY not configured in environment' };
       }
 
       // Setup provider based on chain
@@ -85,30 +126,171 @@ export async function finalizeFairlaunch(roundId: string) {
       const fairlaunchAbi = [
         'function finalize() external',
         'function isFinalized() view returns (bool)',
+        'function status() view returns (uint8)',
+        'function getStatus() view returns (uint8)',
+        'function startTime() view returns (uint256)',
+        'function endTime() view returns (uint256)',
+        // Custom errors (newer Fairlaunch deployments)
+        'error FeeSplitterCallFailed(bytes reason)',
+        'error DexAddLiquidityCallFailed(bytes reason)',
+        'error LPLockerCallFailed(bytes reason)',
+        'error InvalidStatus()',
       ];
 
       const contract = new ethers.Contract(round.contract_address, fairlaunchAbi, adminWallet);
 
       // Check if already finalized
-      const isFinalized = await contract.isFinalized();
+      const isFinalized = await (contract as any).isFinalized();
       if (isFinalized) {
         return { success: false, error: 'Contract already finalized' };
       }
 
+      // Snapshot on-chain timing + status BEFORE finalize()
+      const [storedStatus, calculatedStatus, startTime, endTime, latestBlock] = await Promise.all([
+        (contract as any).status().catch(() => null),
+        (contract as any).getStatus().catch(() => null),
+        (contract as any).startTime().catch(() => null),
+        (contract as any).endTime().catch(() => null),
+        provider.getBlock('latest').catch(() => null),
+      ]);
+
+      const chainNow = latestBlock?.timestamp ?? null;
+      const startTimeNum = startTime != null ? Number(startTime) : null;
+      const endTimeNum = endTime != null ? Number(endTime) : null;
+
+      // #region agent log (debug-session)
+      fetch('http://localhost:7242/ingest/e157f851-f607-48b5-9469-ddb77df06b07', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          location: 'apps/web/src/actions/admin/finalize-fairlaunch.ts:finalizeFairlaunch:onchainSnapshot',
+          message: 'on-chain snapshot before finalize',
+          data: {
+            chainId: round.chain,
+            rpcUrlUsed: rpcUrl ? '[set]' : '[missing]',
+            contractAddress: round.contract_address,
+            adminAddress: adminWallet.address,
+            isFinalized,
+            storedStatus: storedStatus?.toString?.() ?? storedStatus,
+            calculatedStatus: calculatedStatus?.toString?.() ?? calculatedStatus,
+            startTime: startTime?.toString?.() ?? startTime,
+            endTime: endTime?.toString?.() ?? endTime,
+            chainNow,
+            chainNowGteStart: chainNow != null && startTimeNum != null ? chainNow >= startTimeNum : null,
+            chainNowGteEnd: chainNow != null && endTimeNum != null ? chainNow >= endTimeNum : null,
+          },
+          timestamp: Date.now(),
+          sessionId: 'debug-session',
+          runId: 'pre-fix',
+          hypothesisId: 'A',
+        }),
+      }).catch(() => {});
+      // #endregion
+
       console.log('[finalizeFairlaunch] Calling finalize() on contract...');
 
       // Call finalize() on contract
-      const tx = await contract.finalize();
+      // NOTE: Use gasLimit override because _updateStatus() state change
+      // causes gas estimation to fail when status != ENDED
+      // #region agent log (debug-session)
+      fetch('http://localhost:7242/ingest/e157f851-f607-48b5-9469-ddb77df06b07', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          location: 'apps/web/src/actions/admin/finalize-fairlaunch.ts:finalizeFairlaunch:sendTx',
+          message: 'sending finalize tx',
+          data: {
+            contractAddress: round.contract_address,
+            from: adminWallet.address,
+            gasLimit: 5000000,
+          },
+          timestamp: Date.now(),
+          sessionId: 'debug-session',
+          runId: 'pre-fix',
+          hypothesisId: 'E',
+        }),
+      }).catch(() => {});
+      // #endregion
+
+      const tx = await (contract as any).finalize({
+        gasLimit: 5000000, // 5M gas limit (safe for finalize + addLiquidity)
+      });
       console.log('[finalizeFairlaunch] Transaction sent:', tx.hash);
 
       // Wait for confirmation
       const receipt = await tx.wait();
       console.log('[finalizeFairlaunch] Transaction confirmed in block:', receipt.blockNumber);
+
+      // #region agent log (debug-session)
+      fetch('http://localhost:7242/ingest/e157f851-f607-48b5-9469-ddb77df06b07', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          location: 'apps/web/src/actions/admin/finalize-fairlaunch.ts:finalizeFairlaunch:receipt',
+          message: 'finalize tx receipt',
+          data: {
+            txHash: tx?.hash,
+            blockNumber: receipt?.blockNumber,
+            status: receipt?.status,
+            gasUsed: receipt?.gasUsed?.toString?.() ?? null,
+          },
+          timestamp: Date.now(),
+          sessionId: 'debug-session',
+          runId: 'pre-fix',
+          hypothesisId: 'E',
+        }),
+      }).catch(() => {});
+      // #endregion
     } catch (contractError: any) {
       console.error('[finalizeFairlaunch] Contract call failed:', contractError);
+
+      // Attempt to decode custom error data (if present)
+      let decodedError: string | null = null;
+      try {
+        const revertData =
+          contractError?.data ??
+          contractError?.info?.error?.data ??
+          contractError?.error?.data ??
+          null;
+        if (typeof revertData === 'string' && revertData.startsWith('0x') && revertData.length >= 10) {
+          const iface = new ethers.Interface(fairlaunchAbi);
+          const parsed = iface.parseError(revertData);
+          decodedError = parsed?.name ?? null;
+        }
+      } catch {
+        decodedError = null;
+      }
+
+      // #region agent log (debug-session)
+      fetch('http://localhost:7242/ingest/e157f851-f607-48b5-9469-ddb77df06b07', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          location: 'apps/web/src/actions/admin/finalize-fairlaunch.ts:finalizeFairlaunch:contractError',
+          message: 'contract finalize failed',
+          data: {
+            name: contractError?.name,
+            code: contractError?.code,
+            message: contractError?.message,
+            shortMessage: contractError?.shortMessage,
+            reason: contractError?.reason,
+            data: contractError?.data,
+            // ethers v6 often nests extra details here:
+            infoErrorMessage: contractError?.info?.error?.message,
+            infoErrorData: contractError?.info?.error?.data,
+            decodedError,
+          },
+          timestamp: Date.now(),
+          sessionId: 'debug-session',
+          runId: 'pre-fix',
+          hypothesisId: 'E',
+        }),
+      }).catch(() => {});
+      // #endregion
+
       return {
         success: false,
-        error: `Contract finalization failed: ${contractError.message}`,
+        error: `Contract finalization failed: ${decodedError ?? contractError.message}`,
       };
     }
 

@@ -1,96 +1,233 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { type PresaleParams, type FairlaunchParams } from '@selsipad/shared';
+import { requireAdmin } from '@/lib/auth/require-admin';
+import { generateMerkleTree } from '@/lib/server/merkle/generate-tree';
+import { ethers } from 'ethers';
+import { PRESALE_ROUND_ABI } from '@/lib/web3/presale-contracts';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+const RPC_BY_CHAIN: Record<string, string> = {
+  '97': process.env.BSC_TESTNET_RPC_URL || 'https://data-seed-prebsc-1-s1.bnbchain.org:8545',
+  '56': process.env.BSC_MAINNET_RPC_URL || 'https://bsc-dataseed.binance.org',
+};
+
 /**
  * POST /api/admin/rounds/[id]/finalize
- * Finalize an ended round (calculate allocations/refunds)
+ * Finalize an ended round. For PRESALE with on-chain deployment: generates merkle tree,
+ * writes presale_merkle_proofs, calls PresaleRound.finalizeSuccess or finalizeFailed.
  */
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    // Get authenticated admin user
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const adminResult = await requireAdmin(request);
+    if (adminResult instanceof NextResponse) return adminResult;
+    const { userId } = adminResult;
 
-    const token = authHeader.replace('Bearer ', '');
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser(token);
-
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // TODO: Check admin role (Super Admin or two-man rule)
-
-    // Check idempotency key
     const idempotencyKey = request.headers.get('idempotency-key');
     if (!idempotencyKey) {
       return NextResponse.json({ error: 'Idempotency-Key header required' }, { status: 400 });
     }
 
-    // Get round
+    const roundId = params.id;
+
     const { data: round, error: fetchError } = await supabase
       .from('launch_rounds')
       .select('*')
-      .eq('id', params.id)
+      .eq('id', roundId)
       .single();
 
     if (fetchError || !round) {
       return NextResponse.json({ error: 'Round not found' }, { status: 404 });
     }
 
-    // Validate status
-    if (round.status !== 'ENDED') {
-      return NextResponse.json({ error: 'Can only finalize ENDED rounds' }, { status: 400 });
+    const allowedStatuses = ['ENDED', 'DEPLOYED'];
+    if (!allowedStatuses.includes(round.status)) {
+      return NextResponse.json(
+        { error: `Can only finalize rounds with status ENDED or DEPLOYED (current: ${round.status})` },
+        { status: 400 }
+      );
     }
 
-    if (round.result !== 'NONE') {
+    if (round.result !== 'NONE' && round.result !== null) {
       return NextResponse.json({ error: 'Round already finalized' }, { status: 400 });
     }
 
-    // Determine result based on softcap
     const softcap =
       round.type === 'PRESALE'
         ? (round.params as PresaleParams).softcap
         : (round.params as FairlaunchParams).softcap;
+    const totalRaised = Number(round.total_raised ?? 0);
+    const result = totalRaised >= softcap ? 'SUCCESS' : 'FAILED';
 
-    const result = round.total_raised >= softcap ? 'SUCCESS' : 'FAILED';
+    const roundAddress = round.round_address || round.contract_address;
+    const vestingVaultAddress = round.vesting_vault_address;
+    const scheduleSalt = round.schedule_salt || '0x0000000000000000000000000000000000000000000000000000000000000000';
+    const chain = String(round.chain || '97');
+    const chainId = parseInt(chain, 10) || 97;
 
-    // Calculate final price for fairlaunch
-    let finalPrice: number | undefined;
-    if (round.type === 'FAIRLAUNCH' && result === 'SUCCESS') {
-      const params = round.params as FairlaunchParams;
-      finalPrice = round.total_raised / params.token_for_sale;
+    if (round.type === 'PRESALE' && roundAddress && vestingVaultAddress) {
+      const adminPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
+      if (!adminPrivateKey) {
+        return NextResponse.json({ error: 'DEPLOYER_PRIVATE_KEY not configured' }, { status: 500 });
+      }
+
+      const rpcUrl = RPC_BY_CHAIN[chain];
+      if (!rpcUrl) {
+        return NextResponse.json({ error: `Unsupported chain for finalize: ${chain}` }, { status: 400 });
+      }
+
+      const provider = new ethers.JsonRpcProvider(rpcUrl);
+      const signer = new ethers.Wallet(adminPrivateKey, provider);
+      const roundContract = new ethers.Contract(roundAddress, PRESALE_ROUND_ABI as any, signer);
+
+      if (result === 'SUCCESS') {
+        const { data: contributions } = await supabase
+          .from('contributions')
+          .select('user_id, wallet_address, amount')
+          .eq('round_id', roundId)
+          .eq('status', 'CONFIRMED');
+
+        if (!contributions?.length) {
+          return NextResponse.json({ error: 'No confirmed contributions for success finalization' }, { status: 400 });
+        }
+
+        const price = Number((round.params as PresaleParams).price) || 1;
+        const decimals = 18;
+        const allocations = contributions.map((c) => {
+          const amountNum = Number(c.amount);
+          const tokens = amountNum / price;
+          const allocationWei = BigInt(Math.floor(tokens * 10 ** decimals));
+          return {
+            address: (c.wallet_address as string).toLowerCase(),
+            allocation: allocationWei,
+          };
+        });
+
+        const merkleData = generateMerkleTree(
+          allocations,
+          vestingVaultAddress,
+          chainId,
+          scheduleSalt
+        );
+
+        for (const alloc of allocations) {
+          const proof = merkleData.proofsByWallet[alloc.address];
+          await supabase.from('presale_merkle_proofs').upsert({
+            round_id: roundId,
+            wallet_address: alloc.address,
+            allocation: alloc.allocation.toString(),
+            proof: proof || [],
+          }, { onConflict: 'round_id,wallet_address' });
+        }
+
+        const tx = await roundContract.finalizeSuccess(
+          merkleData.root,
+          merkleData.totalAllocation
+        );
+        const receipt = await tx.wait();
+
+        const block = await provider.getBlock(receipt.blockNumber);
+        const tgeTimestamp = block?.timestamp ?? Math.floor(Date.now() / 1000);
+
+        await supabase
+          .from('launch_rounds')
+          .update({
+            merkle_root: merkleData.root,
+            tge_timestamp: tgeTimestamp,
+            result: 'SUCCESS',
+            status: 'SUCCESS',
+            vesting_status: 'CONFIRMED',
+            finalized_by: userId,
+            finalized_at: new Date().toISOString(),
+          })
+          .eq('id', roundId);
+
+        const roundAllocations = contributions.map((c) => {
+          const amountNum = Number(c.amount);
+          const tokens = amountNum / price;
+          return {
+            round_id: roundId,
+            user_id: c.user_id,
+            contributed_amount: amountNum,
+            allocation_tokens: tokens,
+            claimable_tokens: 0,
+            refund_amount: 0,
+            claim_status: 'PENDING',
+            refund_status: 'NONE',
+          };
+        });
+        await supabase.from('round_allocations').upsert(roundAllocations, { onConflict: 'round_id,user_id' }).catch(() => {});
+
+        return NextResponse.json({
+          round_id: roundId,
+          result: 'SUCCESS',
+          tx_hash: receipt?.hash,
+          merkle_root: merkleData.root,
+          allocations_created: true,
+        });
+      }
+
+      const reason = 'Soft cap not met';
+      const tx = await roundContract.finalizeFailed(reason);
+      const failReceipt = await tx.wait();
+
+      await supabase
+        .from('launch_rounds')
+        .update({
+          result: 'FAILED',
+          status: 'FAILED',
+          finalized_by: userId,
+          finalized_at: new Date().toISOString(),
+        })
+        .eq('id', roundId);
+
+      const { data: failedContributions } = await supabase
+        .from('contributions')
+        .select('user_id, amount')
+        .eq('round_id', roundId)
+        .eq('status', 'CONFIRMED');
+
+      if (failedContributions?.length) {
+        const refunds = failedContributions.map((c) => ({
+          round_id: roundId,
+          user_id: c.user_id,
+          amount: c.amount,
+          status: 'PENDING',
+          chain: round.chain,
+        }));
+        await supabase.from('refunds').insert(refunds).catch(() => {});
+      }
+
+      return NextResponse.json({
+        round_id: roundId,
+        result: 'FAILED',
+        tx_hash: failReceipt?.hash,
+        refunds_created: true,
+      });
     }
 
-    // Begin transaction - update round
     const updates: Record<string, unknown> = {
       status: 'FINALIZED',
       result,
-      finalized_by: user.id,
+      finalized_by: userId,
       finalized_at: new Date().toISOString(),
     };
 
-    if (finalPrice !== undefined) {
-      updates.params = {
-        ...(round.params as FairlaunchParams),
-        final_price: finalPrice,
-      };
+    let finalPrice: number | undefined;
+    if (round.type === 'FAIRLAUNCH' && result === 'SUCCESS') {
+      const fp = round.params as FairlaunchParams;
+      finalPrice = totalRaised / fp.token_for_sale;
+      updates.params = { ...round.params, final_price: finalPrice };
     }
 
     const { data: finalizedRound, error: updateError } = await supabase
       .from('launch_rounds')
       .update(updates)
-      .eq('id', params.id)
+      .eq('id', roundId)
       .select()
       .single();
 
@@ -99,78 +236,57 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       return NextResponse.json({ error: 'Failed to finalize round' }, { status: 500 });
     }
 
-    // Generate allocations for successful rounds
     if (result === 'SUCCESS') {
-      // Get all confirmed contributions
       const { data: contributions } = await supabase
         .from('contributions')
         .select('user_id, amount')
-        .eq('round_id', params.id)
+        .eq('round_id', roundId)
         .eq('status', 'CONFIRMED');
 
-      if (contributions && contributions.length > 0) {
-        // Calculate allocations
-        const allocations = contributions.map((contrib) => {
+      if (contributions?.length) {
+        const presaleParams = round.params as PresaleParams;
+        const fairParams = round.params as FairlaunchParams;
+        const allocations = contributions.map((c) => {
+          const amountNum = Number(c.amount);
           let tokens = 0;
-
           if (round.type === 'PRESALE') {
-            const params = round.params as PresaleParams;
-            tokens = contrib.amount / params.price;
+            tokens = amountNum / presaleParams.price;
           } else {
-            // Fairlaunch: proportional allocation
-            const sharePercentage = contrib.amount / round.total_raised;
-            const params = round.params as FairlaunchParams;
-            tokens = params.token_for_sale * sharePercentage;
+            tokens = (amountNum / totalRaised) * fairParams.token_for_sale;
           }
-
           return {
-            round_id: params.id,
-            user_id: contrib.user_id,
-            contributed_amount: contrib.amount,
+            round_id: roundId,
+            user_id: c.user_id,
+            contributed_amount: amountNum,
             allocation_tokens: tokens,
-            claimable_tokens: 0, // Will be set by vesting (FASE 5)
+            claimable_tokens: 0,
             refund_amount: 0,
+            claim_status: 'PENDING',
+            refund_status: 'NONE',
           };
         });
-
-        // Insert allocations
-        const { error: allocError } = await supabase.from('round_allocations').insert(allocations);
-
-        if (allocError) {
-          console.error('Error creating allocations:', allocError);
-          // Continue even if allocation insert fails (can be retried)
-        }
+        await supabase.from('round_allocations').upsert(allocations).catch(() => {});
       }
     }
 
-    // Generate refunds for failed rounds
     if (result === 'FAILED') {
-      // Get all confirmed contributions
       const { data: contributions } = await supabase
         .from('contributions')
         .select('user_id, amount')
-        .eq('round_id', params.id)
+        .eq('round_id', roundId)
         .eq('status', 'CONFIRMED');
 
-      if (contributions && contributions.length > 0) {
-        const refunds = contributions.map((contrib) => ({
-          round_id: params.id,
-          user_id: contrib.user_id,
-          amount: contrib.amount,
+      if (contributions?.length) {
+        const refunds = contributions.map((c) => ({
+          round_id: roundId,
+          user_id: c.user_id,
+          amount: c.amount,
           status: 'PENDING',
           chain: round.chain,
         }));
-
-        // Insert refunds
-        const { error: refundError } = await supabase.from('refunds').insert(refunds);
-
-        if (refundError) {
-          console.error('Error creating refunds:', refundError);
-        }
+        await supabase.from('refunds').insert(refunds).catch(() => {});
       }
     }
-
-    // TODO: Create audit log
 
     return NextResponse.json({
       round: finalizedRound,
@@ -178,8 +294,9 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       allocations_created: result === 'SUCCESS',
       refunds_created: result === 'FAILED',
     });
-  } catch (err) {
-    console.error('Unexpected error:', err);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  } catch (err: any) {
+    console.error('Finalize error:', err);
+    const message = err?.reason || err?.message || 'Finalization failed';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

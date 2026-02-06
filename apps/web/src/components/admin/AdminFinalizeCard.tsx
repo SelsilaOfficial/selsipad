@@ -21,10 +21,12 @@ interface FairlaunchProject {
 interface AdminFinalizeCardProps {
   fairlaunch: FairlaunchProject;
   onFinalize: (roundId: string) => Promise<void>;
+  onCancel: (roundId: string) => Promise<void>;
 }
 
-export function AdminFinalizeCard({ fairlaunch, onFinalize }: AdminFinalizeCardProps) {
+export function AdminFinalizeCard({ fairlaunch, onFinalize, onCancel }: AdminFinalizeCardProps) {
   const [loading, setLoading] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const softcap = parseFloat(fairlaunch.params?.softcap || '0');
@@ -55,6 +57,27 @@ export function AdminFinalizeCard({ fairlaunch, onFinalize }: AdminFinalizeCardP
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCancel = async () => {
+    if (
+      !confirm(
+        `Cancel ${fairlaunch.name} on-chain?\n\nThis will set the contract to CANCELLED so refunds can be claimed.`
+      )
+    ) {
+      return;
+    }
+
+    setCancelling(true);
+    setError(null);
+
+    try {
+      await onCancel(fairlaunch.id);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setCancelling(false);
     }
   };
 
@@ -165,6 +188,22 @@ export function AdminFinalizeCard({ fairlaunch, onFinalize }: AdminFinalizeCardP
               )}
             </button>
           )}
+
+          <button
+            onClick={handleCancel}
+            disabled={cancelling}
+            className="px-6 py-3 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition flex items-center justify-center gap-2"
+            title="Emergency: cancel on-chain to enable refunds"
+          >
+            {cancelling ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Cancelling...
+              </>
+            ) : (
+              'Cancel (Enable Refunds)'
+            )}
+          </button>
         </div>
       </div>
     </div>

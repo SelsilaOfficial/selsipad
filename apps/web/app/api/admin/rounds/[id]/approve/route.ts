@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { validateApprovePool, PoolValidationError } from '@selsipad/shared';
+import { requireAdmin } from '@/lib/auth/require-admin';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -9,28 +10,13 @@ const supabase = createClient(
 
 /**
  * POST /api/admin/rounds/[id]/approve
- * Approve a launch round
+ * Approve a launch round (admin only)
  */
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    // Get authenticated user (admin)
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser(token);
-
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // TODO: Check admin role (RBAC - Reviewer)
-    // For now, assuming user is admin
+    const adminResult = await requireAdmin(request);
+    if (adminResult instanceof NextResponse) return adminResult;
+    const { userId } = adminResult;
 
     // Get round
     const { data: round, error: fetchError } = await supabase
@@ -67,7 +53,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       .from('launch_rounds')
       .update({
         status: 'APPROVED_TO_DEPLOY',
-        reviewed_by: user.id,
+        reviewed_by: userId,
         reviewed_at: new Date().toISOString(),
         rejection_reason: null, // Clear any previous rejection
       })

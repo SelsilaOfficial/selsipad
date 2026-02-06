@@ -26,7 +26,6 @@ import {
   type FullPresaleConfig,
   type ComplianceStatus,
 } from '@/../../packages/shared/src/validators/presale-wizard';
-import { createPresaleDraft, submitPresale } from './actions';
 
 interface CreatePresaleWizardProps {
   walletAddress: string;
@@ -48,6 +47,7 @@ export function CreatePresaleWizard({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<any>({});
   const [projectId, setProjectId] = useState<string | null>(null);
+  const [roundId, setRoundId] = useState<string | null>(null);
 
   // wizard data state  - Extended with contract security fields
   const [wizardData, setWizardData] = useState<
@@ -92,28 +92,33 @@ export function CreatePresaleWizard({
     }
   }, [wizardData]);
 
-  // Auto-create project draft for contract scanning when user enters basic info
+  // Auto-create presale draft (project + round) when user enters basic info
   useEffect(() => {
     const createDraft = async () => {
       const name = wizardData.basics?.name;
       const network = wizardData.basics?.network;
 
-      // Only create draft if we have minimum info and no projectId yet
-      if (name && name.length >= 3 && network && !projectId) {
+      if (name && name.length >= 3 && network && !roundId) {
         try {
-          const result = await createPresaleDraft(wizardData as any, walletAddress);
-          if (result.success && result.data?.project_id) {
-            setProjectId(result.data.project_id);
-            console.log('Project draft created with project_id:', result.data.project_id);
+          const res = await fetch('/api/presale/draft', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(wizardData),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.round?.id) setRoundId(data.round.id);
+            if (data.project_id) setProjectId(data.project_id);
           }
         } catch (error) {
-          console.error('Failed to create project draft:', error);
+          console.error('Failed to create presale draft:', error);
         }
       }
     };
 
     createDraft();
-  }, [wizardData.basics?.name, wizardData.basics?.network, projectId, walletAddress]);
+  }, [wizardData.basics?.name, wizardData.basics?.network, roundId]);
 
   // Validation per step
   const validateStep = (step: number): boolean => {
@@ -212,13 +217,57 @@ export function CreatePresaleWizard({
 
   const handleSaveDraft = async () => {
     try {
-      // Validate what we have so far
-      const result = await createPresaleDraft(wizardData, walletAddress);
-      if (result.success) {
+      if (!roundId) {
+        const res = await fetch('/api/presale/draft', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(wizardData),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          alert('Failed to save draft: ' + (err.error || res.statusText));
+          return;
+        }
+        const data = await res.json();
+        if (data.round?.id) setRoundId(data.round.id);
+        if (data.project_id) setProjectId(data.project_id);
         alert('Draft saved successfully!');
-      } else {
-        alert('Failed to save draft: ' + result.error);
+        return;
       }
+      const params = {
+        price: parseFloat(wizardData.sale_params?.price || '0'),
+        softcap: parseFloat(wizardData.sale_params?.softcap || '0'),
+        hardcap: parseFloat(wizardData.sale_params?.hardcap || '0'),
+        token_for_sale: parseFloat(wizardData.sale_params?.total_tokens || '0'),
+        min_contribution: parseFloat(wizardData.sale_params?.min_contribution || '0'),
+        max_contribution: parseFloat(wizardData.sale_params?.max_contribution || '0'),
+        investor_vesting: wizardData.investor_vesting,
+        team_vesting: wizardData.team_vesting,
+        lp_lock: wizardData.lp_lock,
+        project_name: wizardData.basics?.name,
+        project_description: wizardData.basics?.description,
+        logo_url: wizardData.basics?.logo_url,
+        banner_url: wizardData.basics?.banner_url,
+        anti_bot: wizardData.anti_bot,
+        fees_referral: wizardData.fees_referral,
+      };
+      const patchRes = await fetch(`/api/rounds/${roundId}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          start_at: wizardData.sale_params?.start_at,
+          end_at: wizardData.sale_params?.end_at,
+          params,
+        }),
+      });
+      if (!patchRes.ok) {
+        const err = await patchRes.json();
+        alert('Failed to update draft: ' + (err.error || patchRes.statusText));
+        return;
+      }
+      alert('Draft saved successfully!');
     } catch (error) {
       alert('Failed to save draft');
     }
@@ -227,23 +276,77 @@ export function CreatePresaleWizard({
   const handleSubmit = async () => {
     setIsSubmitting(true);
     try {
-      // Final validation
       const validated = fullPresaleConfigSchema.parse({
         ...wizardData,
         terms_accepted: termsAccepted,
       });
 
-      // Submit presale
-      const result = await submitPresale(validated, walletAddress);
-
-      if (result.success) {
-        // Clear draft
-        localStorage.removeItem(STORAGE_KEY);
-        // Redirect to dashboard
-        router.push('/dashboard/owner/presales?created=true');
-      } else {
-        alert('Submission failed: ' + result.error);
+      let currentRoundId = roundId;
+      if (!currentRoundId) {
+        const createRes = await fetch('/api/presale/draft', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(validated),
+        });
+        if (!createRes.ok) {
+          const err = await createRes.json();
+          alert('Failed to create draft: ' + (err.error || createRes.statusText));
+          return;
+        }
+        const createData = await createRes.json();
+        currentRoundId = createData.round?.id;
+        if (createData.project_id) setProjectId(createData.project_id);
+        if (currentRoundId) setRoundId(currentRoundId);
       }
+
+      if (!currentRoundId) {
+        alert('Could not create or find draft round.');
+        return;
+      }
+
+      const params = {
+        price: parseFloat(validated.sale_params?.price || '0'),
+        softcap: parseFloat(validated.sale_params?.softcap || '0'),
+        hardcap: parseFloat(validated.sale_params?.hardcap || '0'),
+        token_for_sale: parseFloat(validated.sale_params?.total_tokens || '0'),
+        min_contribution: parseFloat(validated.sale_params?.min_contribution || '0'),
+        max_contribution: parseFloat(validated.sale_params?.max_contribution || '0'),
+        investor_vesting: validated.investor_vesting,
+        team_vesting: validated.team_vesting,
+        lp_lock: validated.lp_lock,
+        project_name: validated.basics?.name,
+        project_description: validated.basics?.description,
+        logo_url: validated.basics?.logo_url,
+        banner_url: validated.basics?.banner_url,
+        anti_bot: validated.anti_bot,
+        fees_referral: validated.fees_referral,
+      };
+      await fetch(`/api/rounds/${currentRoundId}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          start_at: validated.sale_params?.start_at,
+          end_at: validated.sale_params?.end_at,
+          params,
+        }),
+      });
+
+      const submitRes = await fetch(`/api/rounds/${currentRoundId}/submit`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (!submitRes.ok) {
+        const err = await submitRes.json();
+        alert('Submission failed: ' + (err.error || submitRes.statusText));
+        return;
+      }
+
+      localStorage.removeItem(STORAGE_KEY);
+      router.push('/dashboard/owner/presales?created=true');
     } catch (error: any) {
       console.error('Submit error:', error);
       alert('Validation failed. Please check all fields.');

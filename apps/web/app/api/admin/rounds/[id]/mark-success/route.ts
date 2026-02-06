@@ -1,36 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { validateSuccessGating } from '@selsipad/shared';
+import { requireAdmin } from '@/lib/auth/require-admin';
+import { ethers } from 'ethers';
+import { PRESALE_ROUND_ABI } from '@/lib/web3/presale-contracts';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+const RPC_BY_CHAIN: Record<string, string> = {
+  '97': process.env.BSC_TESTNET_RPC_URL || 'https://data-seed-prebsc-1-s1.bnbchain.org:8545',
+  '56': process.env.BSC_MAINNET_RPC_URL || 'https://bsc-dataseed.binance.org',
+};
+
 /**
  * POST /api/admin/rounds/[id]/mark-success
- * Manually mark round as SUCCESS (admin only)
- * REQUIRES: All three gates must be passed
+ * Mark round as SUCCESS (admin only). For PRESALE with on-chain round, verifies contract status.
  */
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    // Get authenticated admin user
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser(token);
-
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // TODO: Check admin role
+    const adminResult = await requireAdmin(request);
+    if (adminResult instanceof NextResponse) return adminResult;
 
     // Get round
     const { data: round, error: roundError } = await supabase
@@ -54,7 +46,24 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       );
     }
 
-    // Validate all gates
+    const roundAddress = round.round_address || round.contract_address;
+    const chain = String(round.chain || '97');
+
+    if (round.type === 'PRESALE' && roundAddress) {
+      const rpcUrl = RPC_BY_CHAIN[chain];
+      if (rpcUrl) {
+        const provider = new ethers.JsonRpcProvider(rpcUrl);
+        const roundContract = new ethers.Contract(roundAddress, PRESALE_ROUND_ABI as any, provider);
+        const onChainStatus = await roundContract.status().catch(() => null);
+        if (onChainStatus !== null && Number(onChainStatus) !== 3) {
+          return NextResponse.json(
+            { error: 'On-chain round status is not FINALIZED_SUCCESS; cannot mark success' },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
     const gateValidation = validateSuccessGating(
       round.result || 'NONE',
       round.vesting_status || 'NONE',

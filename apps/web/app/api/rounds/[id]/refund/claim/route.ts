@@ -51,11 +51,13 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       return NextResponse.json({ error: 'Round not found' }, { status: 404 });
     }
 
-    // Verify round is in refundable state (updated spelling: CANCELLED)
-    const refundableResults = ['FAILED', 'CANCELLED'];
+    // Verify round is in refundable state (support both spellings)
+    const refundableResults = ['FAILED', 'CANCELLED', 'CANCELED'];
     if (!refundableResults.includes(round.result)) {
       return NextResponse.json(
-        { error: `Round must be FAILED or CANCELLED to claim refund (current: ${round.result})` },
+        {
+          error: `Round must be FAILED or CANCELLED/CANCELED to claim refund (current: ${round.result})`,
+        },
         { status: 400 }
       );
     }

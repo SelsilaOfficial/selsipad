@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { validateRejectPool, PoolValidationError } from '@selsipad/shared';
+import { requireAdmin } from '@/lib/auth/require-admin';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -9,25 +10,13 @@ const supabase = createClient(
 
 /**
  * POST /api/admin/rounds/[id]/reject
- * Reject a launch round with reason
+ * Reject a launch round with reason (admin only)
  */
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    // Get authenticated admin user
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser(token);
-
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const adminResult = await requireAdmin(request);
+    if (adminResult instanceof NextResponse) return adminResult;
+    const { userId } = adminResult;
 
     // Get round
     const { data: round, error: fetchError } = await supabase
@@ -88,7 +77,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       .update({
         status: 'REJECTED',
         rejection_reason: reason,
-        reviewed_by: user.id,
+        reviewed_by: userId,
         reviewed_at: new Date().toISOString(),
       })
       .eq('id', params.id)

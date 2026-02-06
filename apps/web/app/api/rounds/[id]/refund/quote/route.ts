@@ -40,12 +40,12 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     }
 
     // Check if refund is available
-    const refundableResults = ['FAILED', 'CANCELED'];
+    const refundableResults = ['FAILED', 'CANCELED', 'CANCELLED'];
     if (!refundableResults.includes(round.result)) {
       return NextResponse.json({
         is_eligible: false,
         refund_amount: 0,
-        reason: `Refunds only available for FAILED or CANCELED rounds (current: ${round.result})`,
+        reason: `Refunds only available for FAILED or CANCELED/CANCELLED rounds (current: ${round.result})`,
         primary_wallet: null,
       });
     }

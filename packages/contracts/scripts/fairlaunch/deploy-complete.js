@@ -56,7 +56,7 @@ async function main() {
     sbtStakingVault: deployer.address,
     adminExecutor: admin.address,
     deploymentFee:
-      network === 'bsc_testnet' || network === 'bsc'
+      network === 'bsc_testnet' || network === 'bsc' || network === 'bscTestnet'
         ? hre.ethers.parseEther('0.2')
         : hre.ethers.parseEther('0.1'),
   };
@@ -68,7 +68,7 @@ async function main() {
   log(`   Admin Executor: ${config.adminExecutor}`, 'blue');
   log(
     `   Deployment Fee: ${hre.ethers.formatEther(config.deploymentFee)} ${
-      network === 'bsc_testnet' ? 'BNB' : 'ETH'
+      network === 'bsc_testnet' || network === 'bscTestnet' ? 'BNB' : 'ETH'
     }`,
     'blue'
   );

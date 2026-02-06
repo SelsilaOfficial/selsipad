@@ -21,14 +21,22 @@ export type VerificationStatus =
 
 export type LaunchRoundStatus =
   | 'DRAFT'
+  // Old + transitional statuses (kept for backwards compatibility)
   | 'SUBMITTED'
   | 'APPROVED'
+  // Current DB/UI statuses
+  | 'SUBMITTED_FOR_REVIEW'
+  | 'APPROVED_TO_DEPLOY'
+  | 'DEPLOYING'
+  | 'DEPLOYED'
+  | 'UPCOMING'
   | 'LIVE'
   | 'ENDED'
   | 'FINALIZED'
   | 'REJECTED';
 
-export type LaunchRoundResult = 'NONE' | 'SUCCESS' | 'FAILED' | 'CANCELED';
+// Note: both spellings exist in the codebase today; keep both until unified.
+export type LaunchRoundResult = 'NONE' | 'SUCCESS' | 'FAILED' | 'CANCELED' | 'CANCELLED';
 
 export type LaunchRoundType = 'PRESALE' | 'FAIRLAUNCH';
 

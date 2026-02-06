@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { formatEther } from 'viem';
+import { useWaitForTransactionReceipt } from 'wagmi';
 import {
   usePresaleVestingVault,
   usePresaleTGETimestamp,
@@ -63,14 +64,9 @@ export default function VestingClaimer({ presaleId, userAddress }: VestingClaime
     proof ? BigInt(proof.allocation) : 0n
   );
 
-  // Claim hook
-  const {
-    write: executeClaim,
-    isLoading: isClaiming,
-    isSuccess: isClaimed,
-    txHash,
-    error: claimError,
-  } = useClaimVesting(vestingVaultAddress || '');
+  const { claim: executeClaim, hash: txHash, isPending: isClaiming, error: claimError } = useClaimVesting();
+  const { data: receipt } = useWaitForTransactionReceipt({ hash: txHash });
+  const isClaimed = !!receipt;
 
   // Fetch merkle proof from backend
   const loadProof = async () => {
@@ -86,7 +82,10 @@ export default function VestingClaimer({ presaleId, userAddress }: VestingClaime
       }
 
       const data = await response.json();
-      setProof(data);
+      setProof({
+        allocation: data.allocation ?? data.totalAllocation ?? '0',
+        proof: data.proof ?? [],
+      });
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -107,8 +106,11 @@ export default function VestingClaimer({ presaleId, userAddress }: VestingClaime
 
     setError(null);
 
+    if (!vestingVaultAddress) return;
+
     try {
       await executeClaim({
+        vestingAddress: vestingVaultAddress as `0x${string}`,
         totalAllocation: BigInt(proof.allocation),
         proof: proof.proof as `0x${string}`[],
       });

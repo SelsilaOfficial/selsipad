@@ -29,6 +29,7 @@ export function ApproveModal({
     try {
       const response = await fetch(`/api/admin/rounds/${presaleId}/approve`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },

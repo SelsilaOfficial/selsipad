@@ -1007,6 +1007,8 @@ contract Fairlaunch is AccessControl, ReentrancyGuard {
     event Unpaused();
     event Cancelled();
     event LiquidityAdded(address indexed lpToken, uint256 lpAmount, uint256 unlockTime);
+    event LPLockerSet(address indexed lpLocker);
+    event LiquidityLocked(address indexed lpToken, uint256 amount, uint256 unlockTime);
 
     // Errors
     error InvalidStatus();
@@ -1067,6 +1069,20 @@ contract Fairlaunch is AccessControl, ReentrancyGuard {
 
         _grantRole(DEFAULT_ADMIN_ROLE, _adminExecutor);
         _grantRole(ADMIN_ROLE, _adminExecutor);
+    }
+
+    /**
+     * @notice Set the LP Locker contract address
+     * @dev Can only be called by ADMIN_ROLE, and ONLY ONCE before finalization
+     * @param _lpLocker Address of the LP Locker contract
+     */
+    function setLPLocker(address _lpLocker) external onlyRole(ADMIN_ROLE) {
+        require(address(lpLocker) == address(0), "LP Locker already set");
+        require(!isFinalized, "Already finalized");
+        require(_lpLocker != address(0), "Invalid LP Locker address");
+        
+        lpLocker = ILPLocker(_lpLocker);
+        emit LPLockerSet(_lpLocker);
     }
 
     /**
@@ -1158,11 +1174,13 @@ contract Fairlaunch is AccessControl, ReentrancyGuard {
         uint256 lpBalance = IERC20(lpToken).balanceOf(address(this));
         uint256 unlockTime = block.timestamp + (lpLockMonths * 30 days);
         
-        // TODO: Integrate with actual LP locker
-        // For now, transfer to project owner (UNSAFE - replace with locker)
-        IERC20(lpToken).safeTransfer(projectOwner, lpBalance);
-        
-        emit LiquidityAdded(lpToken, lpBalance, unlockTime);
+        // Lock LP tokens via LP Locker
+        require(address(lpLocker) != address(0), "LP Locker not configured");
+
+        IERC20(lpToken).approve(address(lpLocker), lpBalance);
+        lpLocker.lockTokens(lpToken, lpBalance, unlockTime);
+
+        emit LiquidityLocked(lpToken, lpBalance, unlockTime);
 
         // Transfer remaining tokens to team vesting (if exists)
         if (teamVesting != address(0)) {
@@ -1337,5 +1355,13 @@ contract Fairlaunch is AccessControl, ReentrancyGuard {
      */
     function getFinalPrice() external view returns (uint256) {
         return finalTokenPrice;
+    }
+
+    /**
+     * @notice Get the current LP Locker address
+     * @return Address of LP Locker contract (or address(0) if not set)
+     */
+    function lpLockerAddress() external view returns (address) {
+        return address(lpLocker);
     }
 }

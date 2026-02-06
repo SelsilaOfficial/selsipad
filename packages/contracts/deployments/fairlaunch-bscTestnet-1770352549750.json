@@ -1,0 +1,20 @@
+{
+  "network": "bscTestnet",
+  "chainId": "97",
+  "timestamp": "2026-02-06T04:35:49.749Z",
+  "deployer": "0x95D94D86CfC550897d2b80672a3c94c12429a90D",
+  "admin": "0x178cf582e811B30205CBF4Bb7bE45A9dF31AaC4A",
+  "contracts": {
+    "feeSplitter": "0x141fd4e368FAE882640Ca7612EF12778cF985645",
+    "lpLocker": "0x422293092c353abB6BEFaBAdBBEb1D6257F17298",
+    "fairlaunchFactory": "0xe562b09225aFC94e254973f329bB25294Ef89c8F"
+  },
+  "config": {
+    "deploymentFee": "0.2",
+    "treasuryVault": "0x95D94D86CfC550897d2b80672a3c94c12429a90D",
+    "referralPoolVault": "0x95D94D86CfC550897d2b80672a3c94c12429a90D",
+    "sbtStakingVault": "0x95D94D86CfC550897d2b80672a3c94c12429a90D",
+    "adminExecutor": "0x178cf582e811B30205CBF4Bb7bE45A9dF31AaC4A"
+  },
+  "explorer": "https://etherscan.io"
+}

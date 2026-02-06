@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useAccount } from 'wagmi';
+import { useAccount, useWaitForTransactionReceipt } from 'wagmi';
 import { formatEther } from 'viem';
 import { useUserContribution, useClaimRefund } from '@/lib/web3/presale-hooks';
 
@@ -20,14 +20,9 @@ export default function RefundCard({ roundAddress, presaleStatus }: RefundCardPr
     address || ''
   );
 
-  // Write hook for claiming refund
-  const {
-    write: claimRefund,
-    isLoading: isRefunding,
-    isSuccess: isRefunded,
-    txHash,
-    error: txError,
-  } = useClaimRefund(roundAddress);
+  const { claimRefund, hash: txHash, isPending: isRefunding, error: txError } = useClaimRefund(roundAddress);
+  const { data: receipt } = useWaitForTransactionReceipt({ hash: txHash });
+  const isRefunded = !!receipt;
 
   // Only show refund card if presale is FAILED or CANCELLED
   const isRefundable = presaleStatus === 4 || presaleStatus === 5;
@@ -43,7 +38,7 @@ export default function RefundCard({ roundAddress, presaleStatus }: RefundCardPr
     setError(null);
 
     try {
-      await claimRefund();
+      await claimRefund(roundAddress as `0x${string}`);
 
       // Refetch contribution after successful refund
       setTimeout(() => {

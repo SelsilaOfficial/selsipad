@@ -111,6 +111,8 @@ contract Fairlaunch is AccessControl, ReentrancyGuard {
     event Unpaused();
     event Cancelled();
     event LiquidityAdded(address indexed lpToken, uint256 lpAmount, uint256 unlockTime);
+    event LPLockerSet(address indexed lpLocker);
+    event LiquidityLocked(address indexed lpToken, uint256 amount, uint256 unlockTime);
 
     // Errors
     error InvalidStatus();
@@ -123,6 +125,10 @@ contract Fairlaunch is AccessControl, ReentrancyGuard {
     error NotAuthorized();
     error TransferFailed();
     error SoftcapNotMet();
+    // Debuggable external-call errors (prevents "revert 0x" mystery failures)
+    error FeeSplitterCallFailed(bytes reason);
+    error DexAddLiquidityCallFailed(bytes reason);
+    error LPLockerCallFailed(bytes reason);
 
     constructor(
         address _projectToken,
@@ -161,8 +167,10 @@ contract Fairlaunch is AccessControl, ReentrancyGuard {
         status = Status.UPCOMING;
 
         // Set DEX router based on chain (using ternary for immutable)
-        dexRouter = (block.chainid == 56 || block.chainid == 97)
-            ? IUniswapV2Router02(0x10ED43C718714eb63d5aA57B78B54704E256024E) // BSC / BSC Testnet
+        dexRouter = (block.chainid == 56)
+            ? IUniswapV2Router02(0x10ED43C718714eb63d5aA57B78B54704E256024E) // BSC Mainnet
+            : (block.chainid == 97)
+            ? IUniswapV2Router02(0xD99D1c33F9fC3444f8101754aBC46c52416550D1) // BSC Testnet (V2)
             : (block.chainid == 1 || block.chainid == 11155111)
             ? IUniswapV2Router02(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D) // Ethereum / Sepolia
             : (block.chainid == 8453 || block.chainid == 84532)
@@ -174,10 +182,17 @@ contract Fairlaunch is AccessControl, ReentrancyGuard {
     }
 
     /**
-     * @notice Set LP Locker address (admin only, must be set before finalization)
+     * @notice Set the LP Locker contract address
+     * @dev Can only be called by ADMIN_ROLE, and ONLY ONCE before finalization
+     * @param _lpLocker Address of the LP Locker contract
      */
     function setLPLocker(address _lpLocker) external onlyRole(ADMIN_ROLE) {
+        require(address(lpLocker) == address(0), "LP Locker already set");
+        require(!isFinalized, "Already finalized");
+        require(_lpLocker != address(0), "Invalid LP Locker address");
+        
         lpLocker = ILPLocker(_lpLocker);
+        emit LPLockerSet(_lpLocker);
     }
 
     /**
@@ -252,7 +267,11 @@ contract Fairlaunch is AccessControl, ReentrancyGuard {
 
         // Send fee to FeeSplitter
         if (paymentToken == address(0)) {
-            IFeeSplitter(feeSplitter).distributeFairlaunchFee{value: platformFee}(address(this));
+            try IFeeSplitter(feeSplitter).distributeFairlaunchFee{value: platformFee}(address(this)) {
+                // ok
+            } catch (bytes memory reason) {
+                revert FeeSplitterCallFailed(reason);
+            }
         } else {
             IERC20(paymentToken).safeTransfer(feeSplitter, platformFee);
             // Note: FeeSplitter needs ERC20 handling function
@@ -266,24 +285,31 @@ contract Fairlaunch is AccessControl, ReentrancyGuard {
         uint256 liquidityTokens = (liquidityFunds * 1e18) / listingPrice;
 
         // Add liquidity to DEX
-        address lpToken = _addLiquidity(liquidityTokens, liquidityFunds);
+        address lpToken;
+        try this.__addLiquidityExternal(liquidityTokens, liquidityFunds) returns (address _lpToken) {
+            lpToken = _lpToken;
+        } catch (bytes memory reason) {
+            revert DexAddLiquidityCallFailed(reason);
+        }
 
         // Lock LP tokens in vault for specified duration
         uint256 lpBalance = IERC20(lpToken).balanceOf(address(this));
         uint256 unlockTime = block.timestamp + (lpLockMonths * 30 days);
         
+        // Lock LP tokens via LP Locker
+        require(address(lpLocker) != address(0), "LP Locker not configured");
+
         // Approve LP locker to manage tokens
         IERC20(lpToken).approve(address(lpLocker), lpBalance);
         
         // Lock LP tokens with project owner as beneficiary
-        uint256 lockId = lpLocker.lockTokens(
-            lpToken,
-            lpBalance,
-            unlockTime,
-            projectOwner
-        );
+        try lpLocker.lockTokens(lpToken, lpBalance, unlockTime, projectOwner) returns (uint256 /*lockId*/) {
+            // ok
+        } catch (bytes memory reason) {
+            revert LPLockerCallFailed(reason);
+        }
         
-        emit LiquidityAdded(lpToken, lpBalance, unlockTime);
+        emit LiquidityLocked(lpToken, lpBalance, unlockTime);
 
         // Transfer remaining tokens to team vesting (if exists)
         if (teamVesting != address(0)) {
@@ -348,6 +374,19 @@ contract Fairlaunch is AccessControl, ReentrancyGuard {
                 paymentToken
             );
         }
+    }
+
+    /**
+     * @dev External wrapper for try/catch around router calls.
+     * Solidity only allows try/catch on external calls, not internal calls.
+     * This function MUST remain non-publicly useful (only called by this contract).
+     */
+    function __addLiquidityExternal(uint256 tokenAmount, uint256 fundAmount)
+        external
+        returns (address lpToken)
+    {
+        if (msg.sender != address(this)) revert NotAuthorized();
+        return _addLiquidity(tokenAmount, fundAmount);
     }
 
     /**
@@ -458,5 +497,13 @@ contract Fairlaunch is AccessControl, ReentrancyGuard {
      */
     function getFinalPrice() external view returns (uint256) {
         return finalTokenPrice;
+    }
+
+    /**
+     * @notice Get the current LP Locker address
+     * @return Address of LP Locker contract (or address(0) if not set)
+     */
+    function lpLockerAddress() external view returns (address) {
+        return address(lpLocker);
     }
 }

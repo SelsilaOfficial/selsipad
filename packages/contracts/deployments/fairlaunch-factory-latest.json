@@ -3,12 +3,13 @@
   "chainId": "97",
   "timestamp": "2026-02-05T20:25:04+00:00",
   "deployer": "0x95D94D86CfC550897d2b80672a3c94c12429a90D",
-  "factoryAddress": "0xBf8B3e6b88C46F1B99d1675436771e272eA284c7",
+  "address": "0xD76986904E2117A6F4568A764b149C56Ff2E9E75",
   "config": {
     "deploymentFee": "0.2",
     "feeSplitter": "0x2672af17eA89bc5e46BB52385C45Cb42e5eC8C48",
     "treasury": "0x95D94D86CfC550897d2b80672a3c94c12429a90D",
     "adminExecutor": "0x95D94D86CfC550897d2b80672a3c94c12429a90D"
   },
-  "note": "Updated factory with Fairlaunch bytecode including setLPLocker function"
+  "verified": true,
+  "note": "Router fix applied (Feb 6): BSC Testnet now uses correct V2 router (0xD99D1c33...)"
 }

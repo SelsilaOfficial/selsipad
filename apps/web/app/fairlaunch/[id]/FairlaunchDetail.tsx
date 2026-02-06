@@ -236,7 +236,7 @@ export function FairlaunchDetail({ fairlaunch, userAddress }: FairlaunchDetailPr
   const result = fairlaunch.result || 'NONE';
   const isSuccess = result === 'SUCCESS';
   const isFailed = result === 'FAILED';
-  const isCancelled = result === 'CANCELLED';
+  const isCancelled = result === 'CANCELLED' || result === 'CANCELED';
 
   const tabs: { key: TabType; label: string; enabled: boolean; hasIndicator?: boolean }[] = [
     { key: 'overview', label: 'Overview', enabled: true },

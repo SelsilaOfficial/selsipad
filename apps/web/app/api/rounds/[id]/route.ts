@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { validateUpdatePool, validatePoolStatus, PoolValidationError } from '@selsipad/shared';
+import { getAuthUserId } from '@/lib/auth/require-admin';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -86,19 +87,15 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
  */
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    // Get authenticated user
+    let userId: string | null = null;
     const authHeader = request.headers.get('authorization');
-    if (!authHeader) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.replace('Bearer ', '');
+      const { data: { user }, error } = await supabase.auth.getUser(token);
+      if (!error && user) userId = user.id;
     }
-
-    const token = authHeader.replace('Bearer ', '');
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser(token);
-
-    if (authError || !user) {
+    if (!userId) userId = await getAuthUserId(request);
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -114,7 +111,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     }
 
     // Check ownership
-    if (round.projects.owner_user_id !== user.id) {
+    if (round.projects.owner_user_id !== userId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

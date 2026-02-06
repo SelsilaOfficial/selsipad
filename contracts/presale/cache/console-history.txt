@@ -1,5 +1,0 @@
-const feeSplitter = await ethers.getContractAt("FeeSplitter", "0xce329E6d7415999160bB6f47133b552a91C915a0")
-console.log("Treasury received:", ethers.formatEther(balance), "BNB")
-const balance = await ethers.provider.getBalance(treasury)
-const treasury = await feeSplitter.treasuryVault()
-const feeSplitter = await ethers.getContractAt("FeeSplitter", "0xce329E6d7415999160bB6f47133b552a91C915a0")
