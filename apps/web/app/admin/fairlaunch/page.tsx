@@ -29,12 +29,12 @@ interface PendingProject {
 }
 
 export default function AdminFairlaunchPage() {
-  const [pendingProjects, setPendingProjects] = useState<PendingProject[]>([]);
+  const [reviewProjects, setReviewProjects] = useState<PendingProject[]>([]);
   const [liveProjects, setLiveProjects] = useState<PendingProject[]>([]);
   const [endedProjects, setEndedProjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'pending' | 'live' | 'ended'>('pending');
+  const [activeTab, setActiveTab] = useState<'review' | 'live' | 'ended'>('review');
 
   useEffect(() => {
     fetchProjects();
@@ -50,6 +50,62 @@ export default function AdminFairlaunchPage() {
       const supabase = createClient();
 
       const now = new Date().toISOString();
+
+      // Query SUBMITTED fairlaunches (waiting for review/approval)
+      const { data: reviewRounds, error: reviewError } = await supabase
+        .from('launch_rounds')
+        .select(
+          `
+          *,
+          projects (
+            id,
+            name,
+            symbol,
+            logo_url,
+            description,
+            creator_wallet,
+            token_address
+          )
+        `
+        )
+        .eq('type', 'FAIRLAUNCH')
+        .eq('status', 'SUBMITTED')
+        .order('created_at', { ascending: false });
+
+      if (reviewError) {
+        console.error('[Admin] Error fetching review projects:', reviewError);
+      }
+
+      // Transform review fairlaunches
+      const reviewFairlaunches = (reviewRounds || []).map((round: any) => {
+        const project = round.projects;
+        return {
+          id: project?.id || round.id,
+          name: project?.name || round.params?.name || 'Unknown',
+          description: project?.description,
+          logo_url: project?.logo_url,
+          type: 'FAIRLAUNCH' as const,
+          chain_id: round.chain_id || 97,
+          token_address: round.token_address || project?.token_address || '0x0',
+          creator_wallet: round.created_by || project?.creator_wallet || '0x0',
+          created_at: round.created_at,
+          launch_rounds: [
+            {
+              id: round.id,
+              softcap: round.params?.softcap || '0',
+              tokens_for_sale: round.params?.tokens_for_sale || '0',
+              start_time: round.start_at,
+              end_time: round.end_at,
+              escrow_tx_hash: round.escrow_tx_hash,
+              escrow_amount: round.escrow_amount,
+              creation_fee_paid: round.creation_fee_paid,
+            },
+          ],
+        };
+      });
+
+      setReviewProjects(reviewFairlaunches);
+      console.log('[Admin] Fetched review fairlaunches:', reviewFairlaunches.length);
 
       // Query live fairlaunches (DEPLOYED or ACTIVE status + between start_at and end_at)
       const { data: liveRounds, error: liveError } = await supabase
@@ -240,6 +296,30 @@ export default function AdminFairlaunchPage() {
       const result = await finalizeFairlaunch(roundId);
 
       if (!result.success) {
+        // If LP Locker not set, offer to set it via API then user can Finalize again
+        if (result.error?.includes('LP Locker not configured') && result.contractAddress) {
+          const doSetup = window.confirm(
+            'LP Locker is not set on this contract. Set it now with admin wallet? (Then click Finalize again.)'
+          );
+          if (doSetup) {
+            const res = await fetch('/api/admin/fairlaunch/setup-lp-locker', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                roundId,
+                contractAddress: result.contractAddress,
+              }),
+            });
+            const data = await res.json();
+            if (data.success) {
+              alert(`✅ LP Locker configured.\n\nClick "Finalize" again to complete.`);
+              await fetchProjects();
+              return;
+            }
+            alert(`❌ Setup LP Locker failed: ${data.error || data.details || res.statusText}`);
+            return;
+          }
+        }
         throw new Error(result.error);
       }
 
@@ -250,7 +330,12 @@ export default function AdminFairlaunchPage() {
         body: JSON.stringify({
           location: 'apps/web/app/admin/fairlaunch/page.tsx:handleFinalize:result',
           message: 'Finalize returned (client)',
-          data: { roundId, success: result.success, contractAddress: result.contractAddress, chain: result.chain },
+          data: {
+            roundId,
+            success: result.success,
+            contractAddress: result.contractAddress,
+            chain: result.chain,
+          },
           timestamp: Date.now(),
           sessionId: 'debug-session',
           runId: 'pre-fix',
@@ -260,7 +345,7 @@ export default function AdminFairlaunchPage() {
       // #endregion
 
       alert(
-        `✅ Fairlaunch marked as FINALIZING!\n\nNext step: Call finalize() on contract\nContract: ${result.contractAddress}\nChain: ${result.chain}`
+        `✅ Fairlaunch finalized!\n\nContract: ${result.contractAddress}\nChain: ${result.chain}`
       );
 
       // Refresh
@@ -317,14 +402,14 @@ export default function AdminFairlaunchPage() {
         {/* Tabs */}
         <div className="flex items-center gap-2 mb-6">
           <button
-            onClick={() => setActiveTab('pending')}
+            onClick={() => setActiveTab('review')}
             className={`px-6 py-3 rounded-lg transition font-semibold ${
-              activeTab === 'pending'
-                ? 'bg-purple-600 text-white'
+              activeTab === 'review'
+                ? 'bg-blue-600 text-white'
                 : 'bg-gray-800 text-gray-400 hover:text-white'
             }`}
           >
-            Pending Deploy ({pendingProjects.length})
+            Review ({reviewProjects.length})
           </button>
           <button
             onClick={() => setActiveTab('live')}
@@ -362,19 +447,86 @@ export default function AdminFairlaunchPage() {
           </div>
         )}
 
-        {/* Pending Deploy Tab */}
-        {!loading && !error && activeTab === 'pending' && (
+        {/* Review Tab */}
+        {!loading && !error && activeTab === 'review' && (
           <div>
-            {pendingProjects.length === 0 ? (
+            {reviewProjects.length === 0 ? (
               <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-12 text-center">
                 <CheckCircle2 className="w-16 h-16 text-green-500 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold text-gray-400 mb-2">All Caught Up!</h3>
-                <p className="text-gray-500">No projects pending deployment</p>
+                <h3 className="text-xl font-semibold text-gray-400 mb-2">
+                  No pending fairlaunch submissions
+                </h3>
+                <p className="text-gray-500">All caught up! 🎉</p>
               </div>
             ) : (
               <div className="space-y-4">
-                {pendingProjects.map((project) => (
-                  <AdminDeployCard key={project.id} project={project} onDeploy={handleDeploy} />
+                {reviewProjects.map((project) => (
+                  <div
+                    key={project.id}
+                    className="bg-gray-800/50 border border-gray-700 rounded-xl p-6 hover:border-blue-500 transition"
+                  >
+                    <div className="flex items-start gap-4">
+                      {project.logo_url && (
+                        <img
+                          src={project.logo_url}
+                          alt={project.name}
+                          className="w-16 h-16 rounded-lg"
+                        />
+                      )}
+                      <div className="flex-1">
+                        <h3 className="text-xl font-bold text-white mb-2">{project.name}</h3>
+                        <p className="text-gray-400 text-sm mb-4">{project.description}</p>
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <span className="text-gray-500">Token:</span>{' '}
+                            <span className="text-white font-mono">
+                              {project.token_address.slice(0, 6)}...
+                              {project.token_address.slice(-4)}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Softcap:</span>{' '}
+                            <span className="text-white">
+                              {project.launch_rounds?.[0]?.softcap} BNB
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Tokens for Sale:</span>{' '}
+                            <span className="text-white">
+                              {project.launch_rounds?.[0]?.tokens_for_sale}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Created:</span>{' '}
+                            <span className="text-white">
+                              {new Date(project.created_at).toLocaleDateString()}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <button
+                          onClick={() => {
+                            if (window.confirm('Deploy this fairlaunch to chain?')) {
+                              handleDeploy(project.launch_rounds?.[0]?.id || '');
+                            }
+                          }}
+                          className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition font-semibold flex items-center justify-center gap-1"
+                        >
+                          <Rocket size={16} /> Deploy
+                        </button>
+                        <button
+                          onClick={() => {
+                            // TODO: Add reject functionality
+                            alert('Reject functionality coming soon!');
+                          }}
+                          className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition font-semibold"
+                        >
+                          ✗ Reject
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 ))}
               </div>
             )}

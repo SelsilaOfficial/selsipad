@@ -1,11 +1,11 @@
 import Link from 'next/link';
 import NextImage from 'next/image';
 import { PageContainer } from '@/components/layout';
-import { MultiChainConnectWallet } from '@/components/wallet/MultiChainConnectWallet';
-import { HeroSection } from '@/components/home/HeroSection';
-import { FeatureGrid } from '@/components/home/FeatureGrid';
-import { TrendingBanner } from '@/components/home/TrendingBanner';
+import { HomeHeader } from '@/components/home/HomeHeader';
 import { PageBackground } from '@/components/home/PageBackground';
+import { MainGrid } from '@/components/home/MainGrid';
+import { PortfolioWidget } from '@/components/home/PortfolioWidget';
+import { TrendingWidget } from '@/components/home/TrendingWidget';
 
 export default async function HomePage() {
   // Fetch trending tokens server-side
@@ -44,57 +44,56 @@ export default async function HomePage() {
   }
 
   return (
-    <div className="min-h-screen bg-bg-page relative font-sans selection:bg-indigo-500/30">
+    <div className="min-h-screen relative font-sans selection:bg-indigo-500/30">
       <PageBackground />
       
-      {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-black/50 backdrop-blur-lg border-b border-white/5 safe-top transition-all duration-300">
+      {/* New Header (replaces old header) */}
+      <HomeHeader />
+
+      <main className="relative pt-20 pb-24">
         <PageContainer>
-          <div className="flex items-center justify-between h-16">
-            <Link href="/" className="relative group">
-               <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400 bg-clip-text text-transparent group-hover:opacity-80 transition-opacity">
-                SELSIPAD
-              </h1>
-            </Link>
-
-            <div className="flex items-center gap-3">
-              <Link
-                href="/profile"
-                className="relative group overflow-hidden rounded-full border border-white/10 hover:border-indigo-500/50 transition-colors"
-                aria-label="Profile"
-              >
-                <NextImage 
-                  src="/assets/user-avatar-3d.png" 
-                  alt="Profile" 
-                  width={36} 
-                  height={36} 
-                  className="w-9 h-9 object-cover group-hover:scale-110 transition-transform duration-300"
-                />
-              </Link>
-              <MultiChainConnectWallet />
-            </div>
-          </div>
-        </PageContainer>
-      </header>
-
-      <main className="relative pb-24">
-        <HeroSection />
-        
-        <PageContainer className="space-y-24">
-          <div className="-mt-12 relative z-20">
-             <TrendingBanner trendingToken={topTrending} trendingProject={trendingProject} />
-          </div>
           
-          <FeatureGrid />
-          
+          {/* Hero / Welcome Section (Replaces 'Run Node') */}
+          <div className="flex flex-col items-center justify-center mt-6 mb-12 relative z-10">
+             <div className="relative group cursor-pointer">
+               {/* 3D Logo Glow */}
+               <div className="absolute -inset-4 bg-indigo-500/20 rounded-full blur-xl group-hover:bg-indigo-500/30 transition-all duration-500" />
+               
+               <NextImage 
+                 src="/assets/selsipad-logo.png" 
+                 alt="Selsipad Logo" 
+                 width={96} 
+                 height={96} 
+                 className="w-24 h-24 object-contain relative z-10 drop-shadow-[0_0_25px_rgba(255,255,255,0.15)] group-hover:scale-105 transition-transform duration-500"
+               />
+             </div>
+             
+             <div className="mt-6 text-center space-y-1">
+               <h1 className="text-3xl font-bold text-white tracking-tight">Selsipad</h1>
+               <p className="text-sm text-indigo-400 font-medium">The Multi-Chain Launchpad</p>
+             </div>
+          </div>
+
+          {/* Main Ecosystem Grid */}
+          <div className="mb-8 relative z-10">
+            <MainGrid />
+          </div>
+
+          {/* Widgets Row */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 px-4 relative z-10">
+            <TrendingWidget trendingToken={topTrending} trendingProject={trendingProject} />
+            <PortfolioWidget />
+          </div>
+
           {/* Footer Disclaimer */}
-          <div className="pt-10 border-t border-white/5 pb-10">
+          <div className="mt-16 pt-10 border-t border-white/5 pb-10 relative z-10">
             <p className="text-center text-xs text-gray-600 max-w-3xl mx-auto leading-relaxed">
               <span className="font-semibold text-gray-500">Disclaimer:</span> Selsipad provides a decentralized platform for project launches. 
               We do not endorse any specific project. All investments carry risk. 
               Please <a href="https://academy.binance.com/en" target="_blank" rel="noopener noreferrer" className="text-indigo-500 hover:text-indigo-400 transition-colors">DYOR</a> before interacting with any protocol.
             </p>
           </div>
+
         </PageContainer>
       </main>
     </div>

@@ -1,16 +1,17 @@
 'use client';
 
 import Link from 'next/link';
-import { 
-  Rocket, 
-  Coins, 
-  Users, 
-  ShieldCheck, 
-  Clock, 
+import {
+  Rocket,
+  Coins,
+  Users,
+  ShieldCheck,
+  Clock,
   ArrowRight,
   Activity,
-  AlertTriangle
+  AlertTriangle,
 } from 'lucide-react';
+import { LiveClock } from '@/components/admin/LiveClock';
 
 export default function AdminDashboardPage() {
   return (
@@ -19,44 +20,45 @@ export default function AdminDashboardPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white tracking-tight">Command Center</h1>
-          <p className="text-gray-400 mt-1">
-            System overview and operational status.
-          </p>
+          <p className="text-gray-400 mt-1">System overview and operational status.</p>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="flex h-2 w-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]"></span>
-          <span className="text-sm font-medium text-green-400">Systems Operational</span>
+        <div className="flex items-center gap-4">
+          <LiveClock />
+          <div className="flex items-center gap-2">
+            <span className="flex h-2 w-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]"></span>
+            <span className="text-sm font-medium text-green-400">Systems Operational</span>
+          </div>
         </div>
       </div>
 
       {/* Quick Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatsCard 
-          title="Active Fairlaunches" 
-          value="12" 
-          trend="+2 this week" 
-          icon={Rocket} 
+        <StatsCard
+          title="Active Fairlaunches"
+          value="12"
+          trend="+2 this week"
+          icon={Rocket}
           color="blue"
         />
-        <StatsCard 
-          title="Pending KYC" 
-          value="5" 
-          trend="Action Required" 
-          icon={Users} 
+        <StatsCard
+          title="Pending KYC"
+          value="5"
+          trend="Action Required"
+          icon={Users}
           color="yellow"
         />
-        <StatsCard 
-          title="Total Raised" 
-          value="1,240 BNB" 
-          trend="+15% vs last month" 
-          icon={Coins} 
+        <StatsCard
+          title="Total Raised"
+          value="1,240 BNB"
+          trend="+15% vs last month"
+          icon={Coins}
           color="green"
         />
-        <StatsCard 
-          title="Security Alerts" 
-          value="0" 
-          trend="All clear" 
-          icon={ShieldCheck} 
+        <StatsCard
+          title="Security Alerts"
+          value="0"
+          trend="All clear"
+          icon={ShieldCheck}
           color="purple"
         />
       </div>
@@ -65,7 +67,6 @@ export default function AdminDashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Column - Operational (2/3 width) */}
         <div className="lg:col-span-2 space-y-8">
-          
           {/* Recent Activity / Action Items */}
           <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-6 backdrop-blur-sm">
             <div className="flex items-center justify-between mb-6">
@@ -77,23 +78,23 @@ export default function AdminDashboardPage() {
                 View Log
               </button>
             </div>
-            
+
             <div className="space-y-4">
-              <ActivityItem 
-                title="New Fairlaunch Submitted" 
-                subtitle="Project 'MoonWalker' waiting for review" 
+              <ActivityItem
+                title="New Fairlaunch Submitted"
+                subtitle="Project 'MoonWalker' waiting for review"
                 time="2 hours ago"
                 type="info"
               />
-              <ActivityItem 
-                title="KYC Submission" 
-                subtitle="Developer 'AlexDev' submitted documents" 
+              <ActivityItem
+                title="KYC Submission"
+                subtitle="Developer 'AlexDev' submitted documents"
                 time="5 hours ago"
                 type="warning"
               />
-              <ActivityItem 
-                title="Contract Deployed" 
-                subtitle="Fairlaunch Factory v1.2 deployed to BSC Testnet" 
+              <ActivityItem
+                title="Contract Deployed"
+                subtitle="Fairlaunch Factory v1.2 deployed to BSC Testnet"
                 time="1 day ago"
                 type="success"
               />
@@ -102,14 +103,14 @@ export default function AdminDashboardPage() {
 
           {/* Quick Actions Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <ActionCard 
-              title="Review Submissions" 
+            <ActionCard
+              title="Review Submissions"
               description="3 new projects waiting"
               href="/admin/fairlaunch"
               icon={Rocket}
             />
-            <ActionCard 
-              title="Verify KYC" 
+            <ActionCard
+              title="Verify KYC"
               description="5 generated requests"
               href="/admin/kyc"
               icon={Users}
@@ -137,8 +138,8 @@ export default function AdminDashboardPage() {
             <p className="text-sm text-gray-400 mb-4">
               There are 5 KYC requests that have been pending for more than 24 hours.
             </p>
-            <Link 
-              href="/admin/kyc" 
+            <Link
+              href="/admin/kyc"
               className="text-sm font-medium text-yellow-500 hover:text-yellow-400 flex items-center gap-1"
             >
               Go to KYC Review <ArrowRight size={14} />
@@ -150,18 +151,30 @@ export default function AdminDashboardPage() {
   );
 }
 
-function StatsCard({ title, value, trend, icon: Icon, color }: any) {
+function StatsCard({
+  title,
+  value,
+  trend,
+  icon: Icon,
+  color,
+}: {
+  title: string;
+  value: string | number;
+  trend: string;
+  icon: any;
+  color: 'blue' | 'green' | 'yellow' | 'purple';
+}) {
   const colors = {
-    blue: "bg-blue-500/10 text-blue-500 border-blue-500/20",
-    green: "bg-green-500/10 text-green-500 border-green-500/20",
-    yellow: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
-    purple: "bg-purple-500/10 text-purple-500 border-purple-500/20",
+    blue: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
+    green: 'bg-green-500/10 text-green-500 border-green-500/20',
+    yellow: 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20',
+    purple: 'bg-purple-500/10 text-purple-500 border-purple-500/20',
   };
 
   return (
     <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-5 hover:border-gray-700 transition-colors backdrop-blur-sm group">
       <div className="flex justify-between items-start mb-4">
-        <div className={cn("p-2 rounded-lg border", /* @ts-ignore */ colors[color])}>
+        <div className={cn('p-2 rounded-lg border', colors[color])}>
           <Icon size={20} />
         </div>
         <span className="text-xs font-medium text-gray-500 bg-gray-800 px-2 py-1 rounded-full">
@@ -179,7 +192,7 @@ function StatsCard({ title, value, trend, icon: Icon, color }: any) {
 
 function ActionCard({ title, description, href, icon: Icon }: any) {
   return (
-    <Link 
+    <Link
       href={href}
       className="flex items-center gap-4 p-4 bg-gray-900/50 border border-gray-800 rounded-xl hover:bg-gray-800 hover:border-gray-700 transition-all group"
     >
@@ -187,25 +200,40 @@ function ActionCard({ title, description, href, icon: Icon }: any) {
         <Icon size={24} className="text-gray-400 group-hover:text-white" />
       </div>
       <div>
-        <h3 className="text-white font-medium group-hover:text-green-400 transition-colors">{title}</h3>
+        <h3 className="text-white font-medium group-hover:text-green-400 transition-colors">
+          {title}
+        </h3>
         <p className="text-sm text-gray-500">{description}</p>
       </div>
-      <ArrowRight size={16} className="ml-auto text-gray-600 group-hover:text-green-400 transition-colors" />
+      <ArrowRight
+        size={16}
+        className="ml-auto text-gray-600 group-hover:text-green-400 transition-colors"
+      />
     </Link>
   );
 }
 
-function ActivityItem({ title, subtitle, time, type }: any) {
+function ActivityItem({
+  title,
+  subtitle,
+  time,
+  type,
+}: {
+  title: string;
+  subtitle: string;
+  time: string;
+  type: 'info' | 'success' | 'warning' | 'error';
+}) {
   const types = {
-    info: "bg-blue-500",
-    success: "bg-green-500",
-    warning: "bg-yellow-500",
-    error: "bg-red-500"
+    info: 'bg-blue-500',
+    success: 'bg-green-500',
+    warning: 'bg-yellow-500',
+    error: 'bg-red-500',
   };
 
   return (
     <div className="flex items-start gap-4 p-3 hover:bg-gray-800/50 rounded-lg transition-colors">
-      <div className={cn("mt-1.5 w-2 h-2 rounded-full ring-4 ring-gray-900/50", /* @ts-ignore */ types[type])} />
+      <div className={cn('mt-1.5 w-2 h-2 rounded-full ring-4 ring-gray-900/50', types[type])} />
       <div className="flex-1 min-w-0">
         <h4 className="text-sm font-medium text-white">{title}</h4>
         <p className="text-xs text-gray-400 mt-0.5 truncate">{subtitle}</p>

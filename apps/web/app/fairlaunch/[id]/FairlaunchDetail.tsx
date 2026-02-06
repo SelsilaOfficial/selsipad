@@ -232,6 +232,37 @@ export function FairlaunchDetail({ fairlaunch, userAddress }: FairlaunchDetailPr
   const isLive = timeStatus === 'live';
   const isEnded = timeStatus === 'ended';
 
+  // #region agent log
+  useEffect(() => {
+    const clientNow = Date.now();
+    const startMs = new Date(fairlaunch.start_at).getTime();
+    const endMs = new Date(fairlaunch.end_at).getTime();
+    fetch('http://localhost:7243/ingest/653da906-68d5-4a8f-a095-0a4e33372f15', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        location: 'FairlaunchDetail.tsx:timeStatus',
+        message: 'UI time status for fairlaunch',
+        data: {
+          fairlaunchId: fairlaunch.id,
+          start_at: fairlaunch.start_at,
+          end_at: fairlaunch.end_at,
+          clientNowMs: clientNow,
+          clientNowSec: Math.floor(clientNow / 1000),
+          endMs,
+          endSec: Math.floor(endMs / 1000),
+          clientPastEnd: clientNow > endMs,
+          timeStatus,
+        },
+        timestamp: clientNow,
+        sessionId: 'debug-session',
+        runId: 'fairlaunch-time-debug',
+        hypothesisId: 'H2',
+      }),
+    }).catch(() => {});
+  }, [fairlaunch.id, fairlaunch.start_at, fairlaunch.end_at]);
+  // #endregion
+
   // Get result from database (set by finalize action)
   const result = fairlaunch.result || 'NONE';
   const isSuccess = result === 'SUCCESS';

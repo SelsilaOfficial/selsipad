@@ -42,28 +42,87 @@ describe('FASE 10: Critical E2E Scenarios', () => {
   });
 
   // ============================================
-  // E2E-01: Project Lifecycle (Success Case)
-  // Listing -> Presale SUCCESS -> Vesting -> Claim
+  // E2E-01: Presale Lifecycle (Success Case)
+  // Listing -> Submit -> Approve -> (Deploy/Contribute/Finalize) -> Vesting -> Claim
   // ============================================
-  test('E2E-01: Project Lifecycle - Success Flow', async () => {
-    console.log('Testing E2E-01: Project Success...');
+  test('E2E-01: Presale Lifecycle - Submit and state transitions', async () => {
+    const roundId = 'round-e2e-presale-1';
+    const ownerId = 'user-owner-1';
 
-    // 1. Submit Project (Mock)
-    // 2. Buy Tokens (Mock Tx Manager)
-    // 3. Finalize Round (Mock)
+    mockSupabase.auth = {
+      getUser: jest.fn().mockResolvedValue({
+        data: { user: { id: ownerId } },
+        error: null,
+      }),
+    };
 
-    // We simulate the checks the endpoints would make
-    // const projectId = 'proj-e2e-1';
+    const draftRound = {
+      id: roundId,
+      project_id: 'proj-e2e-1',
+      status: 'DRAFT',
+      type: 'presale',
+      chain: 'EVM_1',
+      params: {
+        investor_vesting: { tge_bps: 1000, cliff_months: 0, vesting_months: 12 },
+        team_vesting: { tge_bps: 500, cliff_months: 3, vesting_months: 12 },
+        lp_lock_plan: { duration_months: 12, dex_id: 'pancakeswap', liquidity_percent_bps: 7000 },
+      },
+      projects: {
+        id: 'proj-e2e-1',
+        name: 'E2E Presale',
+        owner_user_id: ownerId,
+        kyc_status: 'CONFIRMED',
+        sc_scan_status: 'PASS',
+      },
+    };
 
-    // Expect Listing API to be called (Mocking the Route)
-    // const { POST: createProject } = require('../../../app/api/projects/route');
-    // await createProject(...);
+    const submittedRound = { ...draftRound, status: 'SUBMITTED_FOR_REVIEW' };
 
-    // Ideally we verify that after "Buying", the round updates.
-    // Since we don't have the full real runtime, we verify the logic flow via implementation specific mocks.
-    // For this massive E2E, we'll focus on the "State Transitions".
+    const selectChain = jest.fn().mockReturnThis();
+    const eqChain = jest.fn().mockReturnThis();
+    const singleChain = jest.fn();
+    const updateSelectChain = jest.fn().mockReturnValue({ single: singleChain });
+    const updateEqChain = jest.fn().mockReturnValue({ select: updateSelectChain });
+    const updateChain = jest.fn().mockReturnValue({ eq: updateEqChain });
+    const insertChain = jest.fn().mockResolvedValue({ error: null });
 
-    expect(true).toBe(true); // Placeholder for complex mock chain setup
+    mockSupabase.from.mockImplementation((table: string) => {
+      if (table === 'launch_rounds') {
+        return {
+          select: selectChain,
+          update: updateChain,
+        };
+      }
+      if (table === 'audit_logs') {
+        return { insert: insertChain };
+      }
+      return {};
+    });
+
+    selectChain.mockReturnValue({ eq: eqChain });
+    eqChain.mockReturnValue({ single: singleChain });
+    singleChain
+      .mockResolvedValueOnce({ data: draftRound, error: null })
+      .mockResolvedValueOnce({ data: submittedRound, error: null });
+
+    const submitRoute = await import(
+      // Path from src/__tests__/e2e to apps/web/app
+      '../../../app/api/rounds/[id]/submit/route'
+    );
+    const submitRound = submitRoute.POST;
+    const req = new Request('http://localhost/api/rounds/1/submit', {
+      method: 'POST',
+      headers: { authorization: 'Bearer mock-token' },
+    });
+    const res = await submitRound(req, { params: { id: roundId } });
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.round).toBeDefined();
+    expect(body.round.status).toBe('SUBMITTED_FOR_REVIEW');
+    expect(updateChain).toHaveBeenCalled();
+    expect(mockSupabase.from).toHaveBeenCalledWith('launch_rounds');
+    expect(mockSupabase.from).toHaveBeenCalledWith('audit_logs');
   });
 
   // ============================================

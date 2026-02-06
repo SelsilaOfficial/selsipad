@@ -4,6 +4,7 @@
 		"@nomicfoundation/hardhat-verify": "^2.0.11",
 		"@openzeppelin/contracts": "^5.4.0",
 		"dotenv": "^16.4.7",
-		"hardhat": "^2.22.18"
+		"hardhat": "^2.22.18",
+		"merkletreejs": "^0.6.0"
 	}
 }

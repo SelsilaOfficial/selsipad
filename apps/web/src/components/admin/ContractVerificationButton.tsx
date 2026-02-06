@@ -6,14 +6,13 @@
  */
 
 import { useState } from 'react';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle, XCircle, Loader2, ExternalLink, Shield } from 'lucide-react';
 import {
   verifyFairlaunchContracts,
   getVerificationStatus,
 } from '@/actions/admin/verify-fairlaunch-contracts';
-import { toast } from 'sonner';
 
 interface VerificationStatusProps {
   roundId: string;
@@ -40,7 +39,7 @@ export function ContractVerificationButton({
 
   const handleVerify = async () => {
     if (!poolAddress) {
-      toast.error('Contract not deployed yet');
+      alert('Error: Contract not deployed yet');
       return;
     }
 
@@ -58,13 +57,13 @@ export function ContractVerificationButton({
           result.vesting?.verified,
         ].filter(Boolean).length;
 
-        toast.success(`Verified ${verifiedCount} contract(s) successfully!`);
+        alert(`Success! Verified ${verifiedCount} contract(s) successfully!`);
       } else {
-        toast.error(result.error || 'Verification failed');
+        alert(`Error: ${result.error || 'Verification failed'}`);
       }
     } catch (error: any) {
       console.error('Verification error:', error);
-      toast.error(error.message || 'Failed to verify contracts');
+      alert(`Error: ${error.message || 'Failed to verify contracts'}`);
     } finally {
       setIsVerifying(false);
     }
@@ -84,7 +83,7 @@ export function ContractVerificationButton({
     <div className="space-y-3">
       {/* Status Badge */}
       {verified ? (
-        <Badge variant="success" className="gap-1.5">
+        <Badge variant="default" className="gap-1.5 bg-green-600 hover:bg-green-700">
           <CheckCircle className="h-3.5 w-3.5" />
           Verified on BSCScan
         </Badge>
@@ -98,7 +97,7 @@ export function ContractVerificationButton({
       {/* Verify Button */}
       {!verified && poolAddress && (
         <Button
-          variant="outline"
+          variant="secondary"
           size="sm"
           onClick={handleVerify}
           disabled={isVerifying}

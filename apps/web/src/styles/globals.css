@@ -4,7 +4,7 @@
 
 @layer base {
   body {
-    @apply bg-zinc-950 text-zinc-100 antialiased;
+    @apply bg-[#020617] text-zinc-100 antialiased;
     @apply font-sans;
   }
 

@@ -177,7 +177,6 @@ const config: Config = {
   },
   plugins: [
     // Custom utilities
-    function ({ addUtilities }: any) {
       addUtilities({
         '.scrollbar-hide': {
           '-ms-overflow-style': 'none',
@@ -195,6 +194,15 @@ const config: Config = {
         '.pb-safe-bottom': {
           'padding-bottom': 'env(safe-area-inset-bottom)',
         },
+        '.glass-card': {
+          'background': 'rgba(255, 255, 255, 0.03)',
+          'backdrop-filter': 'blur(10px)',
+          'border': '1px solid rgba(255, 255, 255, 0.05)',
+        },
+        '.holographic-rim': {
+          'box-shadow': '0 0 15px rgba(139, 92, 246, 0.15), inset 0 0 20px rgba(139, 92, 246, 0.05)',
+          'border': '1px solid rgba(255, 255, 255, 0.1)',
+        }
       });
     },
       require("tailwindcss-animate")

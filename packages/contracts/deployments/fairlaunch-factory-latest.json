@@ -1,15 +1,23 @@
 {
   "network": "bsc_testnet",
   "chainId": "97",
-  "timestamp": "2026-02-05T20:25:04+00:00",
+  "timestamp": "2026-02-06T21:10:00+00:00",
   "deployer": "0x95D94D86CfC550897d2b80672a3c94c12429a90D",
-  "address": "0xD76986904E2117A6F4568A764b149C56Ff2E9E75",
+  "address": "0x837532947c93536CD7A13AC2aB66A5136C0c68C0",
   "config": {
-    "deploymentFee": "0.2",
+    "deploymentFee": "0",
     "feeSplitter": "0x2672af17eA89bc5e46BB52385C45Cb42e5eC8C48",
     "treasury": "0x95D94D86CfC550897d2b80672a3c94c12429a90D",
     "adminExecutor": "0x95D94D86CfC550897d2b80672a3c94c12429a90D"
   },
   "verified": true,
-  "note": "Router fix applied (Feb 6): BSC Testnet now uses correct V2 router (0xD99D1c33...)"
+  "bscscan": "https://testnet.bscscan.com/address/0x837532947c93536CD7A13AC2aB66A5136C0c68C0#code",
+  "note": "ZERO-FEE factory deployed to fix double payment bug. Developer pays 0.2 BNB submission fee to platform, admin only pays gas for deployment.",
+  "changes": {
+    "code": [
+      "Updated apps/web/.env.local line 20: NEXT_PUBLIC_FAIRLAUNCH_FACTORY_BSC_TESTNET",
+      "Updated apps/web/app/api/admin/fairlaunch/deploy/route.ts line 303-304: Removed value parameter"
+    ],
+    "impact": "Admin deployment cost reduced from 0.2 BNB + gas to gas only (~0.01 BNB)"
+  }
 }

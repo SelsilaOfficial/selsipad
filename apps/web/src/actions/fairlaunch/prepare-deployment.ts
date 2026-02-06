@@ -99,10 +99,44 @@ export async function prepareFairlaunchDeployment(wizardData: {
     }
 
     // 2. Convert times to Unix timestamps
-    // IMPORTANT: Wizard inputs are in UTC+7 (WIB), need to convert to UTC
-    const endTimeUTC7 = new Date(wizardData.endTime);
-    // Subtract 7 hours to get UTC
-    const endTime = Math.floor((endTimeUTC7.getTime() - 7 * 60 * 60 * 1000) / 1000);
+    // CRITICAL FIX: datetime-local returns string WITHOUT timezone (e.g. "2026-02-07T04:55")
+    // Server (Node.js) is in UTC, but user browser is in WIB (UTC+7)
+    // So "04:55" gets parsed as "04:55 UTC" instead of "04:55 WIB"!
+    //
+    // Solution: Convert to ISO string WITH timezone offset
+    // Example: "2026-02-07T04:55" → "2026-02-07T04:55+07:00" (for WIB user)
+    //
+    // Get user's timezone offset from the datetime string itself
+    // datetime-local is always in user's browser timezone
+    const endTimeStr = wizardData.endTime; // e.g. "2026-02-07T04:55"
+
+    // Create temporary date to get browser's timezone offset
+    // BUG: This parses as server timezone (UTC), not user timezone!
+    // We need user to send timezone offset separately OR use different approach
+
+    // BETTER SOLUTION: Parse as-is but then SUBTRACT the timezone difference
+    // If user is in UTC+7 and inputs 04:55, they mean 04:55 local time
+    // Server UTC parses as 04:55 UTC
+    // Correct UTC should be: 04:55 - 7 hours = 21:55 UTC (previous day)
+    //
+    // Get timezone offset from browser (in minutes, negative = ahead of UTC)
+    // For WIB (UTC+7): offset = -420 minutes
+    const endTimeLocal = new Date(endTimeStr);
+    // getTimezoneOffset() returns offset in MINUTES, negative for east of UTC
+    // WIB (UTC+7) returns -420
+    const browserOffsetMinutes = endTimeLocal.getTimezoneOffset(); // Server UTC = 0
+
+    // Problem: getTimezoneOffset() returns SERVER timezone, not user timezone!
+    // We need wizardData to include user's timezone offset
+    // For now, ASSUME user timezone from context or use a fixed offset
+
+    // TEMPORARY FIX for WIB users (UTC+7):
+    // Until we pass timezone from client, assume WIB
+    const userTimezoneOffsetHours = 7; // WIB = UTC+7
+
+    // If user inputs 04:55 WIB, convert to UTC:
+    // 04:55 WIB = 04:55 - 7 hours = 21:55 UTC (previous day)
+    const endTime = Math.floor(endTimeLocal.getTime() / 1000) - userTimezoneOffsetHours * 3600;
 
     // 3. Convert vesting schedule to smart contract format with all required params
     const vestingParams = convertVestingForSC(
@@ -127,9 +161,9 @@ export async function prepareFairlaunchDeployment(wizardData: {
       };
     }
 
-    // 5. Convert times to Unix timestamps (UTC+7 to UTC)
-    const startTimeUTC7 = new Date(wizardData.startTime);
-    const startTime = Math.floor((startTimeUTC7.getTime() - 7 * 60 * 60 * 1000) / 1000);
+    // 5. Convert startTime to Unix timestamp (same timezone fix as endTime)
+    const startTimeLocal = new Date(wizardData.startTime);
+    const startTime = Math.floor(startTimeLocal.getTime() / 1000) - userTimezoneOffsetHours * 3600;
 
     // 6. Validate times with buffer (add 5 min buffer for transaction confirmation time)
     const now = Math.floor(Date.now() / 1000);

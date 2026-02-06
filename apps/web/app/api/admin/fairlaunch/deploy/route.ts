@@ -28,6 +28,14 @@ const FACTORY_ADDRESSES = {
 const ESCROW_VAULT_ADDRESS =
   process.env.NEXT_PUBLIC_TOKEN_ESCROW_BSC_TESTNET || '0x6849A09c27F26fF0e58a2E36Dd5CAB2F9d0c617F'; // Must match submit API!
 
+/** Parse ISO date to Unix seconds. If string has no timezone (no Z or ±HH:MM), treat as UTC so server TZ does not change chain endTime. */
+function isoToUnixSeconds(iso: string | null | undefined): number {
+  if (!iso) return Math.floor(Date.now() / 1000);
+  const s = String(iso).trim();
+  const hasTz = /Z|[+-]\d{2}:?\d{2}$/.test(s);
+  return Math.floor(new Date(hasTz ? s : s + 'Z').getTime() / 1000);
+}
+
 export async function POST(request: NextRequest) {
   try {
     // 1. Check admin authentication
@@ -122,8 +130,8 @@ export async function POST(request: NextRequest) {
     }
 
     const provider = new ethers.JsonRpcProvider(rpcUrl);
-    // CRITICAL: Use DEPLOYER_PRIVATE_KEY (0x95D94D86C...) which is the adminExecutor
-    // Factory grants ADMIN_ROLE to adminExecutor, so setLPLocker() must use same wallet
+    // CRITICAL: Use DEPLOYER_PRIVATE_KEY which is factory's adminExecutor
+    // Factory grants ADMIN_ROLE to adminExecutor, required for setLPLocker() and finalize()
     const deployerKey = process.env.DEPLOYER_PRIVATE_KEY;
 
     if (!deployerKey) {
@@ -257,8 +265,8 @@ export async function POST(request: NextRequest) {
       tokensForSale: ethers.parseUnits(params.tokens_for_sale.toString(), 18),
       minContribution: ethers.parseEther((params.min_contribution || '0.1').toString()),
       maxContribution: ethers.parseEther((params.max_contribution || '10').toString()),
-      startTime: BigInt(Math.floor(new Date(launchRound.start_at).getTime() / 1000)),
-      endTime: BigInt(Math.floor(new Date(launchRound.end_at).getTime() / 1000)),
+      startTime: BigInt(isoToUnixSeconds(launchRound.start_at)),
+      endTime: BigInt(isoToUnixSeconds(launchRound.end_at)),
       projectOwner: project.creator_wallet,
       listingPremiumBps: BigInt(params.listing_premium_bps || 0), // 0 = fair launch price
     };
@@ -266,7 +274,7 @@ export async function POST(request: NextRequest) {
     // Tuple 2: TeamVestingParams
     const vestingParams = {
       beneficiary: params.vesting_address || project.creator_wallet,
-      startTime: BigInt(Math.floor(new Date(launchRound.end_at).getTime() / 1000)), // After fairlaunch ends
+      startTime: BigInt(isoToUnixSeconds(launchRound.end_at)), // After fairlaunch ends
       durations: (params.vesting_schedule || []).map((s: any) =>
         BigInt(s.month * 30 * 24 * 60 * 60)
       ), // months to seconds
@@ -290,11 +298,9 @@ export async function POST(request: NextRequest) {
       liquidityPercent: lpPlan.liquidityPercent.toString(),
     });
 
-    // 9. Deploy via factory (with 3 separate tuples + deployment fee)
+    // 9. Deploy via factory (NO deployment fee - factory has zero fee!)
     console.log('[Admin Deploy] Calling factory.createFairlaunch()...');
-    const tx = await (factory as any).createFairlaunch(createParams, vestingParams, lpPlan, {
-      value: deploymentFee,
-    });
+    const tx = await (factory as any).createFairlaunch(createParams, vestingParams, lpPlan);
     console.log('[Admin Deploy] TX sent:', tx.hash);
 
     // 10. Wait for confirmation

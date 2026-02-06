@@ -81,26 +81,27 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       );
     }
 
-    // 3. Validate params based on pool type
-    const params = round.params as any;
+    // 3. Validate params based on pool type (roundParams = round.params to avoid shadowing route params)
+    const roundParams = round.params as Record<string, unknown>;
 
     // Check investor vesting (for now, we check if vesting fields exist in params)
     // In production, this should check against vesting_schedules table
-    if (!params.investor_vesting) {
+    if (!roundParams.investor_vesting) {
       violations.push('Investor vesting configuration is required');
     }
 
     // Check team vesting
-    if (!params.team_vesting) {
+    if (!roundParams.team_vesting) {
       violations.push('Team vesting configuration is required');
     }
 
     // 4. LP lock plan must be >= 12 months
-    if (!params.lp_lock_plan || !params.lp_lock_plan.duration_months) {
+    const lpPlan = roundParams.lp_lock_plan as { duration_months?: number } | undefined;
+    if (!lpPlan || lpPlan.duration_months == null) {
       violations.push('LP lock plan is required');
-    } else if (params.lp_lock_plan.duration_months < 12) {
+    } else if (lpPlan.duration_months < 12) {
       violations.push(
-        `LP lock duration must be at least 12 months (current: ${params.lp_lock_plan.duration_months})`
+        `LP lock duration must be at least 12 months (current: ${lpPlan.duration_months})`
       );
     }
 

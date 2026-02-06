@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Rocket, ExternalLink, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
+import { ContractVerificationButton } from './ContractVerificationButton';
 
 interface FairlaunchProject {
   id: string;
@@ -87,8 +88,8 @@ export function AdminFinalizeCard({ fairlaunch, onFinalize, onCancel }: AdminFin
         <div className="flex-1">
           <div className="flex items-center gap-3 mb-3">
             {fairlaunch.logo_url && (
-              <img 
-                src={fairlaunch.logo_url} 
+              <img
+                src={fairlaunch.logo_url}
                 alt={fairlaunch.name}
                 className="w-12 h-12 rounded-full"
               />
@@ -114,7 +115,9 @@ export function AdminFinalizeCard({ fairlaunch, onFinalize, onCancel }: AdminFin
             </div>
             <div>
               <p className="text-xs text-gray-400 mb-1">Status</p>
-              <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${softcapReached ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+              <span
+                className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${softcapReached ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}
+              >
                 {softcapReached ? (
                   <>
                     <CheckCircle2 className="w-3 h-3" />
@@ -131,12 +134,34 @@ export function AdminFinalizeCard({ fairlaunch, onFinalize, onCancel }: AdminFin
           </div>
 
           {fairlaunch.contract_address && (
-            <div className="flex items-center gap-2 text-xs text-gray-400">
-              <code className="font-mono">{fairlaunch.contract_address.slice(0, 10)}...{fairlaunch.contract_address.slice(-8)}</code>
-              <a href={getExplorerUrl(fairlaunch.contract_address)} target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:text-cyan-300">
-                <ExternalLink className="w-4 h-4" />
-              </a>
-            </div>
+            <>
+              <div className="flex items-center gap-2 text-xs text-gray-400 mb-4">
+                <code className="font-mono">
+                  {fairlaunch.contract_address.slice(0, 10)}...
+                  {fairlaunch.contract_address.slice(-8)}
+                </code>
+                <a
+                  href={getExplorerUrl(fairlaunch.contract_address)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-cyan-400 hover:text-cyan-300"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                </a>
+              </div>
+
+              {/* Contract Verification Section */}
+              <div className="pt-4 border-t border-white/10">
+                <h4 className="text-sm font-semibold text-white mb-3">Contract Verification</h4>
+                <ContractVerificationButton
+                  roundId={fairlaunch.id}
+                  poolAddress={fairlaunch.contract_address}
+                  tokenAddress={fairlaunch.params?.token_address}
+                  vestingAddress={fairlaunch.params?.vesting_address}
+                  network={fairlaunch.chain === '97' ? 'bsc_testnet' : 'bsc_mainnet'}
+                />
+              </div>
+            </>
           )}
 
           {error && (
