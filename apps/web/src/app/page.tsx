@@ -9,6 +9,8 @@ import {
 } from '@/components/ui';
 import { PageContainer } from '@/components/layout';
 import { getTrendingProjects, getFeaturedProjects } from '@/lib/data/projects';
+import { DashboardHeader } from '@/components/home/DashboardHeader';
+import { Footer } from '@/components/layout/Footer';
 
 export default async function HomePage() {
   // Fetch data (server component)
@@ -17,16 +19,7 @@ export default async function HomePage() {
   return (
     <div className="min-h-screen bg-bg-page pb-20">
       {/* Header */}
-      <header className="sticky top-0 z-30 bg-bg-page border-b border-border-subtle safe-top">
-        <PageContainer>
-          <div className="flex items-center justify-between h-14">
-            <h1 className="text-heading-lg text-text-primary">SELSIPAD</h1>
-            <button className="px-4 py-2 bg-primary-main text-primary-text rounded-md text-body-sm font-medium hover:bg-primary-hover transition-colors">
-              Connect Wallet
-            </button>
-          </div>
-        </PageContainer>
-      </header>
+      <DashboardHeader />
 
       <PageContainer className="py-6 space-y-8">
         {/* Trending Section */}
@@ -187,6 +180,9 @@ export default async function HomePage() {
           </Link>
         </section>
       </PageContainer>
+
+      {/* Footer */}
+      <Footer />
     </div>
   );
 }

@@ -63,6 +63,14 @@ contract Fairlaunch is AccessControl, ReentrancyGuard {
         CANCELLED   // Admin cancelled
     }
 
+    enum FinalizeStep {
+        NONE,
+        FEE_DISTRIBUTED,
+        LIQUIDITY_ADDED,
+        LP_LOCKED,
+        FUNDS_DISTRIBUTED
+    }
+
     // Core config (immutable)
     address public immutable projectToken;
     address public immutable paymentToken; // address(0) for native
@@ -93,6 +101,8 @@ contract Fairlaunch is AccessControl, ReentrancyGuard {
     uint256 public finalTokenPrice; // Set on finalization
     bool public isFinalized;
     bool public isPaused;
+    FinalizeStep public finalizeStep;
+    address public lpTokenAddress;
 
     mapping(address => uint256) public contributions;
     mapping(address => bool) public hasClaimed;
@@ -113,6 +123,7 @@ contract Fairlaunch is AccessControl, ReentrancyGuard {
     event LiquidityAdded(address indexed lpToken, uint256 lpAmount, uint256 unlockTime);
     event LPLockerSet(address indexed lpLocker);
     event LiquidityLocked(address indexed lpToken, uint256 amount, uint256 unlockTime);
+    event FinalizationStepCompleted(FinalizeStep step);
 
     // Errors
     error InvalidStatus();
@@ -243,13 +254,14 @@ contract Fairlaunch is AccessControl, ReentrancyGuard {
     /**
      * @notice Finalize the Fairlaunch (callable by anyone after endTime)
      */
+    /**
+     * @notice Finalize the Fairlaunch (atomic or step-by-step)
+     */
     function finalize() external nonReentrant {
         _updateStatus();
 
         if (status != Status.ENDED) revert InvalidStatus();
-        if (isFinalized) revert InvalidStatus();
-
-        isFinalized = true;
+        if (isFinalized) return; // Idempotent success
 
         // Check if softcap met
         if (totalRaised < softcap) {
@@ -258,12 +270,67 @@ contract Fairlaunch is AccessControl, ReentrancyGuard {
             return;
         }
 
-        // Calculate final price
-        finalTokenPrice = (totalRaised * 1e18) / tokensForSale;
+        // Step 1: Fee Distribution
+        if (finalizeStep == FinalizeStep.NONE) {
+            _distributeFeesStep();
+        }
 
-        // Deduct 5% platform fee
+        // Step 2: Add Liquidity
+        if (finalizeStep == FinalizeStep.FEE_DISTRIBUTED) {
+            _addLiquidityStep();
+        }
+
+        // Step 3: Lock LP
+        if (finalizeStep == FinalizeStep.LIQUIDITY_ADDED) {
+            _lockLPStep();
+        }
+
+        // Step 4: Distribute Funds
+        if (finalizeStep == FinalizeStep.LP_LOCKED) {
+            _distributeFundsStep();
+        }
+    }
+
+    // --- Admin Step-by-Step Functions ---
+
+    function adminDistributeFee() external nonReentrant onlyRole(ADMIN_ROLE) {
+        if (status != Status.ENDED) {
+            _updateStatus();
+            if (status != Status.ENDED) revert InvalidStatus();
+        }
+        if (totalRaised < softcap) {
+            status = Status.FAILED;
+            emit FinalizedFail();
+            return;
+        }
+        if (finalizeStep != FinalizeStep.NONE) revert InvalidStatus();
+        _distributeFeesStep();
+    }
+
+    function adminAddLiquidity() external nonReentrant onlyRole(ADMIN_ROLE) {
+        if (finalizeStep != FinalizeStep.FEE_DISTRIBUTED) revert InvalidStatus();
+        _addLiquidityStep();
+    }
+
+    function adminLockLP() external nonReentrant onlyRole(ADMIN_ROLE) {
+        if (finalizeStep != FinalizeStep.LIQUIDITY_ADDED) revert InvalidStatus();
+        _lockLPStep();
+    }
+
+    function adminDistributeFunds() external nonReentrant onlyRole(ADMIN_ROLE) {
+        if (finalizeStep != FinalizeStep.LP_LOCKED) revert InvalidStatus();
+        _distributeFundsStep();
+    }
+
+    // --- Internal Step Logic ---
+
+    function _distributeFeesStep() internal {
+        // Calculate final price
+        if (finalTokenPrice == 0) {
+            finalTokenPrice = (totalRaised * 1e18) / tokensForSale;
+        }
+
         uint256 platformFee = (totalRaised * PLATFORM_FEE_BPS) / BPS_BASE;
-        uint256 netRaised = totalRaised - platformFee;
 
         // Send fee to FeeSplitter
         if (paymentToken == address(0)) {
@@ -274,42 +341,59 @@ contract Fairlaunch is AccessControl, ReentrancyGuard {
             }
         } else {
             IERC20(paymentToken).safeTransfer(feeSplitter, platformFee);
-            // Note: FeeSplitter needs ERC20 handling function
         }
 
-        // Calculate liquidity amounts
+        finalizeStep = FinalizeStep.FEE_DISTRIBUTED;
+        emit FinalizationStepCompleted(FinalizeStep.FEE_DISTRIBUTED);
+    }
+
+    function _addLiquidityStep() internal {
+        uint256 platformFee = (totalRaised * PLATFORM_FEE_BPS) / BPS_BASE;
+        uint256 netRaised = totalRaised - platformFee;
         uint256 liquidityFunds = (netRaised * liquidityPercent) / BPS_BASE;
-        
+
         // Calculate LP tokens based on listing price
         uint256 listingPrice = (finalTokenPrice * (BPS_BASE + listingPremiumBps)) / BPS_BASE;
         uint256 liquidityTokens = (liquidityFunds * 1e18) / listingPrice;
 
         // Add liquidity to DEX
-        address lpToken;
         try this.__addLiquidityExternal(liquidityTokens, liquidityFunds) returns (address _lpToken) {
-            lpToken = _lpToken;
+            lpTokenAddress = _lpToken;
         } catch (bytes memory reason) {
             revert DexAddLiquidityCallFailed(reason);
         }
 
-        // Lock LP tokens in vault for specified duration
-        uint256 lpBalance = IERC20(lpToken).balanceOf(address(this));
-        uint256 unlockTime = block.timestamp + (lpLockMonths * 30 days);
-        
-        // Lock LP tokens via LP Locker
+        finalizeStep = FinalizeStep.LIQUIDITY_ADDED;
+        emit FinalizationStepCompleted(FinalizeStep.LIQUIDITY_ADDED);
+    }
+
+    function _lockLPStep() internal {
+        require(lpTokenAddress != address(0), "LP Token not set");
         require(address(lpLocker) != address(0), "LP Locker not configured");
 
+        uint256 lpBalance = IERC20(lpTokenAddress).balanceOf(address(this));
+        uint256 unlockTime = block.timestamp + (lpLockMonths * 30 days);
+
         // Approve LP locker to manage tokens
-        IERC20(lpToken).approve(address(lpLocker), lpBalance);
-        
+        IERC20(lpTokenAddress).approve(address(lpLocker), lpBalance);
+
         // Lock LP tokens with project owner as beneficiary
-        try lpLocker.lockTokens(lpToken, lpBalance, unlockTime, projectOwner) returns (uint256 /*lockId*/) {
+        try lpLocker.lockTokens(lpTokenAddress, lpBalance, unlockTime, projectOwner) returns (uint256 /*lockId*/) {
             // ok
         } catch (bytes memory reason) {
             revert LPLockerCallFailed(reason);
         }
-        
-        emit LiquidityLocked(lpToken, lpBalance, unlockTime);
+
+        emit LiquidityLocked(lpTokenAddress, lpBalance, unlockTime);
+        finalizeStep = FinalizeStep.LP_LOCKED;
+        emit FinalizationStepCompleted(FinalizeStep.LP_LOCKED);
+    }
+
+    function _distributeFundsStep() internal {
+        uint256 platformFee = (totalRaised * PLATFORM_FEE_BPS) / BPS_BASE;
+        uint256 netRaised = totalRaised - platformFee;
+        uint256 liquidityFunds = (netRaised * liquidityPercent) / BPS_BASE;
+        uint256 remainingFunds = netRaised - liquidityFunds;
 
         // Transfer remaining tokens to team vesting (if exists)
         if (teamVesting != address(0)) {
@@ -320,7 +404,6 @@ contract Fairlaunch is AccessControl, ReentrancyGuard {
         }
 
         // Transfer remaining raised funds to project owner
-        uint256 remainingFunds = netRaised - liquidityFunds;
         if (paymentToken == address(0)) {
             (bool success, ) = projectOwner.call{value: remainingFunds}("");
             if (!success) revert TransferFailed();
@@ -329,7 +412,12 @@ contract Fairlaunch is AccessControl, ReentrancyGuard {
         }
 
         status = Status.SUCCESS;
-        emit FinalizedSuccess(finalTokenPrice, totalRaised, lpToken, lpBalance);
+        isFinalized = true;
+        // Check final LP balance (should be 0 as it's locked)
+        emit FinalizedSuccess(finalTokenPrice, totalRaised, lpTokenAddress, 0); 
+        
+        finalizeStep = FinalizeStep.FUNDS_DISTRIBUTED;
+        emit FinalizationStepCompleted(FinalizeStep.FUNDS_DISTRIBUTED);
     }
 
     /**

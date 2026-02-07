@@ -43,7 +43,12 @@ export async function POST(req: NextRequest) {
       .eq('id', roundId)
       .single();
     const rawChain = (round?.chain ?? '97').toString();
-    const chain = rawChain === 'bsc-testnet' ? '97' : rawChain === 'bsc' || rawChain === 'bnb' ? '56' : rawChain;
+    const chain =
+      rawChain === 'bsc-testnet'
+        ? '97'
+        : rawChain === 'bsc' || rawChain === 'bnb'
+          ? '56'
+          : rawChain;
 
     // Get LP Locker address from deployment
     const lpLockerAddress = lpLockerDeployment.lpLocker;
@@ -84,8 +89,11 @@ export async function POST(req: NextRequest) {
         const factoryAddress = FACTORY_ADDRESSES[chain];
         if (factoryAddress) {
           const factory = new ethers.Contract(factoryAddress, FactoryABI, provider);
-          const adminExecutor = await factory.adminExecutor();
-          const expected = typeof adminExecutor === 'string' ? adminExecutor : adminExecutor?.toString?.();
+          const adminExecutor = await factory.adminExecutor?.();
+          const expected =
+            typeof adminExecutor === 'string'
+              ? adminExecutor
+              : (adminExecutor?.toString?.() ?? null);
           if (expected) {
             hint = `Your wallet (${signer.address}) is not the factory's adminExecutor. Only the wallet that was set as admin when the factory was deployed can call setLPLocker. Factory adminExecutor: ${expected}. Set DEPLOYER_PRIVATE_KEY in .env to that wallet's private key and try again.`;
             console.log('[Setup LP Locker] Factory adminExecutor:', expected);
@@ -122,7 +130,7 @@ export async function POST(req: NextRequest) {
     const { error: dbError } = await supabase
       .from('launch_rounds')
       .update({
-        deployment_status: 'READY_TO_FINALIZE',
+        deployment_status: 'READY',
         updated_at: new Date().toISOString(),
       })
       .eq('id', roundId);
@@ -130,7 +138,7 @@ export async function POST(req: NextRequest) {
     if (dbError) {
       console.error('[Setup LP Locker] Database update failed:', dbError);
     } else {
-      console.log('[Setup LP Locker] ✅ Database updated to READY_TO_FINALIZE');
+      console.log('[Setup LP Locker] ✅ Database updated to READY');
     }
 
     return NextResponse.json({

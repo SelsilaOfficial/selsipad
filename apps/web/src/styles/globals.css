@@ -4,7 +4,10 @@
 
 @layer base {
   body {
-    @apply bg-[#020617] text-zinc-100 antialiased;
+    /* Midnight Holographic Gradient */
+    background: radial-gradient(circle at 50% 0%, #1e1b4b 0%, #020617 60%);
+    background-attachment: fixed;
+    @apply text-zinc-100 antialiased;
     @apply font-sans;
   }
 
@@ -51,6 +54,30 @@
     }
     100% {
       background-position: 200% 0;
+    }
+  }
+
+  .animate-text-glow {
+    background: linear-gradient(
+      90deg,
+      #6366f1,
+      /* Indigo */ #f97316,
+      /* Orange */ #10b981,
+      /* Emerald */ #a855f7,
+      /* Purple */ #ec4899,
+      /* Pink */ #06b6d4,
+      /* Cyan */ #6366f1 /* Loop back to Indigo */
+    );
+    background-size: 200% auto;
+    color: transparent;
+    background-clip: text;
+    -webkit-background-clip: text;
+    animation: textShine 4s linear infinite;
+  }
+
+  @keyframes textShine {
+    to {
+      background-position: 200% center;
     }
   }
 }

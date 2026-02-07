@@ -995,8 +995,8 @@
       ]
     },
     "/home/selsipad/final-project/selsipad/packages/contracts/contracts/fairlaunch/Fairlaunch.sol": {
-      "lastModificationDate": 1770349360750,
-      "contentHash": "8e93f65beb8bb1fab1a0adfea684e906",
+      "lastModificationDate": 1770441246568,
+      "contentHash": "3d57d3ffe3d9a211d5fc4fba99efdbd0",
       "sourceName": "contracts/fairlaunch/Fairlaunch.sol",
       "solcConfig": {
         "version": "0.8.20",
@@ -1434,8 +1434,8 @@
       ]
     },
     "/home/selsipad/final-project/selsipad/packages/contracts/contracts/mocks/MockFeeSplitter.sol": {
-      "lastModificationDate": 1770181940333,
-      "contentHash": "4717ce4c0773aa9fa9c3b13c7cc4900a",
+      "lastModificationDate": 1770440914854,
+      "contentHash": "7449f3125ed17e72b606af3d78222397",
       "sourceName": "contracts/mocks/MockFeeSplitter.sol",
       "solcConfig": {
         "version": "0.8.20",
@@ -1468,6 +1468,122 @@
       ],
       "artifacts": [
         "MockFeeSplitter"
+      ]
+    },
+    "/home/selsipad/final-project/selsipad/packages/contracts/contracts/mocks/MockLPLocker.sol": {
+      "lastModificationDate": 1770440787333,
+      "contentHash": "fb0991f0323661ea251b4922e8dcca5a",
+      "sourceName": "contracts/mocks/MockLPLocker.sol",
+      "solcConfig": {
+        "version": "0.8.20",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "@openzeppelin/contracts/token/ERC20/IERC20.sol",
+        "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol"
+      ],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "MockLPLocker"
+      ]
+    },
+    "/home/selsipad/final-project/selsipad/packages/contracts/contracts/mocks/MockTaxToken.sol": {
+      "lastModificationDate": 1770440697268,
+      "contentHash": "6b4cbad0463ecd1dd955160a41bd5eae",
+      "sourceName": "contracts/mocks/MockTaxToken.sol",
+      "solcConfig": {
+        "version": "0.8.20",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "@openzeppelin/contracts/token/ERC20/ERC20.sol"
+      ],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "MockTaxToken"
+      ]
+    },
+    "/home/selsipad/final-project/selsipad/packages/contracts/contracts/mocks/UniversalRouterMock.sol": {
+      "lastModificationDate": 1770441414497,
+      "contentHash": "95695c26739719f65b1deee158f5af42",
+      "sourceName": "contracts/mocks/UniversalRouterMock.sol",
+      "solcConfig": {
+        "version": "0.8.20",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "UniversalRouterMock"
       ]
     }
   }

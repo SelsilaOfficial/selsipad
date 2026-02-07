@@ -274,103 +274,6 @@ export default function AdminFairlaunchPage() {
     }
   };
 
-  const handleFinalize = async (roundId: string) => {
-    try {
-      // #region agent log (debug-session)
-      fetch('http://localhost:7242/ingest/e157f851-f607-48b5-9469-ddb77df06b07', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          location: 'apps/web/app/admin/fairlaunch/page.tsx:handleFinalize:click',
-          message: 'Finalize clicked (client)',
-          data: { roundId },
-          timestamp: Date.now(),
-          sessionId: 'debug-session',
-          runId: 'pre-fix',
-          hypothesisId: 'C',
-        }),
-      }).catch(() => {});
-      // #endregion
-
-      const { finalizeFairlaunch } = await import('@/actions/admin/finalize-fairlaunch');
-      const result = await finalizeFairlaunch(roundId);
-
-      if (!result.success) {
-        // If LP Locker not set, offer to set it via API then user can Finalize again
-        if (result.error?.includes('LP Locker not configured') && result.contractAddress) {
-          const doSetup = window.confirm(
-            'LP Locker is not set on this contract. Set it now with admin wallet? (Then click Finalize again.)'
-          );
-          if (doSetup) {
-            const res = await fetch('/api/admin/fairlaunch/setup-lp-locker', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                roundId,
-                contractAddress: result.contractAddress,
-              }),
-            });
-            const data = await res.json();
-            if (data.success) {
-              alert(`✅ LP Locker configured.\n\nClick "Finalize" again to complete.`);
-              await fetchProjects();
-              return;
-            }
-            alert(`❌ Setup LP Locker failed: ${data.error || data.details || res.statusText}`);
-            return;
-          }
-        }
-        throw new Error(result.error);
-      }
-
-      // #region agent log (debug-session)
-      fetch('http://localhost:7242/ingest/e157f851-f607-48b5-9469-ddb77df06b07', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          location: 'apps/web/app/admin/fairlaunch/page.tsx:handleFinalize:result',
-          message: 'Finalize returned (client)',
-          data: {
-            roundId,
-            success: result.success,
-            contractAddress: result.contractAddress,
-            chain: result.chain,
-          },
-          timestamp: Date.now(),
-          sessionId: 'debug-session',
-          runId: 'pre-fix',
-          hypothesisId: 'C',
-        }),
-      }).catch(() => {});
-      // #endregion
-
-      alert(
-        `✅ Fairlaunch finalized!\n\nContract: ${result.contractAddress}\nChain: ${result.chain}`
-      );
-
-      // Refresh
-      await fetchProjects();
-    } catch (err: any) {
-      // #region agent log (debug-session)
-      fetch('http://localhost:7242/ingest/e157f851-f607-48b5-9469-ddb77df06b07', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          location: 'apps/web/app/admin/fairlaunch/page.tsx:handleFinalize:error',
-          message: 'Finalize failed (client)',
-          data: { roundId, message: err?.message },
-          timestamp: Date.now(),
-          sessionId: 'debug-session',
-          runId: 'pre-fix',
-          hypothesisId: 'C',
-        }),
-      }).catch(() => {});
-      // #endregion
-
-      alert(`❌ Finalize failed: ${err.message}`);
-    }
-  };
-
   const handleCancel = async (roundId: string) => {
     try {
       const { cancelFairlaunch } = await import('@/actions/admin/cancel-fairlaunch');
@@ -574,7 +477,7 @@ export default function AdminFairlaunchPage() {
                   <AdminFinalizeCard
                     key={project.id}
                     fairlaunch={project}
-                    onFinalize={handleFinalize}
+                    onSuccess={fetchProjects}
                     onCancel={handleCancel}
                   />
                 ))}

@@ -7,7 +7,7 @@ import { Address } from 'viem';
  * FairlaunchFactory addresses per network
  */
 export const FAIRLAUNCH_FACTORY_ADDRESS: Record<number, Address> = {
-  97: '0xe562b09225aFC94e254973f329bB25294Ef89c8F', // BSC Testnet - Fresh bytecode (Feb 6)
+  97: '0x5Fa2528164baF18cA6Cd859701d7a5a6ad197DEa', // BSC Testnet - FeeSplitter V2 (Feb 7)
   11155111: '0x6eA1044Caf6CEdf36A9F7D978384a634a3f04FbE', // Sepolia
   84532: '0x6eA1044Caf6CEdf36A9F7D978384a634a3f04FbE', // Base Sepolia
 } as const;
@@ -16,7 +16,7 @@ export const FAIRLAUNCH_FACTORY_ADDRESS: Record<number, Address> = {
  * Simple Token Factory addresses per network
  */
 export const SIMPLE_TOKEN_FACTORY_ADDRESS: Record<number, Address> = {
-  97: '0x4924e4Dc79f3673a25ea29D26822A5Ee3535Ce6B', // BSC Testnet
+  97: '0x28DBa6468e7e5AD805374244B5D528375fC4610A', // BSC Testnet
   11155111: '0x2aDF8E4a91dC34d992e12FA51d78a4F7E06a5D6b', // Sepolia
   84532: '0x2aDF8E4a91dC34d992e12FA51d78a4F7E06a5D6b', // Base Sepolia
 } as const;
@@ -25,7 +25,8 @@ export const SIMPLE_TOKEN_FACTORY_ADDRESS: Record<number, Address> = {
  * FeeSplitter addresses per network
  */
 export const FEE_SPLITTER_ADDRESS: Record<number, Address> = {
-  97: '0x2672af17eA89bc5e46BB52385C45Cb42e5eC8C48', // BSC Testnet
+  97: '0x3301b82B4559F1607DA83FA460DC9820CbE1344e', // BSC Testnet
+
   11155111: '0x99470899b8C0e229d79ad0c96619210CbDD07755', // Sepolia
   84532: '0x99470899b8C0e229d79ad0c96619210CbDD07755', // Base Sepolia
 } as const;

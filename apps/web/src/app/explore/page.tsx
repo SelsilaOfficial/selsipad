@@ -2,11 +2,10 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Card,
   CardContent,
-  StatusBadge,
-  ProgressBar,
   FilterPills,
   EmptyState,
   EmptyIcon,
@@ -15,6 +14,8 @@ import {
 import { PageHeader, PageContainer, BottomSheet } from '@/components/layout';
 import { getAllProjects, Project } from '@/lib/data/projects';
 import type { FilterPill } from '@/components/ui';
+import { ExploreProjectCard } from '@/components/explore/ExploreProjectCard';
+import { Search, Filter, X } from 'lucide-react';
 
 export default function ExplorePage() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -47,115 +48,83 @@ export default function ExplorePage() {
   };
 
   return (
-    <div className="min-h-screen bg-bg-page pb-20">
-      <PageHeader
-        title="Explore Projects"
-        actions={
+    <div className="min-h-screen bg-bg-page pb-20 relative overflow-hidden">
+      <PageContainer className="relative z-10 pt-8 pb-12 space-y-8">
+        {/* Hero Header */}
+        <div className="text-center space-y-4 mb-12">
+          <motion.h1
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-4xl md:text-5xl font-extrabold tracking-tight"
+          >
+            <span className="animate-text-glow bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400">
+              Explore Ecosystem
+            </span>
+          </motion.h1>
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.2 }}
+            className="text-gray-400 max-w-xl mx-auto text-lg"
+          >
+            Discover the next big opportunity on Selsipad. Verified, audited, and ready for launch.
+          </motion.p>
+        </div>
+
+        {/* Search & Filter Bar */}
+        <div className="sticky top-20 z-30 bg-black/50 backdrop-blur-xl border border-white/10 rounded-2xl p-2 flex items-center gap-2 max-w-3xl mx-auto shadow-2xl shadow-indigo-500/10">
+          <div className="relative flex-1">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 w-5 h-5" />
+            <input
+              type="text"
+              placeholder="Search projects by name, token, or contract..."
+              value={search}
+              onChange={(e) => handleSearch(e.target.value)}
+              className="w-full bg-white/5 border border-transparent rounded-xl py-3 pl-12 pr-4 text-white placeholder:text-gray-500 focus:bg-white/10 focus:border-indigo-500/50 transition-all outline-none"
+            />
+          </div>
           <button
             onClick={() => setFilterSheetOpen(true)}
-            className="p-2 text-text-secondary hover:text-text-primary transition-colors"
+            className="p-3 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white rounded-xl border border-white/5 transition-all flex items-center gap-2"
           >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
-              />
-            </svg>
+            <Filter className="w-5 h-5" />
+            <span className="hidden sm:inline">Filters</span>
           </button>
-        }
-      />
-
-      <PageContainer className="py-4 space-y-4">
-        {/* Search */}
-        <div className="relative">
-          <input
-            type="search"
-            placeholder="Cari project..."
-            value={search}
-            onChange={(e) => handleSearch(e.target.value)}
-            className="w-full bg-bg-input border border-border-subtle rounded-md px-4 py-2 pl-10 text-text-primary placeholder:text-text-tertiary focus:border-primary-main focus:ring-2 focus:ring-primary-main/20 transition-all"
-          />
-          <svg
-            className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary pointer-events-none"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-            />
-          </svg>
         </div>
 
         {/* Active Filters */}
         {filters.length > 0 && (
-          <FilterPills filters={filters} onRemove={removeFilter} onClearAll={clearFilters} />
+          <div className="flex justify-center">
+            <FilterPills filters={filters} onRemove={removeFilter} onClearAll={clearFilters} />
+          </div>
         )}
 
-        {/* Results */}
+        {/* Results Grid */}
         {loading ? (
-          <div className="space-y-4">
-            {[1, 2, 3].map((i) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
               <SkeletonCard key={i} />
             ))}
           </div>
         ) : projects.length === 0 ? (
-          <Card>
-            <CardContent>
-              <EmptyState
-                icon={<EmptyIcon />}
-                title="Tidak ada project ditemukan"
-                description="Coba ubah filter atau kata kunci pencarian"
-              />
-            </CardContent>
-          </Card>
+          <div className="max-w-md mx-auto mt-12">
+            <Card className="bg-white/5 border-white/10">
+              <CardContent>
+                <EmptyState
+                  icon={<EmptyIcon />}
+                  title="No projects found"
+                  description="Try adjusting your filters or search query."
+                />
+              </CardContent>
+            </Card>
+          </div>
         ) : (
-          <div className="space-y-4">
-            {projects.map((project) => (
-              <Link key={project.id} href={`/project/${project.id}`}>
-                <Card hover>
-                  <CardContent className="space-y-3">
-                    <div className="flex items-start gap-3">
-                      <div className="w-12 h-12 bg-bg-elevated rounded-lg flex items-center justify-center text-xl flex-shrink-0">
-                        {project.symbol.slice(0, 2)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h3 className="text-heading-sm truncate">{project.name}</h3>
-                          <StatusBadge status={project.status} />
-                        </div>
-                        <p className="text-caption text-text-secondary line-clamp-1">
-                          {project.description}
-                        </p>
-                      </div>
-                    </div>
-
-                    <ProgressBar
-                      value={project.raised}
-                      max={project.target}
-                      showPercentage
-                      size="sm"
-                    />
-
-                    <div className="flex gap-2">
-                      {project.kyc_verified && (
-                        <span className="px-2 py-0.5 bg-status-success-bg/50 text-status-success-text text-caption rounded-full">
-                          ✓ KYC
-                        </span>
-                      )}
-                      <span className="px-2 py-0.5 bg-bg-elevated text-text-secondary text-caption rounded-full">
-                        {project.network}
-                      </span>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <AnimatePresence mode="popLayout">
+              {projects.map((project, index) => (
+                <ExploreProjectCard key={project.id} project={project} index={index} />
+              ))}
+            </AnimatePresence>
           </div>
         )}
       </PageContainer>
@@ -166,15 +135,17 @@ export default function ExplorePage() {
         onClose={() => setFilterSheetOpen(false)}
         title="Filter Projects"
       >
-        <div className="space-y-6">
+        <div className="space-y-6 p-4">
           {/* Status Filter */}
           <div>
-            <h3 className="text-heading-sm mb-3">Status</h3>
+            <h3 className="text-sm font-medium text-gray-400 mb-3 uppercase tracking-wider">
+              Status
+            </h3>
             <div className="grid grid-cols-3 gap-2">
               {(['live', 'upcoming', 'ended'] as const).map((status) => (
                 <button
                   key={status}
-                  className="px-3 py-2 bg-bg-card border border-border-subtle rounded-md text-caption hover:border-primary-main transition-colors"
+                  className="px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-sm font-medium hover:border-indigo-500/50 hover:bg-indigo-500/10 hover:text-indigo-400 transition-all capitalize"
                 >
                   {status}
                 </button>
@@ -184,12 +155,14 @@ export default function ExplorePage() {
 
           {/* Network Filter */}
           <div>
-            <h3 className="text-heading-sm mb-3">Network</h3>
+            <h3 className="text-sm font-medium text-gray-400 mb-3 uppercase tracking-wider">
+              Network
+            </h3>
             <div className="grid grid-cols-2 gap-2">
               {(['SOL', 'EVM'] as const).map((network) => (
                 <button
                   key={network}
-                  className="px-3 py-2 bg-bg-card border border-border-subtle rounded-md text-caption hover:border-primary-main transition-colors"
+                  className="px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-sm font-medium hover:border-indigo-500/50 hover:bg-indigo-500/10 hover:text-indigo-400 transition-all"
                 >
                   {network}
                 </button>
@@ -197,8 +170,8 @@ export default function ExplorePage() {
             </div>
           </div>
 
-          <button className="w-full bg-primary-main text-primary-text py-3 rounded-md font-medium hover:bg-primary-hover transition-colors">
-            Terapkan Filter
+          <button className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-4 rounded-xl font-bold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40 hover:scale-[1.02] transition-all">
+            Apply Filters
           </button>
         </div>
       </BottomSheet>

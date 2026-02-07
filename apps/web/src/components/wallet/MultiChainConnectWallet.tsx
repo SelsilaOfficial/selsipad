@@ -106,7 +106,6 @@ export function MultiChainConnectWallet() {
   }, [isConnected, address]);
   */
 
-
   const handleEVMAuth = async () => {
     if (!address) return;
 
@@ -186,8 +185,8 @@ export function MultiChainConnectWallet() {
           onClick={handleEVMAuth}
           disabled={isAuthenticating || isAuthenticated}
           style={{
-            backgroundColor: isAuthenticated 
-              ? 'hsl(var(--success-main))' 
+            backgroundColor: isAuthenticated
+              ? 'hsl(var(--success-main))'
               : 'hsl(var(--warning-main))',
             color: 'white',
             borderRadius: '0.375rem',
@@ -200,12 +199,21 @@ export function MultiChainConnectWallet() {
             opacity: isAuthenticated ? 0.9 : 1,
           }}
         >
-          {isAuthenticating 
-            ? '🔐 Signing...' 
-            : isAuthenticated 
-              ? '🔒 Signed In' 
-              : '🔓 Sign In'
-          }
+          {isAuthenticating ? (
+            <span className="flex items-center gap-2">
+              <span className="animate-spin">⏳</span>
+              <span>Signing...</span>
+            </span>
+          ) : (
+            <div className="flex items-center gap-2">
+              <img
+                src="/assets/auth-purple-icon.jpg"
+                alt="Auth"
+                className={`w-6 h-6 object-contain transition-transform duration-300 ${isAuthenticated ? '' : 'scale-x-[-1]'}`}
+              />
+              <span>{isAuthenticated ? 'Signed In' : 'Sign In'}</span>
+            </div>
+          )}
         </button>
       )}
 

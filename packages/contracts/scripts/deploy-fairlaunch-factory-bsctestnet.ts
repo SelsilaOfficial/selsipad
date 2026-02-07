@@ -19,7 +19,7 @@ async function main() {
   const DEPLOYMENT_FEE = ethers.parseEther('0.2');
 
   // Existing contract addresses (from previous deployments)
-  const FEE_SPLITTER = '0x2672af17eA89bc5e46BB52385C45Cb42e5eC8C48';
+  const FEE_SPLITTER = '0x3301b82B4559F1607DA83FA460DC9820CbE1344e';
   const TREASURY_WALLET = '0x95D94D86CfC550897d2b80672a3c94c12429a90D';
   const ADMIN_EXECUTOR = '0x95D94D86CfC550897d2b80672a3c94c12429a90D';
 

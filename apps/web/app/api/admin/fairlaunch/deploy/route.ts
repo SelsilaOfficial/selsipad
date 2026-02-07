@@ -21,7 +21,7 @@ const supabase = createClient(
 const FACTORY_ADDRESSES = {
   bsc_testnet:
     process.env.NEXT_PUBLIC_FAIRLAUNCH_FACTORY_BSC_TESTNET ||
-    '0xBf8B3e6b88C46F1B99d1675436771e272eA284c7', // Updated 2026-02-05
+    '0x5Fa2528164baF18cA6Cd859701d7a5a6ad197DEa', // FeeSplitter V2 (Feb 7)
   bnb: process.env.NEXT_PUBLIC_FAIRLAUNCH_FACTORY_BSC_MAINNET,
 };
 
@@ -298,9 +298,11 @@ export async function POST(request: NextRequest) {
       liquidityPercent: lpPlan.liquidityPercent.toString(),
     });
 
-    // 9. Deploy via factory (NO deployment fee - factory has zero fee!)
+    // 9. Deploy via factory (sending deployment fee)
     console.log('[Admin Deploy] Calling factory.createFairlaunch()...');
-    const tx = await (factory as any).createFairlaunch(createParams, vestingParams, lpPlan);
+    const tx = await (factory as any).createFairlaunch(createParams, vestingParams, lpPlan, {
+      value: deploymentFee,
+    });
     console.log('[Admin Deploy] TX sent:', tx.hash);
 
     // 10. Wait for confirmation

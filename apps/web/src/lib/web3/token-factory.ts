@@ -14,7 +14,7 @@ export const TOKEN_FACTORY_ADDRESSES: Record<string, Address> = {
   bnb: '0x0000000000000000000000000000000000000000', // TBD
   base: '0x0000000000000000000000000000000000000000', // TBD
   sepolia: '0x2aDF8E4a91dC34d992e12FA51d78a4F7E06a5D6b', // ✅ Deployed 2026-01-29
-  bsc_testnet: '0x4924e4Dc79f3673a25ea29D26822A5Ee3535Ce6B', // ✅ Deployed 2026-01-29
+  bsc_testnet: '0x28DBa6468e7e5AD805374244B5D528375fC4610A', // ✅ Deployed 2026-02-07 Hybrid
   base_sepolia: '0x2aDF8E4a91dC34d992e12FA51d78a4F7E06a5D6b', // ✅ Deployed 2026-01-29
   solana: '0x0000000000000000000000000000000000000000', // N/A
 } as const;
@@ -42,7 +42,9 @@ export { SimpleTokenFactoryABI };
  * Get token factory address for network
  */
 export function getTokenFactoryAddress(network: string): Address {
-  return TOKEN_FACTORY_ADDRESSES[network] || ('0x0000000000000000000000000000000000000000' as Address);
+  return (
+    TOKEN_FACTORY_ADDRESSES[network] || ('0x0000000000000000000000000000000000000000' as Address)
+  );
 }
 
 /**

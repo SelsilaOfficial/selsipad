@@ -12,6 +12,56 @@ interface EVMWalletProviderProps {
   children: ReactNode;
 }
 
+// Fix for "unstorage" and "idb-keyval" errors in SSR
+// We MUST NOT define global.window because it breaks Next.js server detection
+if (typeof window === 'undefined') {
+  // Mock localStorage
+  if (!global.localStorage) {
+    (global as any).localStorage = {
+      getItem: () => null,
+      setItem: () => {},
+      removeItem: () => {},
+      clear: () => {},
+      key: () => null,
+      length: 0,
+    };
+  }
+
+  // Mock indexedDB for WalletConnect with callback triggering
+  if (!(global as any).indexedDB) {
+    const createRequest = (result: any) => {
+      const req: any = { result };
+      // Trigger success on next tick to allow assigning onsuccess
+      setTimeout(() => {
+        if (req.onsuccess) req.onsuccess({ target: req });
+      }, 0);
+      return req;
+    };
+
+    (global as any).indexedDB = {
+      open: () =>
+        createRequest({
+          result: {
+            objectStoreNames: { contains: () => false },
+            createObjectStore: () => ({ createIndex: () => {} }),
+            transaction: () => ({
+              objectStore: () => ({
+                put: () => createRequest(undefined),
+                get: () => createRequest(undefined),
+                delete: () => createRequest(undefined),
+                getAllKeys: () => createRequest([]),
+                clear: () => createRequest(undefined),
+              }),
+            }),
+            close: () => {},
+          },
+          addEventListener: () => {},
+          removeEventListener: () => {},
+        }),
+    };
+  }
+}
+
 // Configure chains - Mainnet + Testnet
 const chains = [
   // Mainnets

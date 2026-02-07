@@ -1,0 +1,237 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "UniversalRouterMock",
+  "sourceName": "contracts/mocks/UniversalRouterMock.sol",
+  "abi": [
+    {
+      "inputs": [],
+      "name": "WETH",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "token",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "amountTokenDesired",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "amountTokenMin",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "amountETHMin",
+          "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "to",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "deadline",
+          "type": "uint256"
+        }
+      ],
+      "name": "addLiquidityETH",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "amountToken",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "amountETH",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "liquidity",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "name": "approve",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "name": "balanceOf",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "factory",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "name": "getPair",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bool",
+          "name": "_fail",
+          "type": "bool"
+        }
+      ],
+      "name": "setFail",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "shouldFail",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "name": "transfer",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "name": "transferFrom",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x60808060405234610016576102a8908161001c8239f35b600080fdfe604060808152600436101561001357600080fd5b6000803560e01c8063095ea7b31461014f57806323b872dd146101d2578063678d2204146101b057806370a08231146101825780639d76940214610154578063a9059cbb1461014f578063ad5c46481461014a578063c45a01551461014a578063e6a43905146101195763f305d7191461008c57600080fd5b60c0366003190112610116576100a0610201565b506084356001600160a01b03811603610116575460ff166100d35780606460609251916024358352346020840152820152f35b5162461bcd60e51b815260206004820152601960248201527f4465784164644c697175696469747943616c6c4661696c6564000000000000006044820152606490fd5b80fd5b509034610146578060031936011261014657602090610136610201565b5061013f61021c565b5051308152f35b5080fd5b610257565b610232565b5034610116576020366003190112610116576004358015158091036101465760ff8019835416911617815580f35b509034610146576020366003190112610146576020906101a0610201565b5051683635c9adc5dea000008152f35b50903461014657816003193601126101465760ff602092541690519015158152f35b509034610146576060366003190112610146576020906101f0610201565b506101f961021c565b505160018152f35b600435906001600160a01b038216820361021757565b600080fd5b602435906001600160a01b038216820361021757565b346102175760403660031901126102175761024b610201565b50602060405160018152f35b34610217576000366003190112610217576020604051308152f3fea2646970667358221220b03a31a115d5c8c0e2d7d56b5d7aa544906664f5cc19209c0907e2111b6f778d64736f6c63430008140033",
+  "deployedBytecode": "0x604060808152600436101561001357600080fd5b6000803560e01c8063095ea7b31461014f57806323b872dd146101d2578063678d2204146101b057806370a08231146101825780639d76940214610154578063a9059cbb1461014f578063ad5c46481461014a578063c45a01551461014a578063e6a43905146101195763f305d7191461008c57600080fd5b60c0366003190112610116576100a0610201565b506084356001600160a01b03811603610116575460ff166100d35780606460609251916024358352346020840152820152f35b5162461bcd60e51b815260206004820152601960248201527f4465784164644c697175696469747943616c6c4661696c6564000000000000006044820152606490fd5b80fd5b509034610146578060031936011261014657602090610136610201565b5061013f61021c565b5051308152f35b5080fd5b610257565b610232565b5034610116576020366003190112610116576004358015158091036101465760ff8019835416911617815580f35b509034610146576020366003190112610146576020906101a0610201565b5051683635c9adc5dea000008152f35b50903461014657816003193601126101465760ff602092541690519015158152f35b509034610146576060366003190112610146576020906101f0610201565b506101f961021c565b505160018152f35b600435906001600160a01b038216820361021757565b600080fd5b602435906001600160a01b038216820361021757565b346102175760403660031901126102175761024b610201565b50602060405160018152f35b34610217576000366003190112610217576020604051308152f3fea2646970667358221220b03a31a115d5c8c0e2d7d56b5d7aa544906664f5cc19209c0907e2111b6f778d64736f6c63430008140033",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

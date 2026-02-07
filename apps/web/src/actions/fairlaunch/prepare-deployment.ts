@@ -45,7 +45,7 @@ const FAIRLAUNCH_FACTORY_ADDRESSES: Record<string, string> = {
   ethereum: '0x0000000000000000000000000000000000000000', // TODO: Deploy factory
   sepolia: '0x6eA1044Caf6CEdf36A9F7D978384a634a3f04FbE', // Deployed
   bnb: '0x0000000000000000000000000000000000000000', // TODO: Deploy factory
-  bsc_testnet: '0xe562b09225aFC94e254973f329bB25294Ef89c8F', // Fresh bytecode (Feb 6)
+  bsc_testnet: '0x5Fa2528164baF18cA6Cd859701d7a5a6ad197DEa', // FeeSplitter V2 (Feb 7)
   base: '0x0000000000000000000000000000000000000000', // TODO: Deploy factory
   base_sepolia: '0x6eA1044Caf6CEdf36A9F7D978384a634a3f04FbE', // Deployed
 };

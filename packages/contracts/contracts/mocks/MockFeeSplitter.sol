@@ -20,5 +20,9 @@ contract MockFeeSplitter {
         emit FeeDistributed(msg.value);
     }
 
+    function distributeFairlaunchFee(address fairlaunch) external payable {
+        emit FeeDistributed(msg.value);
+    }
+
     receive() external payable {}
 }
