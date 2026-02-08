@@ -21,16 +21,23 @@ interface NetworkTokenStepProps {
   errors?: Record<string, string>;
 }
 
-const SUPPORTED_NETWORKS = [
-  { id: 'sepolia', name: 'Sepolia Testnet', symbol: 'ETH' },
-  { id: 'bsc_testnet', name: 'BSC Testnet', symbol: 'BNB' },
-  { id: 'base_sepolia', name: 'Base Sepolia', symbol: 'ETH' },
-  { id: 'ethereum', name: 'Ethereum Mainnet', symbol: 'ETH' },
-  { id: 'bnb', name: 'BNB Chain', symbol: 'BNB' },
-  { id: 'base', name: 'Base', symbol: 'ETH' },
-];
+const NETWORKS = {
+  testnet: [
+    { id: 'bsc_testnet', name: 'BSC Testnet', symbol: 'tBNB', icon: '/assets/chains/bnb.png' },
+    { id: 'sepolia', name: 'ETH Sepolia', symbol: 'SepoliaETH', icon: '/assets/chains/eth.png' },
+    { id: 'base_sepolia', name: 'Base Sepolia', symbol: 'ETH', icon: '/assets/chains/base.png' },
+  ],
+  mainnet: [
+    { id: 'bnb', name: 'BNB Chain', symbol: 'BNB', icon: '/assets/chains/bnb.png' },
+    { id: 'ethereum', name: 'Ethereum', symbol: 'ETH', icon: '/assets/chains/eth.png' },
+    { id: 'base', name: 'Base', symbol: 'ETH', icon: '/assets/chains/base.png' },
+  ],
+};
 
 export function NetworkTokenStep({ data, onChange, errors }: NetworkTokenStepProps) {
+  const [networkTab, setNetworkTab] = useState<'testnet' | 'mainnet'>(
+    ['bnb', 'ethereum', 'base'].includes(data.network) ? 'mainnet' : 'testnet'
+  );
   const [isScanning, setIsScanning] = useState(false);
   const [scanResult, setScanResult] = useState<SecurityScanResult | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
@@ -95,7 +102,13 @@ export function NetworkTokenStep({ data, onChange, errors }: NetworkTokenStepPro
     }
   };
 
-  const handleTokenCreated = (tokenData: { address: string; name: string; symbol: string; decimals: number; totalSupply: string }) => {
+  const handleTokenCreated = (tokenData: {
+    address: string;
+    name: string;
+    symbol: string;
+    decimals: number;
+    totalSupply: string;
+  }) => {
     onChange({
       tokenAddress: tokenData.address,
       tokenMode: 'factory',
@@ -120,20 +133,49 @@ export function NetworkTokenStep({ data, onChange, errors }: NetworkTokenStepPro
         <label className="block text-sm font-medium text-gray-300 mb-3">
           Select Network <span className="text-red-400">*</span>
         </label>
+        <div className="flex bg-gray-800 rounded-lg p-1 mb-4">
+          <button
+            type="button"
+            onClick={() => setNetworkTab('testnet')}
+            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${
+              networkTab === 'testnet'
+                ? 'bg-purple-600 text-white shadow-lg'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            🧪 Testnet
+          </button>
+          <button
+            type="button"
+            onClick={() => setNetworkTab('mainnet')}
+            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${
+              networkTab === 'mainnet'
+                ? 'bg-purple-600 text-white shadow-lg'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            🌐 Mainnet
+          </button>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {SUPPORTED_NETWORKS.map((network) => (
+          {NETWORKS[networkTab].map((network) => (
             <button
               key={network.id}
               type="button"
               onClick={() => onChange({ network: network.id })}
-              className={`p-4 rounded-lg border-2 transition ${
+              className={`relative p-4 rounded-xl border-2 transition text-center ${
                 data.network === network.id
-                  ? 'border-purple-500 bg-purple-900/30'
-                  : 'border-gray-700 bg-gray-800/50 hover:border-gray-600'
+                  ? 'border-purple-500 bg-purple-500/10 shadow-lg shadow-purple-500/20'
+                  : 'border-gray-700 bg-gray-800/50 hover:border-gray-500 hover:bg-gray-800'
               }`}
             >
-              <div className="font-medium text-white">{network.name}</div>
-              <div className="text-sm text-gray-400 mt-1">{network.symbol}</div>
+              <img
+                src={network.icon}
+                alt={network.name}
+                className="w-7 h-7 rounded-full mx-auto mb-2"
+              />
+              <div className="text-sm font-medium text-white">{network.name}</div>
+              <div className="text-xs text-gray-400 mt-1">{network.symbol}</div>
             </button>
           ))}
         </div>
@@ -150,7 +192,9 @@ export function NetworkTokenStep({ data, onChange, errors }: NetworkTokenStepPro
             {/* Use Existing Token */}
             <button
               type="button"
-              onClick={() => onChange({ tokenMode: 'existing', tokenAddress: '', securityBadges: [] })}
+              onClick={() =>
+                onChange({ tokenMode: 'existing', tokenAddress: '', securityBadges: [] })
+              }
               className={`p-6 rounded-lg border-2 transition text-left ${
                 data.tokenMode === 'existing'
                   ? 'border-blue-500 bg-blue-900/30'
@@ -248,11 +292,7 @@ export function NetworkTokenStep({ data, onChange, errors }: NetworkTokenStepPro
             </div>
           )}
 
-          <SecurityScanPanel
-            scanResult={scanResult}
-            isScanning={isScanning}
-            onRetry={handleScan}
-          />
+          <SecurityScanPanel scanResult={scanResult} isScanning={isScanning} onRetry={handleScan} />
 
           {/* Block if scan failed */}
           {scanResult && !scanResult.allPassed && (
@@ -326,8 +366,8 @@ export function NetworkTokenStep({ data, onChange, errors }: NetworkTokenStepPro
             {!data.securityScanStatus
               ? '⏳ Waiting for security scan...'
               : data.securityScanStatus === 'FAIL'
-              ? '❌ Security scan must pass to continue'
-              : '✓ Ready to proceed!'}
+                ? '❌ Security scan must pass to continue'
+                : '✓ Ready to proceed!'}
           </p>
         </div>
       )}

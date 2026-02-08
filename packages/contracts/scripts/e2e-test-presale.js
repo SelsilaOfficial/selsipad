@@ -29,9 +29,7 @@ function buildMerkleTree(vestingAddr, chainId, scheduleSalt, entries) {
     return Buffer.from(hre.ethers.getBytes(hre.ethers.keccak256(packed)));
   });
   const hashFn = (data) =>
-    data.length === 32
-      ? data
-      : Buffer.from(hre.ethers.getBytes(hre.ethers.keccak256(data)));
+    data.length === 32 ? data : Buffer.from(hre.ethers.getBytes(hre.ethers.keccak256(data)));
   const tree = new MerkleTree(leaves, hashFn, { sortPairs: true });
   const root = '0x' + tree.getRoot().toString('hex');
   const getProof = (who, total) => {
@@ -69,8 +67,8 @@ async function main() {
   const PRESALE_FACTORY_ADDRESS = process.env.PRESALE_FACTORY_ADDRESS;
   // When deploying factory locally, use deployer as timelock so script can finalize without extra keys.
   const TIMELOCK_ADDRESS = PRESALE_FACTORY_ADDRESS
-    ? (process.env.TIMELOCK_ADDRESS || deployer.address)
-    : (await deployer.getAddress());
+    ? process.env.TIMELOCK_ADDRESS || deployer.address
+    : await deployer.getAddress();
   const testFailPath = process.env.FINALIZE_FAIL === '1';
 
   let factoryAddress = PRESALE_FACTORY_ADDRESS;
@@ -127,15 +125,25 @@ async function main() {
 
   const factoryAbi =
     require('../artifacts/contracts/std-presale/PresaleFactory.sol/PresaleFactory.json').abi;
-  const factory = new hre.ethers.Contract(factoryAddress, factoryAbi, admin);
+  // When using existing factory (testnet), deployer is FACTORY_ADMIN; when local, admin is granted the role.
+  const factorySigner = PRESALE_FACTORY_ADDRESS ? deployer : admin;
+  const factory = new hre.ethers.Contract(factoryAddress, factoryAbi, factorySigner);
 
   // ========================================
   // STEP 3: Create presale
   // ========================================
   console.log('📝 STEP 3: Creating presale via factory...');
 
-  const now = Math.floor(Date.now() / 1000);
-  const startTime = now + (isHardhat ? 60 : 30);
+  // Use on-chain block timestamp to avoid clock drift on live networks
+  const latestBlock = await hre.ethers.provider.getBlock('latest');
+  const now = isHardhat ? Math.floor(Date.now() / 1000) : latestBlock.timestamp;
+  console.log(
+    '   Block timestamp:',
+    latestBlock.timestamp,
+    '| JS Date.now():',
+    Math.floor(Date.now() / 1000)
+  );
+  const startTime = now + (isHardhat ? 60 : 30); // 30s on testnet is fine when using block.timestamp
   const endTime = startTime + (isHardhat ? 3600 : 300);
 
   const softCap = 1_000_000n; // 1 USDC (6 decimals)
@@ -192,11 +200,12 @@ async function main() {
     require('../artifacts/contracts/std-presale/PresaleRound.sol/PresaleRound.json').abi;
   const roundContract = new hre.ethers.Contract(round, roundAbi, deployer);
 
-  // When using existing factory (testnet), admin must have round ADMIN (granted off-chain by timelock).
-  // When we deployed the factory locally, round admin = timelock = deployer, so we finalize as deployer.
-  const finalizer = PRESALE_FACTORY_ADDRESS ? admin : deployer;
+  // When using existing factory (testnet), deployer is the factory admin who deployed the round,
+  // and the round's ADMIN_ROLE is granted to timelockExecutor. We use deployer as finalizer
+  // since deployer is also the round ADMIN on testnet.
+  const finalizer = deployer; // Deployer has ADMIN_ROLE on both factory and round
   if (PRESALE_FACTORY_ADDRESS) {
-    console.log('   Using admin as finalizer (ensure timelock granted round ADMIN_ROLE to admin)');
+    console.log('   Using deployer as finalizer (deployer has FACTORY_ADMIN_ROLE on testnet)');
   }
 
   // ========================================
@@ -206,13 +215,32 @@ async function main() {
     await hre.ethers.provider.send('evm_setNextBlockTimestamp', [Number(startTime) + 1]);
     await hre.ethers.provider.send('evm_mine', []);
   } else {
-    const waitStart = startTime - Math.floor(Date.now() / 1000) + 5;
-    if (waitStart > 0) await waitSeconds(waitStart);
+    // Poll block.timestamp until it passes startTime (BSC testnet blocks can be slow)
+    console.log('   Waiting for block.timestamp to pass startTime...');
+    for (let attempt = 0; attempt < 40; attempt++) {
+      const blk = await hre.ethers.provider.getBlock('latest');
+      const remaining = startTime - blk.timestamp;
+      if (remaining <= 0) {
+        console.log(`   Block.timestamp ${blk.timestamp} >= startTime ${startTime} ✅`);
+        break;
+      }
+      console.log(
+        `   Block.timestamp ${blk.timestamp}, need ${startTime} (${remaining}s remaining)...`
+      );
+      await waitSeconds(Math.min(10, remaining + 2));
+    }
   }
 
   console.log('📝 STEP 4: Contributing (payment token)...');
+
   const contributionAmount = testFailPath ? 500_000n : 1_500_000n; // below softcap for fail path
   await paymentToken.approve(round, contributionAmount);
+  console.log('   Approved', contributionAmount.toString(), 'units for round');
+
+  // NOTE: status() returns the stored enum (UPCOMING until contribute is called).
+  // contribute() internally calls _syncStatus() which transitions UPCOMING -> ACTIVE.
+  // So we just call contribute directly — it will transition and proceed.
+
   await roundContract.contribute(contributionAmount, hre.ethers.ZeroAddress);
   const totalRaised = await roundContract.totalRaised();
   console.log('   Contributed:', contributionAmount.toString(), 'units');
@@ -227,16 +255,29 @@ async function main() {
     await hre.ethers.provider.send('evm_setNextBlockTimestamp', [Number(endTime) + 10]);
     await hre.ethers.provider.send('evm_mine', []);
   } else {
-    const waitEnd = endTime - Math.floor(Date.now() / 1000) + 5;
-    if (waitEnd > 0) await waitSeconds(waitEnd);
+    console.log('   Waiting for block.timestamp to pass endTime...');
+    for (let attempt = 0; attempt < 120; attempt++) {
+      const blk = await hre.ethers.provider.getBlock('latest');
+      const remaining = endTime - blk.timestamp;
+      if (remaining <= 0) {
+        console.log(`   Block.timestamp ${blk.timestamp} >= endTime ${endTime} ✅`);
+        break;
+      }
+      if (attempt % 5 === 0) {
+        console.log(
+          `   Block.timestamp ${blk.timestamp}, need ${endTime} (${remaining}s remaining)...`
+        );
+      }
+      await waitSeconds(Math.min(10, remaining + 2));
+    }
   }
 
   if (testFailPath) {
     // ========== FAIL PATH: finalizeFailed -> refund ==========
     console.log('📝 STEP 5 (fail path): Finalizing as FAILED...');
-  const roundFinalizer = new hre.ethers.Contract(round, roundAbi, finalizer);
-  await roundFinalizer.finalizeFailed('Softcap not met (E2E test)');
-  await roundFinalizer.pause();
+    const roundFinalizer = new hre.ethers.Contract(round, roundAbi, finalizer);
+    await roundFinalizer.finalizeFailed('Softcap not met (E2E test)');
+    await roundFinalizer.pause();
     console.log('   finalizeFailed + pause done');
 
     console.log('   Claiming refund...');

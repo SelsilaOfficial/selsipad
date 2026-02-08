@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAccount } from 'wagmi';
 import { parseEther, formatEther } from 'viem';
 import type { Address } from 'viem';
@@ -35,6 +35,8 @@ export function ContributionForm({
   const [amount, setAmount] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [referrer, setReferrer] = useState<string>('');
+  const [dbSaved, setDbSaved] = useState(false);
+  const confirmedHashRef = useRef<string | null>(null);
 
   // Contribution transaction
   const { contribute, hash, isPending, error: txError } = useContribute();
@@ -79,14 +81,49 @@ export function ContributionForm({
     }
   };
 
-  // Reset form on success
-  if (isSuccess) {
-    setTimeout(() => {
+  // Persist contribution to DB after on-chain TX confirmation
+  useEffect(() => {
+    if (!isSuccess || !hash || !address || !amount) return;
+    if (confirmedHashRef.current === hash) return; // already confirmed this hash
+    confirmedHashRef.current = hash;
+
+    const confirmContribution = async () => {
+      try {
+        const res = await fetch(`/api/rounds/${roundId}/contribute/confirm`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            round_id: roundId,
+            tx_hash: hash,
+            amount: parseFloat(amount),
+            wallet_address: address,
+            referral_address: referrer || undefined,
+          }),
+        });
+        if (res.ok) {
+          setDbSaved(true);
+        } else {
+          console.warn('Failed to confirm contribution in DB:', await res.text());
+        }
+      } catch (err) {
+        console.error('DB confirm error:', err);
+      }
+    };
+
+    confirmContribution();
+
+    // Reset form after short delay
+    const timer = setTimeout(() => {
       setAmount('');
       setReferrer('');
+      setDbSaved(false);
       refetchContribution();
-    }, 2000);
-  }
+    }, 3000);
+
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSuccess, hash]);
 
   const setPresetAmount = (percentage: number) => {
     if (!max) return;

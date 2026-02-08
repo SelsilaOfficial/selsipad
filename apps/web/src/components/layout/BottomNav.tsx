@@ -4,7 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { Home, Rocket, FileText, User } from 'lucide-react';
+import { Home, Rocket, FileText, User, Plus } from 'lucide-react';
 
 interface NavItem {
   id: string;
@@ -30,6 +30,12 @@ export const BottomNav: React.FC = () => {
       icon: Rocket,
     },
     {
+      id: 'create',
+      label: 'CREATE',
+      href: '/create',
+      icon: Plus,
+    },
+    {
       id: 'feed',
       label: 'FEED',
       href: '/feed',
@@ -47,6 +53,23 @@ export const BottomNav: React.FC = () => {
     <nav className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[90%] max-w-[360px]">
       <div className="bg-black/80 backdrop-blur-xl border border-white/10 rounded-full px-6 py-4 shadow-2xl flex items-center justify-between">
         {navItems.map((item) => {
+          if (item.id === 'create') {
+            return (
+              <Link
+                key={item.id}
+                href={item.href}
+                className="flex flex-col items-center justify-center w-full relative group -mt-8"
+              >
+                <div className="w-14 h-14 bg-gradient-to-tr from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-500/30 ring-4 ring-black transform transition-transform group-hover:scale-110">
+                  <item.icon className="w-7 h-7 text-white" strokeWidth={2.5} />
+                </div>
+                <span className="text-[10px] font-bold tracking-wider text-gray-400 mt-2 transition-colors group-hover:text-white">
+                  {item.label}
+                </span>
+              </Link>
+            );
+          }
+
           const isActive =
             pathname === item.href || (item.href !== '/' && pathname?.startsWith(item.href));
 

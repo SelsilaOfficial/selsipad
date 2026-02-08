@@ -45,6 +45,9 @@ export function Step0ContractMode({
               setSubStep(1);
             }}
             network={network}
+            onNetworkChange={(net) => {
+              onChange({ ...data, network: net });
+            }}
           />
           {errors?.contract_mode && (
             <p className="mt-2 text-sm text-red-400">{errors.contract_mode}</p>
@@ -78,13 +81,20 @@ export function Step0ContractMode({
         </>
       )}
 
-      {/* Sub-step 1: Template Info */}
+      {/* Sub-step 1: Template Info + Token Creation */}
       {subStep === 1 && data.contract_mode === 'LAUNCHPAD_TEMPLATE' && (
         <>
           <TemplateModeStep
             templateVersion="1.0.0"
             network={network}
             templateAuditStatus={data.template_audit_status || null}
+            onTokenCreated={(tokenData) => {
+              onChange({
+                ...data,
+                contract_address: tokenData.address,
+                template_audit_status: 'VALID',
+              });
+            }}
           />
 
           {errors?.template && <p className="mt-2 text-sm text-red-400">{errors.template}</p>}
