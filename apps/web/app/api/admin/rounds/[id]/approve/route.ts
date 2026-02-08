@@ -48,13 +48,15 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       throw err;
     }
 
-    // Update to APPROVED_TO_DEPLOY with review tracking
+    // Update to APPROVED_TO_DEPLOY with review + approval tracking
     const { data: updated, error: updateError } = await supabase
       .from('launch_rounds')
       .update({
         status: 'APPROVED_TO_DEPLOY',
         reviewed_by: userId,
         reviewed_at: new Date().toISOString(),
+        approved_by: userId, // ✅ Also set approval columns
+        approved_at: new Date().toISOString(), // ✅ Approval timestamp
         rejection_reason: null, // Clear any previous rejection
       })
       .eq('id', params.id)

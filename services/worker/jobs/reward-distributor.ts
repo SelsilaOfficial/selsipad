@@ -56,55 +56,73 @@ export async function runRewardDistributor() {
             referrerId = relationship?.referrer_id || null;
           }
         } else if (split.source_type === 'PRESALE' || split.source_type === 'FAIRLAUNCH') {
-          // Get user from contribution
-          const { data: contribution } = await supabase
-            .from('launch_contributions')
-            .select('user_id')
-            .eq('id', split.source_id)
-            .single();
+          // source_id is the round_id — find all contributors with referrers
+          const { data: contributions } = await supabase
+            .from('contributions')
+            .select('user_id, amount')
+            .eq('round_id', split.source_id)
+            .eq('status', 'CONFIRMED')
+            .not('user_id', 'is', null);
 
-          if (contribution) {
-            const { data: relationship } = await supabase
-              .from('referral_relationships')
-              .select('referrer_id')
-              .eq('referee_id', contribution.user_id)
-              .not('activated_at', 'is', null)
-              .single();
+          if (contributions && contributions.length > 0) {
+            // Find all contributors who have referrers
+            const totalRaised = contributions.reduce((sum, c) => sum + Number(c.amount), 0);
+            let anyReferrerFound = false;
 
-            referrerId = relationship?.referrer_id || null;
+            for (const contribution of contributions) {
+              const { data: relationship } = await supabase
+                .from('referral_relationships')
+                .select('referrer_id')
+                .eq('referee_id', contribution.user_id)
+                .not('activated_at', 'is', null)
+                .single();
+
+              if (relationship?.referrer_id) {
+                anyReferrerFound = true;
+                // Calculate proportional referral amount based on contribution share
+                const share = Number(contribution.amount) / totalRaised;
+                const proportionalAmount = Math.floor(
+                  Number(split.referral_pool_amount) * share
+                ).toString();
+
+                const { error: ledgerError } = await supabase.from('referral_ledger').insert({
+                  referrer_id: relationship.referrer_id,
+                  source_type: split.source_type,
+                  source_id: split.source_id,
+                  amount: proportionalAmount,
+                  asset: split.asset,
+                  chain: split.chain,
+                  status: 'CLAIMABLE',
+                });
+
+                if (ledgerError) {
+                  if (ledgerError.code === '23505') {
+                    console.log(
+                      `[Reward Distributor] Ledger entry already exists for referrer ${relationship.referrer_id}`
+                    );
+                  } else {
+                    console.error(`[Reward Distributor] Error creating ledger entry:`, ledgerError);
+                  }
+                } else {
+                  console.log(
+                    `[Reward Distributor] ✅ Distributed ${proportionalAmount} to referrer ${relationship.referrer_id} (contributor ${contribution.user_id})`
+                  );
+                }
+              }
+            }
+
+            if (!anyReferrerFound) {
+              console.log(
+                `[Reward Distributor] No referrers found for any contributors in split ${split.id}`
+              );
+            }
           }
         }
 
-        if (!referrerId) {
+        if (split.source_type !== 'PRESALE' && split.source_type !== 'FAIRLAUNCH' && !referrerId) {
           console.log(
             `[Reward Distributor] No referrer for split ${split.id}, marking as processed`
           );
-          await supabase
-            .from('fee_splits')
-            .update({ processed: true, processed_at: new Date().toISOString() })
-            .eq('id', split.id);
-          continue;
-        }
-
-        // Create ledger entry
-        const { error: ledgerError } = await supabase.from('referral_ledger').insert({
-          referrer_id: referrerId,
-          source_type: split.source_type,
-          source_id: split.source_id,
-          amount: split.referral_pool_amount,
-          asset: split.asset,
-          chain: split.chain,
-          status: 'CLAIMABLE',
-        });
-
-        if (ledgerError) {
-          // Check if duplicate
-          if (ledgerError.code === '23505') {
-            console.log(`[Reward Distributor] Ledger entry already exists for split ${split.id}`);
-          } else {
-            console.error(`[Reward Distributor] Error creating ledger entry:`, ledgerError);
-            continue;
-          }
         }
 
         // Mark split as processed
@@ -113,9 +131,7 @@ export async function runRewardDistributor() {
           .update({ processed: true, processed_at: new Date().toISOString() })
           .eq('id', split.id);
 
-        console.log(
-          `[Reward Distributor] ✅ Distributed ${split.referral_pool_amount} to referrer ${referrerId}`
-        );
+        console.log(`[Reward Distributor] ✅ Split ${split.id} marked as processed`);
       } catch (err) {
         console.error(`[Reward Distributor] Error processing split ${split.id}:`, err);
       }

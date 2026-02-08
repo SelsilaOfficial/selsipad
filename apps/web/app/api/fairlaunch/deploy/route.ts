@@ -1,6 +1,6 @@
 /**
  * POST /api/fairlaunch/deploy
- * 
+ *
  * Deploy a new Fairlaunch contract directly (bypassing Factory)
  * This enables automatic contract verification on BSCScan
  */
@@ -9,7 +9,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { FairlaunchDeployerService } from '@/lib/fairlaunch/deployer.service';
 import { verificationQueue } from '@/lib/fairlaunch/verification-queue.service';
-import { validateDeploymentParams, formatValidationErrors } from '@/lib/fairlaunch/deployment-validation';
+import {
+  validateDeploymentParams,
+  formatValidationErrors,
+} from '@/lib/fairlaunch/deployment-validation';
 import { TokenApprovalChecker } from '@/lib/fairlaunch/token-approval-checker';
 import { deploymentLogger } from '@/lib/fairlaunch/deployment-logger';
 import type { FairlaunchDeployParams } from '@/lib/fairlaunch/params-builder';
@@ -23,12 +26,12 @@ export async function POST(request: NextRequest) {
   const startTime = Date.now();
   let userId: string | undefined;
   let walletAddress: string | undefined;
-  
+
   try {
     // 1. Authenticate user - Use server session (simplest approach)
     const { getServerSession } = await import('@/lib/auth/session');
     const session = await getServerSession();
-    
+
     if (session) {
       // ✅ Got session from cookie!
       userId = session.userId;
@@ -41,7 +44,10 @@ export async function POST(request: NextRequest) {
         walletAddress = walletHeader;
         console.log('[Deploy API] Using wallet-only auth:', walletAddress);
       } else {
-        return NextResponse.json({ error: 'Unauthorized: No session or wallet found' }, { status: 401 });
+        return NextResponse.json(
+          { error: 'Unauthorized: No session or wallet found' },
+          { status: 401 }
+        );
       }
     }
 
@@ -51,12 +57,12 @@ export async function POST(request: NextRequest) {
 
     // 2. Parse and validate request body
     const body = await request.json();
-    
+
     const validation = validateDeploymentParams(body);
     if (!validation.success) {
       const errors = formatValidationErrors(validation.error?.issues || []);
       deploymentLogger.logValidationFailure(userId || walletAddress || 'unknown', errors);
-      
+
       return NextResponse.json(
         {
           success: false,
@@ -131,7 +137,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    deploymentLogger.logTokenCheckResult(userId || walletAddress || 'unknown', deployParams.projectToken, true);
+    deploymentLogger.logTokenCheckResult(
+      userId || walletAddress || 'unknown',
+      deployParams.projectToken,
+      true
+    );
 
     // 5. Deploy contract
     deploymentLogger.logDeploymentStart(
@@ -149,7 +159,7 @@ export async function POST(request: NextRequest) {
         deployParams.chainId,
         new Error(result.error || 'Unknown deployment error')
       );
-      
+
       return NextResponse.json(
         {
           success: false,
@@ -166,37 +176,33 @@ export async function POST(request: NextRequest) {
       result.contractAddress!
     );
 
-
     // Helper: Convert BigInt to string for JSON serialization
     const serializeBigInt = (obj: any): any => {
       if (obj === null || obj === undefined) return obj;
       if (typeof obj === 'bigint') return obj.toString();
       if (Array.isArray(obj)) return obj.map(serializeBigInt);
       if (typeof obj === 'object') {
-        return Object.fromEntries(
-          Object.entries(obj).map(([k, v]) => [k, serializeBigInt(v)])
-        );
+        return Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, serializeBigInt(v)]));
       }
       return obj;
     };
 
     // 5. Save to database (Pattern: Project → Launch Round)
     const serializedBody = serializeBigInt(body);
-    
+
     // 5a. Get user_id (UUID) - required for owner_user_id
     // userId from auth is already a UUID from profiles.user_id
     if (!userId) {
-      return NextResponse.json(
-        { error: 'User ID required for project creation' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'User ID required for project creation' }, { status: 400 });
     }
-    
+
     // 5b. Create project record first
     const { data: project, error: projectError } = await supabase
       .from('projects')
       .insert({
         owner_user_id: userId, // ✅ Must be UUID from profiles.user_id
+        creator_id: userId, // ✅ Same as owner
+        creator_wallet: walletAddress,
         name: serializedBody.projectName || `Fairlaunch ${serializedBody.tokenSymbol || 'Token'}`,
         symbol: serializedBody.tokenSymbol || null,
         description: serializedBody.description || null,
@@ -204,7 +210,17 @@ export async function POST(request: NextRequest) {
         website: serializedBody.website || null,
         twitter: serializedBody.twitter || null,
         telegram: serializedBody.telegram || null,
-        status: 'SUBMITTED', // Auto-submit for direct deployment
+        discord: serializedBody.discord || null,
+        status: 'DEPLOYED', // Direct deployment via escrow
+        submitted_at: new Date().toISOString(), // ✅ Auto-submitted
+        approved_at: new Date().toISOString(), // ✅ Auto-approved (escrow model)
+        contract_mode: 'LAUNCHPAD_TEMPLATE', // ✅ CHECK: LAUNCHPAD_TEMPLATE or EXTERNAL_CONTRACT
+        contract_network: 'EVM', // ✅ CHECK: EVM or SOLANA
+        chain_id: deployParams.chainId, // ✅ Numeric chain ID
+        type: 'FAIRLAUNCH', // ✅ Project type
+        token_address: deployParams.projectToken, // ✅ Token contract
+        contract_address: result.contractAddress, // ✅ Fairlaunch contract
+        deployment_tx_hash: result.txHash, // ✅ Deployment transaction
         chains_supported: [deployParams.chainId.toString()],
         kyc_status: 'NONE',
         sc_scan_status: 'PENDING', // Will be updated after GoPlus scan
@@ -219,7 +235,7 @@ export async function POST(request: NextRequest) {
         undefined,
         new Error(projectError?.message || 'Project insert failed')
       );
-      
+
       return NextResponse.json(
         {
           success: false,
@@ -239,12 +255,27 @@ export async function POST(request: NextRequest) {
         project_id: project.id, // ✅ Link to project
         type: 'FAIRLAUNCH',
         chain: deployParams.chainId.toString(),
+        chain_id: deployParams.chainId, // ✅ Numeric chain ID
         token_address: deployParams.projectToken,
-        raise_asset: 'BNB',
-        status: 'APPROVED', // Contract deployed and ready (valid: DRAFT, SUBMITTED, APPROVED, LIVE, ENDED, FINALIZED, REJECTED)
-        deployment_status: 'PENDING_FUNDING', // ✅ Track specific deployment state
+        raise_asset: 'NATIVE',
+        status: 'DEPLOYED', // ✅ Contract deployed
+        deployment_status: 'PENDING_FUNDING', // Track specific deployment state
         contract_address: result.contractAddress,
-        created_by: userId || null, // Optional for wallet-only auth
+        round_address: result.contractAddress, // ✅ Same as contract_address
+        created_by: userId,
+        // ✅ Auto-approved for escrow deployments
+        approved_by: userId,
+        approved_at: new Date().toISOString(),
+        // ✅ Deployment metadata (top-level columns)
+        deployed_at: result.deployedAt.toISOString(),
+        deployer_address: deployer.getDeployerAddress(),
+        deployment_tx_hash: result.txHash,
+        deployment_block_number: result.blockNumber,
+        // ✅ Token & security metadata
+        token_source: serializedBody.tokenSource || 'existing', // ✅ CHECK: factory or existing (lowercase)
+        security_badges: serializedBody.securityBadges || [],
+        fee_splitter_address: serializedBody.feeSplitterAddress || null,
+        sale_type: 'fairlaunch',
         params: {
           // Original parameters (BigInt converted to strings)
           ...serializedBody,
@@ -256,7 +287,7 @@ export async function POST(request: NextRequest) {
           deployer_address: deployer.getDeployerAddress(),
           gas_used: result.gasUsed?.toString(),
           verified: false, // Will be updated by verification worker
-          creator_wallet: walletAddress, // Store wallet for wallet-only auth
+          creator_wallet: walletAddress,
           // Constructor args for verification
           constructor_args: serializeBigInt(result.constructorArgs),
         },
@@ -273,7 +304,7 @@ export async function POST(request: NextRequest) {
         undefined,
         new Error(launchRoundError?.message || 'Launch round insert failed')
       );
-      
+
       return NextResponse.json(
         {
           success: false,
@@ -293,17 +324,13 @@ export async function POST(request: NextRequest) {
       deployParams.chainId,
       result.constructorArgs
     );
-    
-    deploymentLogger.logVerificationQueued(
-      launchRound.id,
-      result.contractAddress,
-      jobId
-    );
+
+    deploymentLogger.logVerificationQueued(launchRound.id, result.contractAddress, jobId);
 
     // 7. Return success response
     const duration = Date.now() - startTime;
     deploymentLogger.logApiResponse(userId || walletAddress || 'unknown', 201, true, duration);
-    
+
     return NextResponse.json(
       {
         success: true,
@@ -325,14 +352,14 @@ export async function POST(request: NextRequest) {
     );
   } catch (error: any) {
     const duration = Date.now() - startTime;
-    
+
     if (userId) {
       deploymentLogger.error('Unexpected error in deployment API', { userId }, error);
       deploymentLogger.logApiResponse(userId || walletAddress || 'unknown', 500, false, duration);
     } else {
       console.error('[DeploymentAPI] Unexpected error:', error);
     }
-    
+
     return NextResponse.json(
       {
         success: false,
@@ -346,7 +373,7 @@ export async function POST(request: NextRequest) {
 
 /**
  * GET /api/fairlaunch/deploy?txHash=0x...
- * 
+ *
  * Check deployment status by transaction hash
  */
 export async function GET(request: NextRequest) {

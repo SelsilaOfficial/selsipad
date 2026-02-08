@@ -40,7 +40,7 @@ async function detectQualifyingEvents(): Promise<QualifyingEvent[]> {
 
   // Check for new successful contributions
   const { data: contributions } = await supabase
-    .from('launch_contributions')
+    .from('contributions')
     .select('id, user_id, created_at')
     .gt('amount', '0')
     .gte('created_at', fiveMinutesAgo);

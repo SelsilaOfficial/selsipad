@@ -5,22 +5,20 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createServiceRoleClient } from '@/lib/supabase/service-role';
+import { getServerSession } from '@/lib/auth/session';
 import { validateReferralActivate } from '@selsipad/shared';
 import type { ReferralActivateRequest } from '@selsipad/shared';
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
-
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
+    const session = await getServerSession();
+    if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    const supabase = createServiceRoleClient();
+    const userId = session.userId;
 
     const body = (await request.json()) as ReferralActivateRequest;
 
@@ -44,7 +42,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Cannot refer yourself
-    if (referrer.user_id === user.id) {
+    if (referrer.user_id === userId) {
       return NextResponse.json({ error: 'Cannot use your own referral code' }, { status: 400 });
     }
 
@@ -52,7 +50,7 @@ export async function POST(request: NextRequest) {
     const { data: existing } = await supabase
       .from('referral_relationships')
       .select('id')
-      .eq('referee_id', user.id)
+      .eq('referee_id', userId)
       .maybeSingle();
 
     if (existing) {
@@ -62,7 +60,7 @@ export async function POST(request: NextRequest) {
     // Create relationship (activated_at will be set by worker)
     const { error: insertError } = await supabase.from('referral_relationships').insert({
       referrer_id: referrer.user_id,
-      referee_id: user.id,
+      referee_id: userId,
       code: body.code,
       activated_at: null, // Will be set by worker on first qualifying event
     });

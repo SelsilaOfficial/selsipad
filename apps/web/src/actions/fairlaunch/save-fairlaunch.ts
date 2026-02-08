@@ -93,36 +93,53 @@ export async function saveFairlaunch(data: SaveFairlaunchData): Promise<SaveFair
       };
     }
 
+    // Determine chain ID from network name
+    const networkToChainId: Record<string, number> = {
+      ethereum: 1,
+      sepolia: 11155111,
+      bnb: 56,
+      bsc_testnet: 97,
+      base: 8453,
+      base_sepolia: 84532,
+    };
+    const chainId = networkToChainId[data.network] || 97;
+
     // 2. Create project record first
     const { data: project, error: projectError } = await supabase
       .from('projects')
       .insert({
         name: data.projectName,
         description: data.description,
-        owner_user_id: session.userId, // Correct column name from schema
+        owner_user_id: session.userId,
+        creator_id: session.userId, // ✅ Creator reference
         chain: data.network,
+        chain_id: chainId, // ✅ Numeric chain ID
         logo_url: data.logoUrl || null,
-        // Store basic social links (only these 3 columns exist in projects table)
         website: data.socialLinks.website || null,
         twitter: data.socialLinks.twitter || null,
         telegram: data.socialLinks.telegram || null,
-        // Note: Discord will be stored in launch_rounds.params instead
+        discord: data.socialLinks.discord || null,
+        type: 'FAIRLAUNCH', // ✅ Project type
+        submitted_at: new Date().toISOString(), // ✅ Submission timestamp
+        contract_mode: 'LAUNCHPAD_TEMPLATE', // ✅ CHECK: LAUNCHPAD_TEMPLATE or EXTERNAL_CONTRACT
+        contract_network: 'EVM', // ✅ CHECK: EVM or SOLANA
 
         // ✅ Factory metadata for SAFU badges
         token_address: data.tokenAddress,
+        contract_address: data.fairlaunchAddress,
+        deployment_tx_hash: data.transactionHash,
         factory_address:
           data.tokenSource === 'factory'
             ? process.env.NEXT_PUBLIC_SIMPLE_TOKEN_FACTORY_BSC_TESTNET || null
             : null,
         template_version: data.tokenSource === 'factory' ? 'v1.0' : null,
 
-        // ✅ Auto-grant security badges for factory tokens in metadata
+        // Auto-grant security badges for factory tokens in metadata
         metadata: data.tokenSource === 'factory' ? { security_badges: ['SAFU', 'SC_PASS'] } : {},
 
-        // Auto-approved for fairlaunch (no KYC/admin review)
-        status: 'LIVE', // Valid values: DRAFT, SUBMITTED, IN_REVIEW, APPROVED, REJECTED, LIVE, ENDED
-        kyc_status: 'NONE', // Valid values: NONE, PENDING, VERIFIED, REJECTED
-        sc_scan_status: 'PASS', // Valid values: IDLE, PENDING, RUNNING, PASS, FAIL, NEEDS_REVIEW
+        status: 'LIVE',
+        kyc_status: 'NONE',
+        sc_scan_status: 'PASS',
       })
       .select()
       .single();
@@ -141,48 +158,35 @@ export async function saveFairlaunch(data: SaveFairlaunchData): Promise<SaveFair
     // Valid status values: DRAFT, SUBMITTED, APPROVED, LIVE, ENDED, FINALIZED, REJECTED
     const initialStatus = startAt > now ? 'APPROVED' : 'LIVE';
 
-    // 3b. Convert network name to chain ID (schema requires numeric string or 'SOLANA')
-    const networkToChainId: Record<string, string> = {
-      ethereum: '1',
-      sepolia: '11155111',
-      bnb: '56',
-      bsc_testnet: '97',
-      base: '8453',
-      base_sepolia: '84532',
-    };
-    const chainId = networkToChainId[data.network] || data.network;
+    // 3b. chain string for launch_round (uses chainId already defined above)
+    const chainStr = chainId.toString();
 
     // 4. Create launch_round record
     const { data: round, error: roundError } = await supabase
       .from('launch_rounds')
       .insert({
         project_id: project.id,
-        type: 'FAIRLAUNCH', // Valid values: PRESALE, FAIRLAUNCH
-        chain: chainId, // Must be numeric string for EVM or 'SOLANA'
+        type: 'FAIRLAUNCH',
+        chain: chainStr,
+        chain_id: chainId, // ✅ Numeric chain ID
         token_address: data.tokenAddress,
-        raise_asset: 'NATIVE', // Fairlaunch always uses native token
+        raise_asset: 'NATIVE',
         start_at: data.startTime,
         end_at: data.endTime,
         status: initialStatus,
         created_by: session.userId,
+        sale_type: 'fairlaunch',
+        // ✅ Top-level columns (not just in params)
+        round_address: data.fairlaunchAddress, // ✅ Contract address
+        contract_address: data.fairlaunchAddress,
+        token_source: data.tokenSource, // ✅ 'factory' or 'existing'
+        security_badges: data.securityBadges || [], // ✅ Badge array
+        fee_splitter_address: data.feeSplitterAddress || null, // ✅ Fee splitter
+        vesting_vault_address: data.vestingAddress || null, // ✅ Vesting vault
+        deployed_at: new Date().toISOString(), // ✅ Deployment time
+        deployment_tx_hash: data.transactionHash, // ✅ Tx hash
         // Store all fairlaunch-specific configuration in params JSONB
         params: {
-          // Token source metadata
-          token_source: data.tokenSource, // 'factory' or 'existing'
-          security_badges: data.securityBadges,
-
-          // Token metadata
-          token_name: data.tokenName,
-          token_symbol: data.tokenSymbol,
-          token_address: data.tokenAddress,
-          token_decimals: data.tokenDecimals || 18,
-          token_total_supply: data.tokenTotalSupply,
-
-          // Contract addresses
-          round_address: data.fairlaunchAddress,
-          vesting_vault_address: data.vestingAddress || null,
-          fee_splitter_address: data.feeSplitterAddress || null,
-
           // Listing configuration
           listing_premium_bps: data.listingPremiumBps,
 
@@ -196,26 +200,20 @@ export async function saveFairlaunch(data: SaveFairlaunchData): Promise<SaveFair
           // Liquidity configuration
           liquidity_percent: data.liquidityPercent,
           lp_lock_months: data.lpLockMonths,
+          liquidity_tokens: Math.round(
+            parseFloat(data.tokensForSale) * (data.liquidityPercent / 100)
+          ).toString(),
 
           // Team vesting
-          team_allocation: data.teamAllocation,
-          vesting_beneficiary: data.vestingBeneficiary,
+          vesting_address: data.vestingBeneficiary,
+          team_vesting_tokens: data.teamAllocation,
           vesting_schedule: data.vestingSchedule,
 
-          // Full social links (4 platforms)
+          // Social links
           social_links: data.socialLinks,
 
-          // Project info (stored in both places for easy access)
-          project_name: data.projectName,
-          project_description: data.description,
-          logo_url: data.logoUrl,
-
-          // Network name (for easy display)
-          network_name: data.network, // e.g., 'bsc_testnet', 'sepolia'
-
-          // Deployment metadata
-          deployed_at: new Date().toISOString(),
-          deployment_tx: data.transactionHash,
+          // Network name
+          network_name: data.network,
         },
       })
       .select()

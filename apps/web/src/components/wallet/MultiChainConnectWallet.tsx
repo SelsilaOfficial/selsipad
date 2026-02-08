@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useWeb3Modal } from '@web3modal/wagmi/react';
 import { useAccount, useSignMessage } from 'wagmi';
 import { signMessageEVM, verifyAndCreateSession } from '@/lib/wallet/signMessage';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 /**
  * Multi-Chain Connect Wallet Button with Auto Sign-In
@@ -17,6 +17,7 @@ export function MultiChainConnectWallet() {
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [referralCode, setReferralCode] = useState<string | null>(null);
 
   // EVM
   const { open } = useWeb3Modal();
@@ -24,10 +25,22 @@ export function MultiChainConnectWallet() {
   const { signMessageAsync } = useSignMessage();
 
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   useEffect(() => {
     setMounted(true);
-  }, []);
+    // Capture referral code from URL (?ref=CODE)
+    const ref = searchParams.get('ref');
+    if (ref) {
+      setReferralCode(ref);
+      // Also persist to localStorage in case user navigates before signing in
+      localStorage.setItem('selsipad_referral_code', ref);
+    } else {
+      // Check localStorage for previously captured code
+      const storedRef = localStorage.getItem('selsipad_referral_code');
+      if (storedRef) setReferralCode(storedRef);
+    }
+  }, [searchParams]);
 
   // Check session status on mount and when address changes
   useEffect(() => {
@@ -116,13 +129,16 @@ export function MultiChainConnectWallet() {
       // Sign authentication message
       const signResult = await signMessageEVM(signMessageAsync, address);
 
-      // Verify and create session
-      const result = await verifyAndCreateSession('evm', signResult);
+      // Verify and create session (with referral code if available)
+      const result = await verifyAndCreateSession('evm', signResult, referralCode || undefined);
 
       if (result.success) {
-        // Success! Update auth state and refresh
+        // Success! Update auth state, clear referral code, and refresh
         console.log('[Wallet] Authentication successful');
         setIsAuthenticated(true);
+        // Clear stored referral code after successful auth
+        localStorage.removeItem('selsipad_referral_code');
+        setReferralCode(null);
         router.refresh();
       } else {
         setAuthError(result.error || 'Authentication failed');

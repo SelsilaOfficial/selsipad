@@ -8,7 +8,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createServiceRoleClient } from '@/lib/supabase/service-role';
+import { getServerSession } from '@/lib/auth/session';
 import {
   validateReferralClaim,
   checkClaimEligibility,
@@ -18,16 +19,13 @@ import type { ReferralClaimRequest } from '@selsipad/shared';
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
-
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
+    const session = await getServerSession();
+    if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    const supabase = createServiceRoleClient();
+    const userId = session.userId;
 
     const body = (await request.json()) as ReferralClaimRequest;
 
@@ -43,7 +41,7 @@ export async function POST(request: NextRequest) {
     const { data: profile } = await supabase
       .from('profiles')
       .select('bluecheck_status, active_referral_count, primary_wallet')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .single();
 
     if (!profile) {
@@ -54,7 +52,7 @@ export async function POST(request: NextRequest) {
     const { data: ledgerEntries } = await supabase
       .from('referral_ledger')
       .select('*')
-      .eq('referrer_id', user.id);
+      .eq('referrer_id', userId);
 
     // CRITICAL: Check claim eligibility
     const eligibility = checkClaimEligibility(
@@ -91,7 +89,7 @@ export async function POST(request: NextRequest) {
       const { data: recentClaim } = await supabase
         .from('referral_ledger')
         .select('*')
-        .eq('referrer_id', user.id)
+        .eq('referrer_id', userId)
         .eq('chain', body.chain)
         .eq('asset', body.asset)
         .eq('status', 'CLAIMED')

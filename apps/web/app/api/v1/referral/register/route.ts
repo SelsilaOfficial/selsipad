@@ -4,7 +4,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createServiceRoleClient } from '@/lib/supabase/service-role';
+import { getServerSession } from '@/lib/auth/session';
 
 function generateReferralCode(userId: string): string {
   const userHash = userId.substring(0, 4).toUpperCase();
@@ -14,22 +15,19 @@ function generateReferralCode(userId: string): string {
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
-
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
+    const session = await getServerSession();
+    if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    const supabase = createServiceRoleClient();
+    const userId = session.userId;
 
     // Check if user already has a referral code in profile
     const { data: profile } = await supabase
       .from('profiles')
       .select('referral_code')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .single();
 
     if (profile?.referral_code) {
@@ -40,7 +38,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate unique code
-    let code = generateReferralCode(user.id);
+    let code = generateReferralCode(userId);
     let attempts = 0;
     const maxAttempts = 10;
 
@@ -53,7 +51,7 @@ export async function POST(request: NextRequest) {
 
       if (!existing) break;
 
-      code = generateReferralCode(user.id);
+      code = generateReferralCode(userId);
       attempts++;
     }
 
@@ -65,7 +63,7 @@ export async function POST(request: NextRequest) {
     const { error: updateError } = await supabase
       .from('profiles')
       .update({ referral_code: code })
-      .eq('user_id', user.id);
+      .eq('user_id', userId);
 
     if (updateError) {
       console.error('Error updating profile with referral code:', updateError);

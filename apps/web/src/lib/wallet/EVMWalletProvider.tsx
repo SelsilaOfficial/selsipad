@@ -93,7 +93,7 @@ const wagmiConfig = createConfig({
     // Testnets
     [baseSepolia.id]: http(),
     [sepolia.id]: http(),
-    [bscTestnet.id]: http(),
+    [bscTestnet.id]: http('https://bsc-testnet-rpc.publicnode.com', { timeout: 15000 }),
   },
   ssr: true,
 });

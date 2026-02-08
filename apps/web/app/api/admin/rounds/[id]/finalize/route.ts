@@ -47,7 +47,9 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     const allowedStatuses = ['ENDED', 'DEPLOYED'];
     if (!allowedStatuses.includes(round.status)) {
       return NextResponse.json(
-        { error: `Can only finalize rounds with status ENDED or DEPLOYED (current: ${round.status})` },
+        {
+          error: `Can only finalize rounds with status ENDED or DEPLOYED (current: ${round.status})`,
+        },
         { status: 400 }
       );
     }
@@ -65,7 +67,8 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
     const roundAddress = round.round_address || round.contract_address;
     const vestingVaultAddress = round.vesting_vault_address;
-    const scheduleSalt = round.schedule_salt || '0x0000000000000000000000000000000000000000000000000000000000000000';
+    const scheduleSalt =
+      round.schedule_salt || '0x0000000000000000000000000000000000000000000000000000000000000000';
     const chain = String(round.chain || '97');
     const chainId = parseInt(chain, 10) || 97;
 
@@ -77,7 +80,10 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
       const rpcUrl = RPC_BY_CHAIN[chain];
       if (!rpcUrl) {
-        return NextResponse.json({ error: `Unsupported chain for finalize: ${chain}` }, { status: 400 });
+        return NextResponse.json(
+          { error: `Unsupported chain for finalize: ${chain}` },
+          { status: 400 }
+        );
       }
 
       const provider = new ethers.JsonRpcProvider(rpcUrl);
@@ -92,7 +98,10 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
           .eq('status', 'CONFIRMED');
 
         if (!contributions?.length) {
-          return NextResponse.json({ error: 'No confirmed contributions for success finalization' }, { status: 400 });
+          return NextResponse.json(
+            { error: 'No confirmed contributions for success finalization' },
+            { status: 400 }
+          );
         }
 
         const price = Number((round.params as PresaleParams).price) || 1;
@@ -116,15 +125,18 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
         for (const alloc of allocations) {
           const proof = merkleData.proofsByWallet[alloc.address];
-          await supabase.from('presale_merkle_proofs').upsert({
-            round_id: roundId,
-            wallet_address: alloc.address,
-            allocation: alloc.allocation.toString(),
-            proof: proof || [],
-          }, { onConflict: 'round_id,wallet_address' });
+          await supabase.from('presale_merkle_proofs').upsert(
+            {
+              round_id: roundId,
+              wallet_address: alloc.address,
+              allocation: alloc.allocation.toString(),
+              proof: proof || [],
+            },
+            { onConflict: 'round_id,wallet_address' }
+          );
         }
 
-        const tx = await roundContract.finalizeSuccess(
+        const tx = await (roundContract as any).finalizeSuccess(
           merkleData.root,
           merkleData.totalAllocation
         );
@@ -160,7 +172,9 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
             refund_status: 'NONE',
           };
         });
-        await supabase.from('round_allocations').upsert(roundAllocations, { onConflict: 'round_id,user_id' }).catch(() => {});
+        await supabase
+          .from('round_allocations')
+          .upsert(roundAllocations, { onConflict: 'round_id,user_id' });
 
         return NextResponse.json({
           round_id: roundId,
@@ -172,7 +186,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       }
 
       const reason = 'Soft cap not met';
-      const tx = await roundContract.finalizeFailed(reason);
+      const tx = await (roundContract as any).finalizeFailed(reason);
       const failReceipt = await tx.wait();
 
       await supabase
@@ -199,7 +213,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
           status: 'PENDING',
           chain: round.chain,
         }));
-        await supabase.from('refunds').insert(refunds).catch(() => {});
+        await supabase.from('refunds').insert(refunds);
       }
 
       return NextResponse.json({
@@ -219,8 +233,10 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
     let finalPrice: number | undefined;
     if (round.type === 'FAIRLAUNCH' && result === 'SUCCESS') {
-      const fp = round.params as FairlaunchParams;
-      finalPrice = totalRaised / fp.token_for_sale;
+      // DB may have either 'token_for_sale' or 'tokens_for_sale'
+      const params = round.params as any;
+      const tokensForSale = params.tokens_for_sale || params.token_for_sale || 0;
+      finalPrice = tokensForSale > 0 ? totalRaised / tokensForSale : 0;
       updates.params = { ...round.params, final_price: finalPrice };
     }
 
@@ -265,7 +281,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
             refund_status: 'NONE',
           };
         });
-        await supabase.from('round_allocations').upsert(allocations).catch(() => {});
+        await supabase.from('round_allocations').upsert(allocations);
       }
     }
 
@@ -284,7 +300,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
           status: 'PENDING',
           chain: round.chain,
         }));
-        await supabase.from('refunds').insert(refunds).catch(() => {});
+        await supabase.from('refunds').insert(refunds);
       }
     }
 

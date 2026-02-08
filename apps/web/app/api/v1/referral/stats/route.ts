@@ -4,34 +4,32 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createServiceRoleClient } from '@/lib/supabase/service-role';
+import { getServerSession } from '@/lib/auth/session';
 import { calculateReferralStatistics, checkClaimEligibility } from '@selsipad/shared';
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient();
-
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
+    const session = await getServerSession();
+    if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    const supabase = createServiceRoleClient();
+    const userId = session.userId;
 
     // Get profile data
     const { data: profile } = await supabase
       .from('profiles')
       .select('active_referral_count, bluecheck_status')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .single();
 
     // Get total referrals
     const { data: referrals, count: totalReferrals } = await supabase
       .from('referral_relationships')
       .select('*', { count: 'exact' })
-      .eq('referrer_id', user.id);
+      .eq('referrer_id', userId);
 
     // Get active referrals
     const activeReferrals = referrals?.filter((r) => r.activated_at !== null).length || 0;
@@ -40,7 +38,7 @@ export async function GET(request: NextRequest) {
     const { data: ledgerEntries } = await supabase
       .from('referral_ledger')
       .select('*')
-      .eq('referrer_id', user.id);
+      .eq('referrer_id', userId);
 
     // Calculate statistics
     const stats = calculateReferralStatistics(

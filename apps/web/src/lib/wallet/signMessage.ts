@@ -70,7 +70,8 @@ export async function signMessageEVM(
  */
 export async function verifyAndCreateSession(
   walletType: 'solana' | 'evm',
-  signResult: SignMessageResult
+  signResult: SignMessageResult,
+  referralCode?: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
     console.log('[Frontend] Sending to API:', {
@@ -78,6 +79,7 @@ export async function verifyAndCreateSession(
       address: signResult.address,
       messageLength: signResult.message.length,
       signatureLength: signResult.signature.length,
+      referralCode: referralCode || '(none)',
     });
 
     const response = await fetch('/api/auth/wallet', {
@@ -90,6 +92,7 @@ export async function verifyAndCreateSession(
         address: signResult.address,
         message: signResult.message,
         signature: signResult.signature,
+        ...(referralCode ? { referralCode } : {}),
       }),
     });
 

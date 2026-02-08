@@ -296,7 +296,7 @@ export function FairlaunchDetail({ fairlaunch, userAddress }: FairlaunchDetailPr
       enabled: isFailed || isCancelled,
       hasIndicator: isFailed || isCancelled,
     },
-    { key: 'transactions', label: 'Transactions', enabled: !!userAddress },
+    { key: 'transactions', label: 'Transactions', enabled: true },
   ];
 
   // Helper for funding check

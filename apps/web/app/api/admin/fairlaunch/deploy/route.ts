@@ -258,6 +258,46 @@ export async function POST(request: NextRequest) {
     const params = launchRound.params || {};
 
     // Tuple 1: CreateFairlaunchParams
+    // CRITICAL: Auto-adjust startTime/endTime if they are in the past.
+    // The factory validates startTime > block.timestamp (line 207 in FairlaunchFactory.sol).
+    // Admin review delay often causes original times to expire.
+    const nowUnix = Math.floor(Date.now() / 1000);
+    const DEPLOY_BUFFER_SECONDS = 5 * 60; // 5 minutes buffer
+
+    let startTimeUnix = isoToUnixSeconds(launchRound.start_at);
+    let endTimeUnix = isoToUnixSeconds(launchRound.end_at);
+    const originalDuration = endTimeUnix - startTimeUnix;
+
+    if (startTimeUnix <= nowUnix) {
+      const newStart = nowUnix + DEPLOY_BUFFER_SECONDS;
+      const newEnd = newStart + Math.max(originalDuration, 3600); // Minimum 1 hour duration
+      console.log('[Admin Deploy] ⚠️ startTime is in the past, auto-adjusting:');
+      console.log(
+        `  Original: start=${new Date(startTimeUnix * 1000).toISOString()}, end=${new Date(endTimeUnix * 1000).toISOString()}`
+      );
+      console.log(
+        `  Adjusted: start=${new Date(newStart * 1000).toISOString()}, end=${new Date(newEnd * 1000).toISOString()}`
+      );
+      console.log(`  Duration preserved: ${originalDuration}s → ${newEnd - newStart}s`);
+      startTimeUnix = newStart;
+      endTimeUnix = newEnd;
+
+      // Update database with adjusted times so UI shows correct countdown
+      const { error: timeUpdateError } = await supabase
+        .from('launch_rounds')
+        .update({
+          start_at: new Date(startTimeUnix * 1000).toISOString(),
+          end_at: new Date(endTimeUnix * 1000).toISOString(),
+        })
+        .eq('id', launchRoundId);
+
+      if (timeUpdateError) {
+        console.error('[Admin Deploy] Failed to update adjusted times:', timeUpdateError);
+      } else {
+        console.log('[Admin Deploy] ✅ Database times updated');
+      }
+    }
+
     const createParams = {
       projectToken: project.token_address,
       paymentToken: ethers.ZeroAddress, // Native BNB
@@ -265,8 +305,8 @@ export async function POST(request: NextRequest) {
       tokensForSale: ethers.parseUnits(params.tokens_for_sale.toString(), 18),
       minContribution: ethers.parseEther((params.min_contribution || '0.1').toString()),
       maxContribution: ethers.parseEther((params.max_contribution || '10').toString()),
-      startTime: BigInt(isoToUnixSeconds(launchRound.start_at)),
-      endTime: BigInt(isoToUnixSeconds(launchRound.end_at)),
+      startTime: BigInt(startTimeUnix),
+      endTime: BigInt(endTimeUnix),
       projectOwner: project.creator_wallet,
       listingPremiumBps: BigInt(params.listing_premium_bps || 0), // 0 = fair launch price
     };

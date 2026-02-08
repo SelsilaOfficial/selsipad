@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { cookies } from 'next/headers';
 import { PublicKey } from '@solana/web3.js';
 import nacl from 'tweetnacl';
@@ -12,6 +13,7 @@ interface WalletAuthRequest {
   address: string;
   message: string;
   signature: string;
+  referralCode?: string; // Optional referral code from ?ref=CODE
 }
 
 /**
@@ -22,7 +24,7 @@ interface WalletAuthRequest {
 export async function POST(request: NextRequest) {
   try {
     const body: WalletAuthRequest = await request.json();
-    const { walletType, address, message, signature } = body;
+    const { walletType, address, message, signature, referralCode } = body;
 
     // Validate inputs
     if (!walletType || !address || !message || !signature) {
@@ -143,11 +145,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Step 3: Create session using custom auth_sessions table
+    // Step 3: Create referral relationship
+    await assignReferral(userId, referralCode);
+
+    // Step 4: Create session using custom auth_sessions table
     const { createSession } = await import('@/lib/auth/session');
     const sessionToken = await createSession(normalizedAddress, chain, userId);
 
-    // Step 4: Set session cookie
+    // Step 5: Set session cookie
     cookies().set('session_token', sessionToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -159,6 +164,7 @@ export async function POST(request: NextRequest) {
     console.log('[Auth] New user created with wallet-only auth', {
       userId,
       address: normalizedAddress,
+      referralCode: referralCode || '(master)',
     });
 
     return NextResponse.json({
@@ -173,6 +179,68 @@ export async function POST(request: NextRequest) {
       { error: 'Internal server error', details: error.message },
       { status: 500 }
     );
+  }
+}
+
+/**
+ * Assign referral relationship for new user
+ * If referralCode provided → use that referrer
+ * If no code → assign to master referral (invisible, non-overridable)
+ */
+async function assignReferral(userId: string, referralCode?: string): Promise<void> {
+  try {
+    const supabase = createServiceRoleClient();
+
+    let referrerId: string | null = null;
+    let code = referralCode || '';
+
+    if (referralCode) {
+      // Look up referrer by code
+      const { data: referrer } = await supabase
+        .from('profiles')
+        .select('user_id')
+        .eq('referral_code', referralCode)
+        .single();
+
+      if (referrer && referrer.user_id !== userId) {
+        referrerId = referrer.user_id;
+        code = referralCode;
+      }
+    }
+
+    // Fallback: assign to master referral
+    if (!referrerId) {
+      const { data: config } = await supabase
+        .from('platform_config')
+        .select('value')
+        .eq('key', 'master_referral_user_id')
+        .single();
+
+      if (config?.value && config.value !== userId) {
+        referrerId = config.value;
+        code = 'MASTER';
+      }
+    }
+
+    // Create the relationship
+    if (referrerId) {
+      const { error } = await supabase.from('referral_relationships').insert({
+        referrer_id: referrerId,
+        referee_id: userId,
+        code: code,
+        activated_at: null, // Will be set on first qualifying event
+      });
+
+      if (error) {
+        // Don't fail auth if referral fails - just log
+        console.error('[Auth] Failed to create referral relationship:', error.message);
+      } else {
+        console.log('[Auth] Referral assigned:', { userId, referrerId, code });
+      }
+    }
+  } catch (error) {
+    // Don't fail auth if referral fails
+    console.error('[Auth] Error assigning referral:', error);
   }
 }
 

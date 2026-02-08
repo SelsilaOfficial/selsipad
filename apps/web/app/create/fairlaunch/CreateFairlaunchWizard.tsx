@@ -74,7 +74,7 @@ const FAIRLAUNCH_STEPS = [
   { id: 4, title: 'Liquidity Plan', description: 'LP allocation & lock' },
   { id: 5, title: 'Team Vesting', description: 'Team tokens & schedule' },
   { id: 6, title: 'Review & Apply', description: 'Final review' },
-  { id: 7, title: 'Deploy', description: 'Deploy fairlaunch' },
+  { id: 7, title: 'Submit', description: 'Submit to admin' },
 ];
 
 export function CreateFairlaunchWizard({ walletAddress }: CreateFairlaunchWizardProps) {

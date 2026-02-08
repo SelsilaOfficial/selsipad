@@ -1,48 +1,76 @@
 {
-    "project": "SELSIPAD v3",
-    "module": "Modul 10 - Reward Pool + Referral Engine (Single-Side)",
-    "generated_date": "2026-01-05",
-    "core_specifications": {
-        "referral_model": "Single-side: hadiah hanya untuk referrer berdasarkan kontribusi referee.",
-        "claim_gate": "Reward tetap terakumulasi (accrue) untuk semua, tapi hanya bisa diklaim oleh user status Blue Check ACTIVE.",
-        "payout_address": "Otomatis dikirim ke primary wallet user di profil sesuai jaringan aset reward.",
-        "non_referrer_rule": "Jika referee tidak punya referrer, porsi referral dialihkan ke Treasury."
+  "modul": 10,
+  "nama": "Referral & Reward Pool",
+  "deskripsi": "Sistem referral pool terpusat off-chain, single-side reward model dengan master referral fallback",
+  "versi": "2.0.0",
+  "terakhir_diperbarui": "2026-02-07",
+
+  "model_referral": {
+    "tipe": "SINGLE_SIDE",
+    "catatan": "Hanya referrer yang mendapat reward. Referee tidak mendapat reward dari referral, hanya benefit dari fitur platform.",
+    "master_referral": {
+      "deskripsi": "User yang sign up tanpa ?ref=CODE otomatis di-assign ke master referral (invisible, non-overridable)",
+      "akun": "selsipad_platform",
+      "kode": "MASTER",
+      "tabel_config": "platform_config (key: master_referral_user_id)"
+    }
+  },
+
+  "tabel_database": {
+    "referral_relationships": "Hubungan referrer-referee, diaktifkan saat qualifying event pertama",
+    "fee_splits": "Distribusi fee per transaksi (treasury + referral_pool + staking_pool)",
+    "referral_ledger": "Ledger reward per referrer (CLAIMABLE -> CLAIMED)",
+    "contributions": "Kontribusi user ke launch rounds (source data untuk fee splits)"
+  },
+
+  "fee_distribusi": {
+    "catatan": "Persentase sesuai Modul 15",
+    "presale_fairlaunch": {
+      "fee_total": "5% dari kontribusi",
+      "treasury": "50% dari fee (2.5% total)",
+      "referral_pool": "40% dari fee (2% total)",
+      "sbt_staking": "10% dari fee (0.5% total)"
     },
-    "reward_sources": {
-        "presale_fairlaunch": "Success fee (5%) didistribusikan secara proporsional kepada referrer dari peserta yang eligible.",
-        "bonding_swap": "1.5% swap fee dibagi 50% Treasury dan 50% Referral Pool.",
-        "blue_check": "$10 purchase fee dibagi 70% Treasury dan 30% Referral Pool."
+    "bonding_curve": {
+      "fee_total": "1.5% dari swap",
+      "treasury": "50%",
+      "referral_pool": "50%",
+      "sbt_staking": "0%"
     },
-    "engine_inputs": {
-        "contribute_event": {
-            "fields": [
-                "profile_id (referee)",
-                "wallet",
-                "module_type",
-                "amount",
-                "currency",
-                "tx_id"
-            ],
-            "sources": [
-                "Presale Participation",
-                "Fairlaunch Contribution",
-                "Bonding BUY/SELL volume",
-                "Blue Check Purchase"
-            ] 
-        }
+    "bluecheck": {
+      "fee_total": "$10 (seluruh pembayaran)",
+      "treasury": "70%",
+      "referral_pool": "30%",
+      "sbt_staking": "0%"
     },
-    "database_schema": {
-        "tables": [
-            "fee_events & fee_splits: Pencatatan fee global dan target distribusinya.",
-            "contribute_events: Input mentah untuk mesin referral.",
-            "referral_reward_ledger: Buku besar pendapatan reward per event yang bisa ditelusuri.",
-            "referral_claims: Status pencairan (PENDING, PAID, FAILED) dan detail payout."
-        ]
-    },
-    "pipeline_workflow": [
-        "Ingest contribute_events dari berbagai modul.",
-        "Worker melakukan sweep fee_splits target REFERRAL_POOL.",
-        "Distribusi ledger (direct mapping atau proporsional untuk round sukses).",
-        "Eksekusi klaim melalui Tx Manager setelah verifikasi status Blue Check."
-    ]
+    "token_creation": {
+      "fee_total": "varies per chain",
+      "treasury": "100%",
+      "referral_pool": "0%",
+      "sbt_staking": "0%"
+    }
+  },
+
+  "claim_gate": {
+    "syarat_1": "Blue Check status ACTIVE",
+    "syarat_2": "active_referral_count >= 1",
+    "catatan": "Semua user punya referrer (master referral fallback), jadi claim gate fokus ke Blue Check status"
+  },
+
+  "auth_system": {
+    "catatan": "Selsipad menggunakan wallet-only auth (bukan Supabase Auth). Session dikelola via custom session_token cookie.",
+    "session_source": "getServerSession() → auth_sessions table",
+    "BUKAN": "supabase.auth.getUser() — ini selalu return null untuk wallet-only sessions"
+  },
+
+  "alur_referral": [
+    "1. User buka selsipad.com?ref=CODE → referralCode disimpan di localStorage",
+    "2. User connect wallet → sign message → POST /api/auth/wallet dengan referralCode",
+    "3. Backend: cari referrer by code, buat referral_relationships (activated_at = null)",
+    "4. Jika tidak ada code: assign ke master referral (selsipad_platform)",
+    "5. User contribute → save-contribution.ts → recordContribution()",
+    "6. recordContribution: set activated_at jika pertama kali, buat fee_splits",
+    "7. Worker (reward-distributor): proses fee_splits → buat referral_ledger entries",
+    "8. Referrer claim rewards via /api/v1/referral/claim (gated by Blue Check)"
+  ]
 }

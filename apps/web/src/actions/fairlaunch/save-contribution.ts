@@ -1,6 +1,6 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
+import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { getServerSession } from '@/lib/auth/session';
 import { recordContribution } from '@/actions/referral/record-contribution';
 
@@ -17,38 +17,35 @@ export async function saveFairlaunchContribution(params: {
   try {
     // Get current session (optional for referral tracking)
     const session = await getServerSession();
-    
-    const supabase = createClient();
-    
+
+    const supabase = createServiceRoleClient();
+
     // Get round details
     const { data: round, error: roundError } = await supabase
       .from('launch_rounds')
       .select('id, chain, raise_asset, token_address')
       .eq('id', params.roundId)
       .single();
-    
+
     if (roundError || !round) {
       return { success: false, error: 'Round not found' };
     }
-    
+
     // Convert amount from wei to ether for database storage
     const amountInEther = (Number(params.amount) / 1e18).toString();
-    
+
     // Save contribution to database
     // IMPORTANT: status must be 'CONFIRMED' to trigger total_raised update
-    // Note: user_id is nullable because wallet-only auth may not populate auth.users
-    const { error: insertError } = await supabase
-      .from('contributions')
-      .insert({
-        round_id: params.roundId,
-        user_id: null, // Nullable - wallet-only auth doesn't use auth.users
-        wallet_address: params.walletAddress.toLowerCase(), // Use provided wallet address
-        amount: amountInEther,
-        chain: params.chain,
-        tx_hash: params.txHash,
-        status: 'CONFIRMED',
-      });
-    
+    const { error: insertError } = await supabase.from('contributions').insert({
+      round_id: params.roundId,
+      user_id: session?.userId || null, // From wallet-only session (EVM auth)
+      wallet_address: params.walletAddress.toLowerCase(), // Use provided wallet address
+      amount: amountInEther,
+      chain: params.chain,
+      tx_hash: params.txHash,
+      status: 'CONFIRMED',
+    });
+
     if (insertError) {
       // If duplicate tx_hash, ignore (already recorded)
       if (!insertError.message.includes('duplicate') && !insertError.message.includes('unique')) {
@@ -56,8 +53,7 @@ export async function saveFairlaunchContribution(params: {
         return { success: false, error: insertError.message };
       }
     }
-    
-    
+
     // ✅ Record for referral tracking
     // Skip if userId is null (wallet-only auth) or no session
     if (session?.userId) {
@@ -71,8 +67,7 @@ export async function saveFairlaunchContribution(params: {
         txHash: params.txHash,
       });
     }
-    
-    
+
     return { success: true };
   } catch (error: any) {
     console.error('saveFairlaunchContribution error:', error);
