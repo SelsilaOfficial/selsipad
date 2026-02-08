@@ -10,6 +10,7 @@ import {
 import { PageContainer } from '@/components/layout';
 import { getTrendingProjects, getFeaturedProjects } from '@/lib/data/projects';
 import { DashboardHeader } from '@/components/home/DashboardHeader';
+import { Hero } from '@/components/home/Hero';
 import { Footer } from '@/components/layout/Footer';
 
 export default async function HomePage() {
@@ -20,6 +21,9 @@ export default async function HomePage() {
     <div className="min-h-screen bg-bg-page pb-20">
       {/* Header */}
       <DashboardHeader />
+
+      {/* Hero Section */}
+      <Hero />
 
       <PageContainer className="py-6 space-y-8">
         {/* Trending Section */}
