@@ -32,7 +32,7 @@ export async function approvePresale(roundId: string) {
       return { success: false, error: 'Not a presale round' };
     }
 
-    if (round.status !== 'SUBMITTED_FOR_REVIEW') {
+    if (round.status !== 'SUBMITTED') {
       return { success: false, error: `Cannot approve: current status is ${round.status}` };
     }
 
@@ -94,7 +94,7 @@ export async function rejectPresale(roundId: string, reason: string) {
       return { success: false, error: 'Not a presale round' };
     }
 
-    if (round.status !== 'SUBMITTED_FOR_REVIEW') {
+    if (round.status !== 'SUBMITTED') {
       return { success: false, error: `Cannot reject: current status is ${round.status}` };
     }
 

@@ -60,7 +60,7 @@ export function CreatePresaleWizard({
     investor_vesting: { tge_percentage: 0, cliff_months: 0, schedule: [] },
     team_vesting: { team_allocation: '0', schedule: [] },
     lp_lock: { duration_months: 12, percentage: 100 },
-    fees_referral: { platform_fee_bps: 500, referral_enabled: true, referral_reward_bps: 100 },
+    fees_referral: { platform_fee_bps: 500 },
     // Contract security defaults
     contract_mode: null,
     contract_address: '',
@@ -332,8 +332,12 @@ export function CreatePresaleWizard({
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          start_at: validated.sale_params?.start_at,
-          end_at: validated.sale_params?.end_at,
+          start_at: validated.sale_params?.start_at
+            ? new Date(validated.sale_params.start_at).toISOString()
+            : undefined,
+          end_at: validated.sale_params?.end_at
+            ? new Date(validated.sale_params.end_at).toISOString()
+            : undefined,
           params,
         }),
       });
@@ -361,9 +365,23 @@ export function CreatePresaleWizard({
   };
 
   // Compliance status
+  // KYC: always CONFIRMED — only KYC-verified developers can access this page
+  // SC Scan: derived from Step 0 wizard data:
+  //   - Factory template → template_audit_status = 'PASS' (default contract)
+  //   - External contract → scan_status from ExternalScanStep
+  const resolvedScStatus = (() => {
+    // Factory template → always PASS (pre-audited default contract)
+    if (wizardData.contract_mode === 'LAUNCHPAD_TEMPLATE') return 'PASS' as const;
+    if (wizardData.template_audit_status === 'VALID') return 'PASS' as const;
+    // External contract → use scan result from Step 0
+    if (wizardData.scan_status === 'PASS' || wizardData.scan_status === 'OVERRIDE_PASS')
+      return wizardData.scan_status;
+    return initialScScanStatus;
+  })();
+
   const complianceStatus: ComplianceStatus = {
-    kyc_status: initialKycStatus,
-    sc_scan_status: initialScScanStatus,
+    kyc_status: 'CONFIRMED',
+    sc_scan_status: resolvedScStatus,
     investor_vesting_valid:
       (wizardData.investor_vesting?.schedule?.length || 0) > 0 &&
       Math.abs(
@@ -421,6 +439,11 @@ export function CreatePresaleWizard({
                 contract_address: data.contract_address,
                 scan_status: data.scan_status,
                 template_audit_status: data.template_audit_status,
+                // Token info from on-chain read (ExternalScanStep / TemplateModeStep)
+                total_supply: data.total_supply || wizardData.total_supply,
+                token_name: data.token_name || wizardData.token_name,
+                token_symbol: data.token_symbol || wizardData.token_symbol,
+                token_decimals: data.token_decimals || wizardData.token_decimals,
               });
             }}
             projectId={projectId}
@@ -445,6 +468,22 @@ export function CreatePresaleWizard({
             errors={errors}
             network={wizardData.network || wizardData.basics?.network}
             totalSupply={wizardData.total_supply}
+            tokenAddress={wizardData.contract_address}
+            onTotalSupplyRead={(supply) => {
+              if (supply && supply !== wizardData.total_supply) {
+                setWizardData((prev: any) => ({ ...prev, total_supply: supply }));
+              }
+            }}
+            onTokenSymbolRead={(symbol) => {
+              if (symbol && symbol !== wizardData.token_symbol) {
+                setWizardData((prev: any) => ({ ...prev, token_symbol: symbol }));
+              }
+            }}
+            onTokenDecimalsRead={(decimals) => {
+              if (decimals !== undefined && decimals !== wizardData.token_decimals) {
+                setWizardData((prev: any) => ({ ...prev, token_decimals: decimals }));
+              }
+            }}
           />
         )}
 
@@ -502,8 +541,16 @@ export function CreatePresaleWizard({
         {currentStep === 9 && (
           <Step9Submit
             complianceStatus={complianceStatus}
-            onSubmit={handleSubmit}
+            wizardData={wizardData}
             isSubmitting={isSubmitting}
+            tokenAddress={
+              wizardData.contract_address || wizardData.sale_params?.token_address || ''
+            }
+            tokenDecimals={wizardData.token_decimals || 18}
+            tokensForSale={wizardData.sale_params?.total_tokens || '0'}
+            teamAllocation={wizardData.team_vesting?.team_allocation || '0'}
+            lpLockPercentage={wizardData.lp_lock?.percentage || 0}
+            network={wizardData.network || wizardData.basics?.network || ''}
           />
         )}
       </div>

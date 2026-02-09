@@ -1,5 +1,6 @@
 'use client';
 
+import { Shield, Users } from 'lucide-react';
 import type { FeesReferral } from '@/../../packages/shared/src/validators/presale-wizard';
 
 interface Step7FeesProps {
@@ -14,8 +15,10 @@ export function Step7Fees({ data, onChange }: Step7FeesProps) {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-white mb-2">Fees & Referral</h2>
-        <p className="text-gray-400">Platform fee structure and referral rewards configuration.</p>
+        <h2 className="text-2xl font-bold text-white mb-2">Platform Fees</h2>
+        <p className="text-gray-400">
+          Fee structure is fixed on-chain via the FeeSplitter smart contract.
+        </p>
       </div>
 
       {/* Platform Fee (Read-only) */}
@@ -27,72 +30,86 @@ export function Step7Fees({ data, onChange }: Step7FeesProps) {
           </div>
           <div className="text-3xl font-bold text-purple-400">{platformFeePercent}%</div>
         </div>
-        <div className="mt-4 text-xs text-gray-500">
-          Fee distribution: 3% Treasury, 1% Referral Pool, 1% Staking Rewards
+      </div>
+
+      {/* Fee Distribution Breakdown */}
+      <div className="p-5 bg-gray-800/40 border border-gray-700 rounded-lg space-y-3">
+        <h3 className="text-white font-semibold text-sm mb-3">Fee Distribution (On-Chain)</h3>
+        <div className="space-y-2">
+          {/* Treasury */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-purple-500" />
+              <span className="text-sm text-gray-300">Treasury</span>
+            </div>
+            <span className="text-sm font-mono text-white">2.5%</span>
+          </div>
+          {/* Referral Pool */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-blue-500" />
+              <span className="text-sm text-gray-300">Referral Pool</span>
+            </div>
+            <span className="text-sm font-mono text-white">2.0%</span>
+          </div>
+          {/* SBT Staking */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-green-500" />
+              <span className="text-sm text-gray-300">SBT Staking Rewards</span>
+            </div>
+            <span className="text-sm font-mono text-white">0.5%</span>
+          </div>
+        </div>
+        {/* Progress bar */}
+        <div className="flex h-2 rounded-full overflow-hidden mt-3">
+          <div className="bg-purple-500" style={{ width: '50%' }} />
+          <div className="bg-blue-500" style={{ width: '40%' }} />
+          <div className="bg-green-500" style={{ width: '10%' }} />
         </div>
       </div>
 
-      {/* Referral Toggle */}
-      <div className="p-4 bg-gray-800/30 border border-gray-700 rounded-lg">
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <h3 className="text-white font-semibold mb-1">Enable Referral Rewards</h3>
-            <p className="text-sm text-gray-400">
-              Allow users to refer others and earn rewards from their contributions
+      {/* Referral Always Active Notice */}
+      <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+        <div className="flex items-start gap-3">
+          <Users className="w-5 h-5 text-blue-400 mt-0.5 shrink-0" />
+          <div className="text-sm">
+            <p className="font-semibold text-blue-200 mb-1">Referral Rewards — Always Active</p>
+            <p className="text-gray-400">
+              Referral rewards are automatically enabled for all presales. 2% of raised funds goes
+              to the Referral Pool via the on-chain FeeSplitter contract. Referrers who share your
+              presale link earn rewards from this pool — at{' '}
+              <span className="text-blue-300 font-medium">no extra cost</span> to you or your
+              contributors.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => onChange({ ...data, referral_enabled: !data.referral_enabled })}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-              data.referral_enabled !== false ? 'bg-purple-600' : 'bg-gray-700'
-            }`}
-          >
-            <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                data.referral_enabled !== false ? 'translate-x-6' : 'translate-x-1'
-              }`}
-            />
-          </button>
         </div>
       </div>
 
-      {/* Referral Reward */}
-      {data.referral_enabled !== false && (
-        <div>
-          <label
-            htmlFor="referral_reward_bps"
-            className="block text-sm font-medium text-white mb-2"
-          >
-            Referral Reward Rate (%)
-          </label>
-          <input
-            id="referral_reward_bps"
-            type="number"
-            min="0"
-            max="5"
-            step="0.1"
-            value={(data.referral_reward_bps ?? 100) / 100}
-            onChange={(e) =>
-              onChange({ ...data, referral_reward_bps: parseFloat(e.target.value) * 100 })
-            }
-            className="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-purple-500"
-          />
-          <p className="mt-2 text-xs text-gray-500">
-            Default: 1% of contribution amount given to referrer
-          </p>
-        </div>
-      )}
-
-      {/* Info */}
+      {/* How it works */}
       <div className="p-4 bg-gray-800/30 border border-gray-700 rounded-lg text-sm text-gray-300">
         <strong className="text-white">How it works:</strong>
         <ul className="list-disc list-inside mt-2 space-y-1 text-gray-400">
           <li>Referrers share a unique link with their network</li>
           <li>When someone contributes via their link, referrer earns a reward</li>
-          <li>Rewards are paid from the platform fee pool</li>
-          <li>No additional cost to you or your contributors</li>
+          <li>Rewards are paid from the 2% Referral Pool (on-chain)</li>
+          <li>Fee is fixed in the smart contract — no additional cost to you</li>
         </ul>
+      </div>
+
+      {/* Security Badge */}
+      <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-lg">
+        <div className="flex items-start gap-3">
+          <Shield className="w-5 h-5 text-green-400 mt-0.5 shrink-0" />
+          <div className="text-sm text-green-300">
+            <p className="font-semibold text-green-200 mb-1">On-Chain Transparency</p>
+            <p className="text-gray-400">
+              All fee distributions are handled by the audited FeeSplitter smart contract. Fees are
+              only charged when your presale succeeds (reaches softcap). No hidden fees — everything
+              is verifiable on-chain.
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );

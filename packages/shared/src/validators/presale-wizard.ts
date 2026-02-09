@@ -214,9 +214,7 @@ export type LpLock = z.infer<typeof lpLockSchema>;
  * Step 7: Fees & Referral
  */
 export const feesReferralSchema = z.object({
-  platform_fee_bps: z.number().min(0).max(1000).default(500), // Default 5%
-  referral_enabled: z.boolean().default(true),
-  referral_reward_bps: z.number().min(0).max(500).default(100), // Default 1%
+  platform_fee_bps: z.number().min(0).max(1000).default(500), // Fixed 5% on-chain
 });
 
 export type FeesReferral = z.infer<typeof feesReferralSchema>;

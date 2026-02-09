@@ -33,7 +33,7 @@ export default async function AdminReviewPage() {
   const { data: presales, error } = await supabase
     .from('launch_rounds')
     .select('*')
-    .eq('status', 'SUBMITTED_FOR_REVIEW')
+    .eq('status', 'SUBMITTED')
     .order('created_at', { ascending: true }); // FIFO queue
 
   if (error) {

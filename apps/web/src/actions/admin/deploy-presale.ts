@@ -116,13 +116,34 @@ export async function deployPresale(roundId: string) {
     }
 
     // Get project owner wallet address
-    const { data: ownerProfile } = await supabase
-      .from('profiles')
-      .select('wallet_address')
+    // profiles table has no wallet_address — look up from wallets table or projects.creator_wallet
+    let ownerWallet: string | null = null;
+
+    // Primary: query wallets table for the EVM wallet
+    const { data: walletRow } = await supabase
+      .from('wallets')
+      .select('address')
       .eq('user_id', round.created_by)
+      .eq('chain', 'evm')
       .single();
 
-    if (!ownerProfile?.wallet_address) {
+    if (walletRow?.address) {
+      ownerWallet = walletRow.address;
+    }
+
+    // Fallback: projects.creator_wallet (stored during wizard submission)
+    if (!ownerWallet && round.project_id) {
+      const { data: project } = await supabase
+        .from('projects')
+        .select('creator_wallet')
+        .eq('id', round.project_id)
+        .single();
+      if (project?.creator_wallet) {
+        ownerWallet = project.creator_wallet;
+      }
+    }
+
+    if (!ownerWallet) {
       return { success: false, error: 'Project owner wallet not found' };
     }
 
@@ -138,14 +159,17 @@ export async function deployPresale(roundId: string) {
       maxContribution: ethers.parseEther(String(params.max_contribution)),
       startTime: BigInt(Math.floor(new Date(round.start_at).getTime() / 1000)),
       endTime: BigInt(Math.floor(new Date(round.end_at).getTime() / 1000)),
-      projectOwner: ownerProfile.wallet_address,
+      projectOwner: ownerWallet,
     };
 
     // Investor vesting params
     const investorVesting = params.investor_vesting || {};
-    const tgeUnlockBps = BigInt(Math.floor((investorVesting.tge_unlock_percent || 10) * 100)); // Convert percent to BPS
+    const tgeUnlockBps = BigInt(Math.floor((investorVesting.tge_percentage || 10) * 100)); // Convert percent to BPS
     const cliffDuration = BigInt((investorVesting.cliff_months || 0) * 30 * 24 * 3600); // months→seconds
-    const vestingDuration = BigInt((investorVesting.vesting_months || 6) * 30 * 24 * 3600); // months→seconds
+    // Calculate vesting duration from the last month in the schedule
+    const scheduleMonths = (investorVesting.schedule || []).map((s: any) => s.month || 0);
+    const lastMonth = scheduleMonths.length > 0 ? Math.max(...scheduleMonths) : 6;
+    const vestingDuration = BigInt(lastMonth * 30 * 24 * 3600); // months→seconds
 
     const vestingParams = {
       tgeUnlockBps,
@@ -158,7 +182,7 @@ export async function deployPresale(roundId: string) {
     const lpPlan = {
       lockMonths: BigInt(lpLock.duration_months || 12),
       dexId: ethers.id(lpLock.dex || 'pancakeswap'), // keccak256("pancakeswap")
-      liquidityPercent: BigInt((lpLock.liquidity_percent || 70) * 100), // percent→BPS
+      liquidityPercent: BigInt((lpLock.percentage || 70) * 100), // percent→BPS
     };
 
     // Compliance hash (hash of the submission data)

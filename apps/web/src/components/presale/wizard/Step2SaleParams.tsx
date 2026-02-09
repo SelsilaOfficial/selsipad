@@ -1,7 +1,35 @@
 'use client';
 
-import { Info } from 'lucide-react';
+import { useEffect } from 'react';
+import { Info, Loader2 } from 'lucide-react';
+import { useReadContract } from 'wagmi';
+import { formatUnits, isAddress } from 'viem';
 import type { PresaleSaleParams } from '@/../../packages/shared/src/validators/presale-wizard';
+
+// Minimal ERC20 ABI for totalSupply + decimals + symbol
+const ERC20_ABI = [
+  {
+    inputs: [],
+    name: 'totalSupply',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'decimals',
+    outputs: [{ name: '', type: 'uint8' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'symbol',
+    outputs: [{ name: '', type: 'string' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+] as const;
 
 interface Step2SaleParamsProps {
   data: Partial<PresaleSaleParams>;
@@ -9,6 +37,13 @@ interface Step2SaleParamsProps {
   errors?: Partial<Record<keyof PresaleSaleParams, string>>;
   network?: string;
   totalSupply?: string;
+  tokenAddress?: string;
+  /** Callback: pushes on-chain totalSupply to parent wizard state */
+  onTotalSupplyRead?: (supply: string) => void;
+  /** Callback: pushes on-chain symbol to parent wizard state */
+  onTokenSymbolRead?: (symbol: string) => void;
+  /** Callback: pushes on-chain decimals to parent wizard state */
+  onTokenDecimalsRead?: (decimals: number) => void;
 }
 
 const PAYMENT_TOKENS = [
@@ -23,7 +58,70 @@ export function Step2SaleParams({
   errors,
   network,
   totalSupply,
+  tokenAddress,
+  onTotalSupplyRead,
+  onTokenSymbolRead,
+  onTokenDecimalsRead,
 }: Step2SaleParamsProps) {
+  // Resolve token address: prop > data.token_address
+  const resolvedAddress = tokenAddress || data.token_address || '';
+  const isValidAddress = resolvedAddress.length === 42 && isAddress(resolvedAddress);
+
+  // On-chain: read totalSupply
+  const { data: onChainTotalSupply, isLoading: loadingSupply } = useReadContract({
+    address: isValidAddress ? (resolvedAddress as `0x${string}`) : undefined,
+    abi: ERC20_ABI,
+    functionName: 'totalSupply',
+    query: { enabled: isValidAddress },
+  });
+
+  // On-chain: read decimals
+  const { data: onChainDecimals } = useReadContract({
+    address: isValidAddress ? (resolvedAddress as `0x${string}`) : undefined,
+    abi: ERC20_ABI,
+    functionName: 'decimals',
+    query: { enabled: isValidAddress },
+  });
+
+  // On-chain: read symbol
+  const { data: onChainSymbol } = useReadContract({
+    address: isValidAddress ? (resolvedAddress as `0x${string}`) : undefined,
+    abi: ERC20_ABI,
+    functionName: 'symbol',
+    query: { enabled: isValidAddress },
+  });
+
+  // Compute display value: prefer on-chain, fallback to prop
+  const decimals = onChainDecimals ?? 18;
+  const displaySupply = onChainTotalSupply
+    ? formatUnits(onChainTotalSupply, decimals)
+    : totalSupply || '';
+
+  // Push on-chain totalSupply back to parent wizard state
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (onChainTotalSupply && onTotalSupplyRead) {
+      const formatted = formatUnits(onChainTotalSupply, decimals);
+      onTotalSupplyRead(formatted);
+    }
+  }, [onChainTotalSupply, decimals]);
+
+  // Push on-chain symbol back to parent wizard state
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (onChainSymbol && onTokenSymbolRead) {
+      onTokenSymbolRead(onChainSymbol as string);
+    }
+  }, [onChainSymbol]);
+
+  // Push on-chain decimals back to parent wizard state
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (onChainDecimals !== undefined && onTokenDecimalsRead) {
+      onTokenDecimalsRead(Number(onChainDecimals));
+    }
+  }, [onChainDecimals]);
+
   const handleChange = (field: keyof PresaleSaleParams, value: string) => {
     onChange({ ...data, [field]: value });
   };
@@ -46,20 +144,27 @@ export function Step2SaleParams({
         </p>
       </div>
 
-      {/* Total Supply Info Banner */}
-      {totalSupply && Number(totalSupply) > 0 && (
+      {/* Total Supply Info Banner — On-chain read */}
+      {isValidAddress && (
         <div className="p-4 bg-purple-900/20 border border-purple-700/40 rounded-lg">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Info className="w-4 h-4 text-purple-400" />
               <span className="text-sm text-purple-300 font-medium">Total Token Supply</span>
             </div>
-            <span className="text-white font-bold text-lg">
-              {Number(totalSupply).toLocaleString()}
-            </span>
+            {loadingSupply ? (
+              <Loader2 className="w-5 h-5 text-purple-400 animate-spin" />
+            ) : displaySupply && Number(displaySupply) > 0 ? (
+              <span className="text-white font-bold text-lg">
+                {Number(displaySupply).toLocaleString()}
+              </span>
+            ) : (
+              <span className="text-gray-500 text-sm">Unable to read</span>
+            )}
           </div>
           <p className="text-xs text-gray-500 mt-1">
-            Auto-detected from your token contract. Tokens for sale must be less than total supply.
+            Auto-detected from your token contract on-chain. Tokens for sale must be less than total
+            supply.
           </p>
         </div>
       )}

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getAuthUserId } from '@/lib/auth/require-admin';
 
+import { TOKEN_FACTORY_ADDRESSES } from '@/lib/web3/token-factory';
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -9,7 +11,12 @@ const supabase = createClient(
 
 const CHAIN_MAP: Record<string, string> = {
   ethereum: '1',
+  sepolia: '11155111',
   bsc: '56',
+  bnb: '56',
+  bsc_testnet: '97',
+  base: '8453',
+  base_sepolia: '84532',
   polygon: '137',
   avalanche: '43114',
   solana: 'SOLANA',
@@ -17,8 +24,11 @@ const CHAIN_MAP: Record<string, string> = {
 
 /**
  * POST /api/presale/draft
- * Create presale draft (project + round in DRAFT). Used by wizard.
- * Body: wizard config (basics, sale_params, investor_vesting, team_vesting, lp_lock, anti_bot, fees_referral).
+ * Create presale project + round.
+ *
+ * When escrowTxHash + creationFeeTxHash are provided (from Step 9 on-chain flow),
+ * the round is created with status SUBMITTED.
+ * Otherwise, status is DRAFT (for auto-draft during wizard editing).
  */
 export async function POST(request: NextRequest) {
   try {
@@ -30,8 +40,19 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}));
     const basics = body.basics || {};
     const sale_params = body.sale_params || {};
-    const network = basics.network || 'ethereum';
-    const chain = CHAIN_MAP[network] || '1';
+    const network = body.network || basics.network || 'bsc_testnet';
+    // Chain must be a numeric string to pass the valid_chain constraint
+    const chain = body.chain_id?.toString() || CHAIN_MAP[network] || '97';
+
+    // Determine status based on whether on-chain TX hashes are provided
+    const hasOnChainProof = !!(body.escrowTxHash && body.creationFeeTxHash);
+    const status = hasOnChainProof ? 'SUBMITTED' : 'DRAFT';
+
+    // Determine factory address for this network (for SAFU/SC Pass badges)
+    const tokenAddress = body.contract_address || sale_params.token_address || '';
+    const factoryAddr = TOKEN_FACTORY_ADDRESSES[network] as string | undefined;
+    const hasFactoryToken =
+      tokenAddress && factoryAddr && factoryAddr !== '0x0000000000000000000000000000000000000000';
 
     // Create project
     const { data: project, error: projectError } = await supabase
@@ -40,7 +61,20 @@ export async function POST(request: NextRequest) {
         name: basics.name || 'Untitled Presale',
         description: basics.description || '',
         owner_user_id: userId,
+        type: 'PRESALE',
+        chain_id: parseInt(chain) || 97,
+        token_address: tokenAddress,
+        factory_address: hasFactoryToken ? factoryAddr : null,
+        status,
         kyc_status: 'PENDING',
+        sc_scan_status: 'IDLE',
+        logo_url: basics.logo_url || null,
+        website: basics.website || null,
+        telegram: basics.telegram || null,
+        twitter: basics.twitter || null,
+        symbol: body.token_symbol || null,
+        creator_wallet: body.creator_wallet || null,
+        metadata: hasFactoryToken ? { security_badges: ['SAFU', 'SC_PASS'] } : {},
       })
       .select('id')
       .single();
@@ -52,13 +86,13 @@ export async function POST(request: NextRequest) {
 
     const projectId = project.id;
 
-    const draftData = {
+    const roundData: Record<string, any> = {
       project_id: projectId,
       created_by: userId,
-      status: 'DRAFT',
+      status,
       chain,
       type: 'PRESALE',
-      token_address: sale_params.token_address || '',
+      token_address: body.contract_address || sale_params.token_address || '',
       raise_asset: sale_params.payment_token || 'NATIVE',
       start_at: sale_params.start_at || new Date(Date.now() + 3600000).toISOString(),
       end_at: sale_params.end_at || new Date(Date.now() + 7 * 24 * 3600000).toISOString(),
@@ -81,15 +115,32 @@ export async function POST(request: NextRequest) {
       },
     };
 
+    // Add on-chain escrow + fee data if provided (SUBMITTED flow)
+    if (hasOnChainProof) {
+      roundData.escrow_tx_hash = body.escrowTxHash;
+      roundData.creation_fee_tx_hash = body.creationFeeTxHash;
+      // creation_fee_paid is numeric(78,0) — store the fee amount in wei, not boolean
+      // 0.5 BNB = 500000000000000000 wei
+      roundData.creation_fee_paid = body.creation_fee_amount || '500000000000000000';
+      if (body.escrow_amount) {
+        roundData.escrow_amount = body.escrow_amount;
+      }
+    }
+
     const { data: round, error: roundError } = await supabase
       .from('launch_rounds')
-      .insert(draftData)
+      .insert(roundData)
       .select()
       .single();
 
     if (roundError) {
       console.error('Presale draft round create:', roundError);
-      return NextResponse.json({ error: 'Failed to create draft round' }, { status: 500 });
+      // Try to clean up the project if round fails
+      await supabase.from('projects').delete().eq('id', projectId);
+      return NextResponse.json(
+        { error: 'Failed to create draft round', details: roundError.message },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json(

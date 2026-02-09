@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { notFound } from 'next/navigation';
 import { PresaleDetailClient } from './PresaleDetailClient';
+import { getServerSession } from '@/lib/auth/session';
 
 export default async function PresaleDetailPage({ params }: { params: { id: string } }) {
   const supabase = createClient();
@@ -11,16 +12,7 @@ export default async function PresaleDetailPage({ params }: { params: { id: stri
     .select(
       `
       *,
-      projects (
-        id,
-        name,
-        symbol,
-        logo_url,
-        description,
-        kyc_status,
-        sc_scan_status,
-        owner_user_id
-      )
+      projects (*)
     `
     )
     .eq('id', params.id)
@@ -30,12 +22,13 @@ export default async function PresaleDetailPage({ params }: { params: { id: stri
     notFound();
   }
 
-  // Check if user has access (public rounds or owner)
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const isOwner = user && round.projects.owner_user_id === user.id;
-  const isPublic = ['APPROVED', 'LIVE', 'ENDED', 'FINALIZED'].includes(round.status);
+  // Check user via wallet session (not JWT auth.getUser)
+  const session = await getServerSession();
+  const userId = session?.userId || null;
+  const isOwner = userId && round.projects?.owner_user_id === userId;
+  const isPublic = ['APPROVED', 'DEPLOYED', 'LIVE', 'ACTIVE', 'ENDED', 'FINALIZED'].includes(
+    round.status
+  );
 
   if (!isOwner && !isPublic) {
     notFound();
@@ -43,12 +36,12 @@ export default async function PresaleDetailPage({ params }: { params: { id: stri
 
   // Fetch user's contribution if logged in
   let userContribution = null;
-  if (user) {
+  if (userId) {
     const { data: contrib } = await supabase
       .from('contributions')
       .select('*')
       .eq('round_id', params.id)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .in('status', ['PENDING', 'CONFIRMED'])
       .order('created_at', { ascending: false })
       .limit(1)

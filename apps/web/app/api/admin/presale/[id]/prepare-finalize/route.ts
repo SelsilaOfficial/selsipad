@@ -58,28 +58,36 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       return NextResponse.json({ error: 'Presale not deployed on-chain' }, { status: 400 });
     }
 
-    // 3. Load contributions snapshot from DB (indexer output)
-    // TODO: Replace with actual presale_contributions table
-    // For now, simulate with sample data
-    const sampleContributions = [
-      {
-        wallet_address: '0xe677CB29436F0BE225B174D5434fB8a04231069E',
-        amount: parseEther('1.0'),
-      },
-      {
-        wallet_address: '0x4E5a3ef17a67c7A7260cF2a01C9BD251be9653FF',
-        amount: parseEther('0.8'),
-      },
-    ];
+    // 3. Load contributions from DB
+    const { data: contributions, error: contribError } = await supabase
+      .from('contributions')
+      .select('wallet_address, amount')
+      .eq('round_id', params.id)
+      .gt('amount', 0);
 
-    const totalRaised = sampleContributions.reduce((sum, c) => sum + c.amount, 0n);
+    if (contribError || !contributions || contributions.length === 0) {
+      return NextResponse.json(
+        { error: 'No contributions found for this presale' },
+        { status: 400 }
+      );
+    }
 
-    // 4. Calculate token allocations
-    const TOKEN_SUPPLY = parseEther('1000000'); // 1M tokens for presale
+    const totalRaised = contributions.reduce((sum, c) => sum + parseEther(String(c.amount)), 0n);
 
-    const allocations = sampleContributions.map((c) => ({
+    // 4. Calculate token allocations based on contribution proportions
+    const roundParams = round.params as any;
+    const tokensForSale = parseEther(String(roundParams?.token_for_sale || '0'));
+
+    if (tokensForSale === 0n) {
+      return NextResponse.json(
+        { error: 'token_for_sale is 0 — cannot calculate allocations' },
+        { status: 400 }
+      );
+    }
+
+    const allocations = contributions.map((c) => ({
       address: c.wallet_address,
-      allocation: (c.amount * TOKEN_SUPPLY) / totalRaised,
+      allocation: (parseEther(String(c.amount)) * tokensForSale) / totalRaised,
     }));
 
     // 5. Generate merkle tree
