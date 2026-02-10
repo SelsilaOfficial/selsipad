@@ -1,10 +1,11 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
-import '../styles/globals.css';
+import { Orbitron, Audiowide } from 'next/font/google';
+import './globals.css';
 import { BottomNav } from '@/components/layout';
 import { ToastProvider } from '@/components/ui';
 
-const inter = Inter({ subsets: ['latin'] });
+const orbitron = Orbitron({ subsets: ['latin'], variable: '--font-orbitron' });
+const audiowide = Audiowide({ weight: '400', subsets: ['latin'], variable: '--font-audiowide' });
 
 export const metadata: Metadata = {
   title: 'SELSIPAD Web',
@@ -18,7 +19,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="id">
-      <body className={inter.className}>
+      <body className={`${orbitron.variable} ${audiowide.variable} font-sans`}>
         <div
           className="fixed inset-0 -z-10"
           style={{
@@ -29,7 +30,7 @@ export default function RootLayout({
 
         <ToastProvider>
           {children}
-          <BottomNav />
+          {/* <BottomNav /> */}
         </ToastProvider>
       </body>
     </html>

@@ -1,192 +1,158 @@
-import Link from 'next/link';
 import {
-  Card,
-  CardContent,
-  StatusBadge,
-  ProgressBar,
-  EmptyState,
-  EmptyIcon,
-} from '@/components/ui';
-import { PageContainer } from '@/components/layout';
-import { getTrendingProjects, getFeaturedProjects } from '@/lib/data/projects';
-import { DashboardHeader } from '@/components/home/DashboardHeader';
-import { Hero } from '@/components/home/Hero';
-import { Footer } from '@/components/layout/Footer';
+  Wallet,
+  TrendingUp,
+  Rocket,
+  Timer,
+  Shield,
+  Coins,
+  Trophy,
+  MessageCircle,
+} from 'lucide-react';
+import {
+  TrendingChart,
+  FeatureListItem,
+  SocialFeedCard,
+  TrendingBondingCurveCard,
+  NavigationBar,
+  AnimatedBackground,
+} from '@/components/home/FigmaComponents';
 
-export default async function HomePage() {
-  // Fetch data (server component)
-  const [trending, featured] = await Promise.all([getTrendingProjects(), getFeaturedProjects()]);
-
+export default function HomePage() {
   return (
-    <div className="min-h-screen bg-bg-page pb-20">
-      {/* Header */}
-      <DashboardHeader />
+    <div className="min-h-screen bg-black text-white dark relative overflow-hidden font-sans">
+      {/* Animated Background Layer */}
+      <AnimatedBackground />
 
-      {/* Hero Section */}
-      <Hero />
+      {/* Subtle Dark Overlay for Readability */}
+      <div className="fixed inset-0 bg-black/30 pointer-events-none z-[1]" />
 
-      <PageContainer className="py-6 space-y-8">
-        {/* Trending Section */}
-        <section>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-heading-lg text-text-primary">🔥 Trending</h2>
-            <Link href="/explore" className="text-body-sm text-primary-main hover:underline">
-              Lihat Semua
-            </Link>
-          </div>
+      {/* Content Layer */}
+      <div className="relative z-10">
+        {/* Sticky Header */}
+        <header className="sticky top-0 z-50 backdrop-blur-xl bg-black/60 border-b border-[#39AEC4]/20">
+          <div className="container mx-auto px-4 sm:px-6 py-3 sm:py-4">
+            <div className="flex items-center justify-between">
+              {/* Logo */}
+              <div className="flex items-center gap-2 sm:gap-3">
+                <span className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-[#39AEC4] to-[#756BBA] bg-clip-text text-transparent font-audiowide">
+                  SELSIPAD
+                </span>
+              </div>
 
-          {trending.length === 0 ? (
-            <Card>
-              <CardContent>
-                <EmptyState
-                  icon={<EmptyIcon />}
-                  title="Belum ada project trending"
-                  description="Jelajahi project yang tersedia"
-                />
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="flex gap-4 overflow-x-auto scrollbar-hide pb-2 -mx-4 px-4">
-              {trending.map((project) => (
-                <Link
-                  key={project.id}
-                  href={`/project/${project.id}`}
-                  className="flex-shrink-0 w-40"
-                >
-                  <Card hover className="h-full">
-                    <CardContent className="space-y-2">
-                      <div className="w-12 h-12 bg-bg-elevated rounded-lg flex items-center justify-center text-2xl">
-                        {project.symbol.slice(0, 2)}
-                      </div>
-                      <div>
-                        <h3 className="text-heading-sm truncate">{project.name}</h3>
-                        <StatusBadge status={project.status} />
-                      </div>
-                      <div className="text-caption text-text-secondary">
-                        {project.raised}/{project.target} {project.network}
-                      </div>
-                      <ProgressBar
-                        value={project.raised}
-                        max={project.target}
-                        showPercentage={false}
-                        size="sm"
-                      />
-                    </CardContent>
-                  </Card>
-                </Link>
-              ))}
+              {/* Network Badge & Wallet Connect */}
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="hidden sm:block px-4 py-2 rounded-full bg-[#39AEC4]/10 border border-[#39AEC4]/30 backdrop-blur-sm">
+                  <span className="text-sm">🟢 BSC Network</span>
+                </div>
+                <button className="px-3 py-2 sm:px-6 sm:py-2.5 rounded-full bg-gradient-to-r from-[#39AEC4] to-[#756BBA] hover:from-[#4EABC8] hover:to-[#756BBA] transition-all flex items-center gap-1 sm:gap-2 shadow-lg shadow-[#756BBA]/50">
+                  <Wallet className="w-4 h-4" />
+                  <span className="text-sm sm:text-base font-medium">Connect</span>
+                </button>
+              </div>
             </div>
-          )}
-        </section>
-
-        {/* Featured Section */}
-        <section>
-          <h2 className="text-heading-lg text-text-primary mb-4">Featured Projects</h2>
-
-          <div className="space-y-4">
-            {featured.map((project) => (
-              <Link key={project.id} href={`/project/${project.id}`}>
-                <Card hover>
-                  <CardContent className="space-y-4">
-                    <div className="flex items-start gap-4">
-                      <div className="w-16 h-16 bg-bg-elevated rounded-lg flex items-center justify-center text-2xl flex-shrink-0">
-                        {project.symbol.slice(0, 2)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h3 className="text-heading-md">{project.name}</h3>
-                          <StatusBadge status={project.status} />
-                        </div>
-                        <p className="text-body-sm text-text-secondary line-clamp-2">
-                          {project.description}
-                        </p>
-                      </div>
-                    </div>
-
-                    <ProgressBar
-                      value={project.raised}
-                      max={project.target}
-                      label={`${project.raised}/${project.target} ${project.network} Raised`}
-                      showPercentage
-                    />
-
-                    <div className="flex gap-2">
-                      {project.kyc_verified && (
-                        <span className="px-2 py-1 bg-status-success-bg/50 text-status-success-text text-caption rounded-full border border-status-success-text/30">
-                          ✓ KYC
-                        </span>
-                      )}
-                      {project.audit_status === 'pass' && (
-                        <span className="px-2 py-1 bg-status-success-bg/50 text-status-success-text text-caption rounded-full border border-status-success-text/30">
-                          ✓ Audit
-                        </span>
-                      )}
-                      {project.lp_lock && (
-                        <span className="px-2 py-1 bg-status-success-bg/50 text-status-success-text text-caption rounded-full border border-status-success-text/30">
-                          🔒 LP Lock
-                        </span>
-                      )}
-                      <span className="px-2 py-1 bg-bg-elevated text-text-secondary text-caption rounded-full">
-                        {project.network}
-                      </span>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
           </div>
-        </section>
+        </header>
 
-        {/* Quick Actions */}
-        <section className="grid grid-cols-2 gap-4">
-          <Link href="/explore">
-            <Card hover className="h-full">
-              <CardContent className="flex flex-col items-center justify-center py-8 text-center">
-                <svg
-                  className="w-12 h-12 text-primary-main mb-2"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                  />
-                </svg>
-                <h3 className="text-heading-sm">Jelajahi Projects</h3>
-                <p className="text-caption text-text-secondary mt-1">Browse all projects</p>
-              </CardContent>
-            </Card>
-          </Link>
+        {/* Main Content */}
+        <main className="container mx-auto px-4 sm:px-6 py-4 sm:py-8 max-w-[1440px] pb-24 md:pb-8 space-y-6 sm:space-y-8">
+          {/* Top Section: Trending & Features */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
+            {/* Trending Card - Left Column (5 columns) */}
+            <div className="lg:col-span-4 rounded-[20px] bg-gradient-to-br from-white/5 to-white/[0.02] backdrop-blur-xl border border-[#39AEC4]/20 p-5 sm:p-8 shadow-xl shadow-[#756BBA]/10 flex flex-col h-full">
+              <div className="flex items-center justify-between mb-4 sm:mb-6">
+                <h2 className="text-xl sm:text-2xl font-semibold">Trending Feed</h2>
+                <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-[#39AEC4] text-left" />
+              </div>
 
-          <Link href="/portfolio">
-            <Card hover className="h-full">
-              <CardContent className="flex flex-col items-center justify-center py-8 text-center">
-                <svg
-                  className="w-12 h-12 text-primary-main mb-2"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"
-                  />
-                </svg>
-                <h3 className="text-heading-sm">Portfolio</h3>
-                <p className="text-caption text-text-secondary mt-1">Your investments</p>
-              </CardContent>
-            </Card>
-          </Link>
-        </section>
-      </PageContainer>
+              {/* Chart */}
+              <div className="flex-1 min-h-[200px]">
+                <TrendingChart />
+              </div>
 
-      {/* Footer */}
-      <Footer />
+              {/* Top Gainer */}
+              <div className="mt-6 sm:mt-auto p-4 sm:p-5 rounded-[20px] bg-gradient-to-br from-[#39AEC4]/20 to-[#39AEC4]/5 border border-[#39AEC4]/30">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs sm:text-sm text-gray-400 mb-1">Top Gainer 24h</p>
+                    <p className="text-lg sm:text-xl font-bold">$SELSI</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-2xl sm:text-3xl font-bold text-[#39AEC4]">+15.4%</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* View Analytics Button */}
+              <button className="mt-4 sm:mt-6 w-full px-4 sm:px-6 py-2.5 sm:py-3 rounded-[20px] bg-gradient-to-r from-[#39AEC4] to-[#756BBA] hover:from-[#4EABC8] hover:to-[#756BBA] transition-all shadow-lg shadow-[#756BBA]/50 font-semibold text-sm sm:text-base">
+                View Analytics
+              </button>
+            </div>
+
+            {/* Middle Column Features - (4 columns) */}
+            <div className="lg:col-span-4 flex flex-col gap-3 sm:gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3 sm:gap-4 h-full">
+                <FeatureListItem
+                  icon={<Rocket className="w-6 h-6 sm:w-7 sm:h-7" />}
+                  title="Launchpad"
+                  description="New IDO Projects"
+                  color="#39AEC4"
+                />
+                <FeatureListItem
+                  icon={<Timer className="w-6 h-6 sm:w-7 sm:h-7" />}
+                  title="Vesting"
+                  description="Token Release Schedule"
+                  color="#39AEC4"
+                />
+                <FeatureListItem
+                  icon={<Shield className="w-6 h-6 sm:w-7 sm:h-7" />}
+                  title="LP Lock"
+                  description="Liquidity Protection"
+                  color="#39AEC4"
+                />
+                <FeatureListItem
+                  icon={<Coins className="w-6 h-6 sm:w-7 sm:h-7" />}
+                  title="Staking"
+                  description="Earn Rewards"
+                  color="#39AEC4"
+                />
+              </div>
+            </div>
+
+            {/* Right Column - Social Feed (4 columns) */}
+            <div className="lg:col-span-4 h-full">
+              <SocialFeedCard />
+            </div>
+          </div>
+
+          {/* Bonding Curve Section - Full Width Below */}
+          <div className="w-full">
+            <TrendingBondingCurveCard />
+          </div>
+
+          {/* Bottom Features Grid for Mobile/Tablet balance if needed */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:hidden">
+            <FeatureListItem
+              icon={<Trophy className="w-7 h-7" />}
+              title="Rewards"
+              description="Claim Your Tokens"
+              color="#39AEC4"
+            />
+            <FeatureListItem
+              icon={<MessageCircle className="w-7 h-7" />}
+              title="Community"
+              description="Join Discussion"
+              color="#39AEC4"
+            />
+          </div>
+        </main>
+
+        {/* Mobile Bottom Navigation - Fixed */}
+        <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 pb-safe safe-bottom">
+          <div className="backdrop-blur-xl bg-black/40 border-t border-[#39AEC4]/10 px-2 py-3">
+            <NavigationBar />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
