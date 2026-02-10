@@ -1,18 +1,28 @@
-import { TrendingUp, Rocket, Timer, Shield, Coins, Trophy, MessageCircle } from 'lucide-react';
+import {
+  TrendingUp,
+  Rocket,
+  Timer,
+  Shield,
+  Coins,
+  Trophy,
+  MessageCircle,
+  User,
+  PlusCircle,
+} from 'lucide-react';
 import {
   TrendingChart,
   FeatureListItem,
   SocialFeedCard,
   TrendingBondingCurveCard,
-  AnimatedBackground,
 } from '@/components/home/FigmaComponents';
+import { SplineBackground } from '@/components/home/SplineBackground';
 import { MultiChainConnectWallet } from '@/components/wallet/MultiChainConnectWallet';
 
 export default function HomePage() {
   return (
     <div className="min-h-screen bg-black text-white dark relative overflow-hidden font-sans">
       {/* Animated Background Layer */}
-      <AnimatedBackground />
+      <SplineBackground />
 
       {/* Subtle Dark Overlay for Readability */}
       <div className="fixed inset-0 bg-black/30 pointer-events-none z-[1]" />
@@ -30,11 +40,8 @@ export default function HomePage() {
                 </span>
               </div>
 
-              {/* Network Badge & Wallet Connect */}
+              {/* Wallet Connect */}
               <div className="flex items-center gap-2 sm:gap-3">
-                <div className="hidden sm:block px-4 py-2 rounded-full bg-[#39AEC4]/10 border border-[#39AEC4]/30 backdrop-blur-sm">
-                  <span className="text-sm">🟢 BSC Network</span>
-                </div>
                 <MultiChainConnectWallet />
               </div>
             </div>
@@ -77,8 +84,26 @@ export default function HomePage() {
             </div>
 
             {/* Right Column Features */}
-            <div className="flex flex-col gap-3 sm:gap-4">
+            <div className="flex flex-col gap-3 sm:gap-4 h-full">
               <div className="grid grid-cols-1 gap-3 sm:gap-4 h-full">
+                {/* Desktop-Only Items */}
+                <div className="hidden lg:contents">
+                  <FeatureListItem
+                    icon={<User className="w-6 h-6 sm:w-7 sm:h-7" />}
+                    title="Profile"
+                    description="Manage Account"
+                    color="#39AEC4"
+                    href="/profile"
+                  />
+                  <FeatureListItem
+                    icon={<PlusCircle className="w-6 h-6 sm:w-7 sm:h-7" />}
+                    title="Create Project"
+                    description="Launch New Token"
+                    color="#39AEC4"
+                    href="/create"
+                  />
+                </div>
+
                 <FeatureListItem
                   icon={<Rocket className="w-6 h-6 sm:w-7 sm:h-7" />}
                   title="Launchpad"

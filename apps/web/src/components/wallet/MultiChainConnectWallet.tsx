@@ -161,11 +161,7 @@ export function MultiChainConnectWallet() {
     return (
       <div className="flex items-center gap-2">
         <button
-          className="h-10 px-4 rounded-md text-sm font-medium"
-          style={{
-            backgroundColor: 'hsl(var(--primary-main))',
-            color: 'hsl(var(--primary-text))',
-          }}
+          className="h-10 px-6 py-2 rounded-full border border-[#39AEC4]/30 bg-[#39AEC4]/10 backdrop-blur-sm text-sm font-medium text-white/80"
           disabled
         >
           Connect
@@ -179,31 +175,28 @@ export function MultiChainConnectWallet() {
       {/* EVM Wallet Button - PRIMARY authentication */}
       <button
         onClick={() => open()}
-        style={{
-          backgroundColor: isConnected ? 'hsl(var(--bg-elevated))' : 'hsl(var(--primary-main))',
-          color: isConnected ? 'hsl(var(--text-primary))' : 'hsl(var(--primary-text))',
-          borderRadius: '0.375rem',
-          padding: '0.5rem 1rem',
-          fontSize: '0.875rem',
-          fontWeight: 500,
-          height: '2.5rem',
-          transition: 'background-color 0.2s',
-        }}
+        className={`
+          flex items-center justify-center gap-2 px-6 py-2 rounded-full 
+          text-sm font-bold transition-all duration-300 shadow-lg shadow-[#756BBA]/20
+          ${
+            isConnected
+              ? 'bg-[#39AEC4]/10 border border-[#39AEC4]/30 text-white shadow-[0_0_15px_rgba(57,174,196,0.1)]'
+              : 'bg-gradient-to-r from-[#39AEC4] to-[#756BBA] text-white hover:opacity-90 hover:shadow-[0_0_20px_rgba(117,107,186,0.4)] border-none'
+          }
+        `}
         disabled={isAuthenticating}
       >
         {isConnected && address ? (
           <>
-            <span className="hidden md:inline">{`${address.slice(0, 6)}...${address.slice(-4)}`}</span>
+            <span className="hidden md:inline font-mono">{`${address.slice(0, 6)}...${address.slice(-4)}`}</span>
             <span className="md:hidden">
-              <Wallet className="w-5 h-5" />
+              <Wallet className="w-4 h-4" />
             </span>
           </>
         ) : (
           <>
-            <span className="hidden md:inline">Connect Wallet</span>
-            <span className="inline-flex md:hidden items-center gap-2">
-              Connect <Wallet className="w-4 h-4" />
-            </span>
+            <Wallet className="w-4 h-4" />
+            <span>Connect</span>
           </>
         )}
       </button>
@@ -213,20 +206,15 @@ export function MultiChainConnectWallet() {
         <button
           onClick={handleEVMAuth}
           disabled={isAuthenticating || isAuthenticated}
-          style={{
-            backgroundColor: isAuthenticated
-              ? 'hsl(var(--success-main))'
-              : 'hsl(var(--warning-main))',
-            color: 'white',
-            borderRadius: '0.375rem',
-            padding: '0.5rem 1rem',
-            fontSize: '0.875rem',
-            fontWeight: 500,
-            height: '2.5rem',
-            transition: 'background-color 0.2s',
-            cursor: isAuthenticated ? 'default' : 'pointer',
-            opacity: isAuthenticated ? 0.9 : 1,
-          }}
+          className={`
+            flex items-center justify-center gap-2 px-6 py-2 rounded-full 
+            border text-sm font-medium transition-all duration-300
+            ${
+              isAuthenticated
+                ? 'bg-green-500/10 border-green-500/30 text-green-400 cursor-default'
+                : 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/20 hover:border-yellow-500/50 cursor-pointer animate-pulse'
+            }
+          `}
         >
           {isAuthenticating ? (
             <span className="flex items-center gap-2">
@@ -238,7 +226,7 @@ export function MultiChainConnectWallet() {
               <img
                 src="/assets/auth-purple-icon.jpg"
                 alt="Auth"
-                className={`w-6 h-6 object-contain transition-transform duration-300 ${isAuthenticated ? '' : 'scale-x-[-1]'}`}
+                className={`w-5 h-5 object-contain transition-transform duration-300 ${isAuthenticated ? '' : 'scale-x-[-1]'}`}
               />
               <span className="hidden md:inline">{isAuthenticated ? 'Signed In' : 'Sign In'}</span>
             </div>
@@ -247,7 +235,7 @@ export function MultiChainConnectWallet() {
       )}
 
       {/* Status Messages */}
-      {authError && <p className="text-xs text-error">❌ {authError}</p>}
+      {authError && <p className="text-xs text-red-400 animate-pulse">❌ {authError}</p>}
     </div>
   );
 }

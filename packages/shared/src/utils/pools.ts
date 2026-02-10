@@ -339,7 +339,7 @@ export function reachedSoftcap(pool: LaunchRound): boolean {
  * Format pool status for display
  */
 export function formatPoolStatus(status: PoolStatus): string {
-  const statusMap: Record<PoolStatus, string> = {
+  const statusMap: Partial<Record<PoolStatus, string>> = {
     DRAFT: 'Draft',
     SUBMITTED: 'Pending Review',
     APPROVED: 'Approved',
@@ -377,7 +377,7 @@ export function formatPoolType(type: PoolType): string {
  * Get pool status color for UI
  */
 export function getPoolStatusColor(status: PoolStatus): string {
-  const colorMap: Record<PoolStatus, string> = {
+  const colorMap: Partial<Record<PoolStatus, string>> = {
     DRAFT: 'gray',
     SUBMITTED: 'yellow',
     APPROVED: 'blue',

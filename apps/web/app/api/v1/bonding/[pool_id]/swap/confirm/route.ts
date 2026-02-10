@@ -80,7 +80,10 @@ export async function POST(
     const txStatus = await verifyTransactionExists(tx_hash);
     if (!txStatus) {
       return NextResponse.json(
-        { error: 'Transaction not found on Solana blockchain. Please ensure transaction was submitted.' },
+        {
+          error:
+            'Transaction not found on Solana blockchain. Please ensure transaction was submitted.',
+        },
         { status: 400 }
       );
     }
@@ -262,6 +265,8 @@ async function extractSwapFromTx(
   console.log('TODO: Extract swap from tx via program instruction decoder', txHash);
 
   // Mock data for development - in production, extract from actual tx
+  return {
+    swap_type: 'BUY',
     input_amount: '100000000', // 0.1 SOL
   };
 }

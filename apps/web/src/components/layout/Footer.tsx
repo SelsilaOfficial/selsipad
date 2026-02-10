@@ -3,7 +3,7 @@ import Link from 'next/link';
 
 export function Footer() {
   return (
-    <footer className="border-t border-white/5 py-8 mt-auto">
+    <footer className="border-t border-white/5 py-8 mt-auto hidden md:block">
       <div className="container mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-6">
         <div className="flex items-center gap-2 opacity-80 hover:opacity-100 transition-opacity">
           {/* Logo Removed */}

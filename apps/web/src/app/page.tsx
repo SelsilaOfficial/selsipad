@@ -14,14 +14,15 @@ import {
   SocialFeedCard,
   TrendingBondingCurveCard,
   NavigationBar,
-  AnimatedBackground,
 } from '@/components/home/FigmaComponents';
+import { SplineBackground } from '@/components/home/SplineBackground';
 
 export default function HomePage() {
   return (
     <div className="min-h-screen bg-black text-white dark relative overflow-hidden font-sans">
       {/* Animated Background Layer */}
-      <AnimatedBackground />
+      {/* Animated Background Layer */}
+      <SplineBackground />
 
       {/* Subtle Dark Overlay for Readability */}
       <div className="fixed inset-0 bg-black/30 pointer-events-none z-[1]" />
