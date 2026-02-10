@@ -550,8 +550,8 @@ export function PresaleDetailClient({
                 </div>
                 <div className="p-4 bg-gray-800 rounded-lg col-span-full">
                   <div className="text-sm text-gray-400 mb-1">Token Address</div>
-                  <div className="flex items-center gap-2">
-                    <code className="text-white font-mono text-sm">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <code className="text-white font-mono text-sm truncate min-w-0 flex-1">
                       {round.token_address || 'N/A'}
                     </code>
                     {round.token_address && (
@@ -579,8 +579,10 @@ export function PresaleDetailClient({
                 {roundAddress && (
                   <div className="p-4 bg-gray-800 rounded-lg col-span-full">
                     <div className="text-sm text-gray-400 mb-1">Presale Contract</div>
-                    <div className="flex items-center gap-2">
-                      <code className="text-white font-mono text-sm">{roundAddress}</code>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <code className="text-white font-mono text-sm truncate min-w-0 flex-1">
+                        {roundAddress}
+                      </code>
                       <button
                         onClick={() => navigator.clipboard.writeText(roundAddress)}
                         className="p-1 hover:bg-gray-700 rounded transition-colors"
@@ -603,8 +605,8 @@ export function PresaleDetailClient({
                 {round.vesting_vault_address && (
                   <div className="p-4 bg-gray-800 rounded-lg col-span-full">
                     <div className="text-sm text-gray-400 mb-1">Vesting Vault</div>
-                    <div className="flex items-center gap-2">
-                      <code className="text-white font-mono text-sm">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <code className="text-white font-mono text-sm truncate min-w-0 flex-1">
                         {round.vesting_vault_address}
                       </code>
                       <button

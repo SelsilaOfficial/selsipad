@@ -222,11 +222,24 @@ export function CreatePresaleWizard({
   const handleSaveDraft = async () => {
     try {
       if (!roundId) {
+        // Convert datetime-local values to UTC before sending to server
+        const draftPayload = {
+          ...wizardData,
+          sale_params: {
+            ...wizardData.sale_params,
+            start_at: wizardData.sale_params?.start_at
+              ? new Date(wizardData.sale_params.start_at).toISOString()
+              : undefined,
+            end_at: wizardData.sale_params?.end_at
+              ? new Date(wizardData.sale_params.end_at).toISOString()
+              : undefined,
+          },
+        };
         const res = await fetch('/api/presale/draft', {
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(wizardData),
+          body: JSON.stringify(draftPayload),
         });
         if (!res.ok) {
           const err = await res.json();
@@ -261,8 +274,12 @@ export function CreatePresaleWizard({
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          start_at: wizardData.sale_params?.start_at,
-          end_at: wizardData.sale_params?.end_at,
+          start_at: wizardData.sale_params?.start_at
+            ? new Date(wizardData.sale_params.start_at).toISOString()
+            : undefined,
+          end_at: wizardData.sale_params?.end_at
+            ? new Date(wizardData.sale_params.end_at).toISOString()
+            : undefined,
           params,
         }),
       });
@@ -288,11 +305,26 @@ export function CreatePresaleWizard({
 
       let currentRoundId = roundId;
       if (!currentRoundId) {
+        // Convert datetime-local values to proper UTC ISO strings BEFORE
+        // sending to the draft API.  The browser knows the user's real
+        // timezone (e.g. WIB / UTC+7) — the server does NOT.
+        const draftPayload = {
+          ...validated,
+          sale_params: {
+            ...validated.sale_params,
+            start_at: validated.sale_params?.start_at
+              ? new Date(validated.sale_params.start_at).toISOString()
+              : undefined,
+            end_at: validated.sale_params?.end_at
+              ? new Date(validated.sale_params.end_at).toISOString()
+              : undefined,
+          },
+        };
         const createRes = await fetch('/api/presale/draft', {
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(validated),
+          body: JSON.stringify(draftPayload),
         });
         if (!createRes.ok) {
           const err = await createRes.json();

@@ -23,6 +23,24 @@ const CHAIN_MAP: Record<string, string> = {
 };
 
 /**
+ * Normalise a datetime value to a valid ISO-8601 UTC string.
+ * datetime-local inputs arrive as  e.g. "2026-02-11T06:30" (no TZ).
+ * new Date() in Node (V8) treats such strings as **local time**, but
+ * we must store them as UTC.  If the string already contains a TZ
+ * indicator (Z, +, −) we leave it alone.
+ */
+function normalizeToUTC(value: string | undefined | null, fallback: string): string {
+  if (!value) return fallback;
+  try {
+    const d = new Date(value);
+    if (isNaN(d.getTime())) return fallback;
+    return d.toISOString();
+  } catch {
+    return fallback;
+  }
+}
+
+/**
  * POST /api/presale/draft
  * Create presale project + round.
  *
@@ -97,8 +115,11 @@ export async function POST(request: NextRequest) {
       type: 'PRESALE',
       token_address: body.contract_address || sale_params.token_address || '',
       raise_asset: sale_params.payment_token || 'NATIVE',
-      start_at: sale_params.start_at || new Date(Date.now() + 3600000).toISOString(),
-      end_at: sale_params.end_at || new Date(Date.now() + 7 * 24 * 3600000).toISOString(),
+      start_at: normalizeToUTC(sale_params.start_at, new Date(Date.now() + 3600000).toISOString()),
+      end_at: normalizeToUTC(
+        sale_params.end_at,
+        new Date(Date.now() + 7 * 24 * 3600000).toISOString()
+      ),
       params: {
         price: parseFloat(sale_params.price || '0'),
         softcap: parseFloat(sale_params.softcap || '0'),

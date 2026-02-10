@@ -59,11 +59,19 @@ export default async function PresaleDetailPage({ params }: { params: { id: stri
     .order('created_at', { ascending: false });
 
   return (
-    <PresaleDetailClient
-      round={round}
-      userContribution={userContribution}
-      allContributions={allContributions || []}
-      isOwner={isOwner}
-    />
+    <div
+      className="min-h-screen bg-black text-white"
+      style={{
+        fontFamily:
+          '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+      }}
+    >
+      <PresaleDetailClient
+        round={round}
+        userContribution={userContribution}
+        allContributions={allContributions || []}
+        isOwner={isOwner}
+      />
+    </div>
   );
 }

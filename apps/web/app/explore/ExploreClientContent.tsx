@@ -13,7 +13,7 @@ import {
   SkeletonCard,
   Countdown,
 } from '@/components/ui';
-import { PageHeader, PageContainer, BottomSheet } from '@/components/layout';
+import { PageContainer, BottomSheet } from '@/components/layout';
 import type { Project } from '@/lib/data/projects';
 import type { FilterPill } from '@/components/ui';
 
@@ -67,14 +67,30 @@ export function ExploreClientContent({ initialProjects }: ExploreClientContentPr
 
   return (
     <div className="min-h-screen bg-bg-page pb-20">
-      <PageHeader
-        title="Explore Projects"
-        actions={
+      <PageContainer className="py-4 space-y-6">
+        {/* Header with Back Button - aligned with content */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => (window.location.href = '/')}
+              className="hidden sm:flex items-center justify-center w-8 h-8 rounded-lg text-text-secondary hover:text-text-primary hover:bg-white/5 transition-all border border-border-subtle/50 hover:border-border-subtle"
+              aria-label="Go back"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 19l-7-7 7-7"
+                />
+              </svg>
+            </button>
+            <h1 className="text-2xl font-bold text-text-primary">Explore Projects</h1>
+          </div>
           <button
             onClick={() => setFilterSheetOpen(true)}
             className="p-2 text-text-secondary hover:text-text-primary transition-colors lg:hidden"
           >
-            {/* Mobile Filter Icon */}
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path
                 strokeLinecap="round"
@@ -84,10 +100,7 @@ export function ExploreClientContent({ initialProjects }: ExploreClientContentPr
               />
             </svg>
           </button>
-        }
-      />
-
-      <PageContainer className="py-4 space-y-6">
+        </div>
         {/* Search & Desktop Filters */}
         <div className="space-y-4">
           <div className="relative">

@@ -14,7 +14,17 @@ interface Step8ReviewProps {
 export function Step8Review({ data, onEdit, termsAccepted, onTermsChange }: Step8ReviewProps) {
   const formatDate = (date?: string) => {
     if (!date) return 'Not set';
-    return new Date(date).toLocaleString();
+    // datetime-local values don't have timezone info, so display as-is with WIB label
+    // This matches the input label on Step 2 which says "(UTC+7 / WIB)"
+    const d = new Date(date);
+    return d.toLocaleString('id-ID', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZoneName: 'short',
+    });
   };
 
   return (
@@ -85,7 +95,6 @@ export function Step8Review({ data, onEdit, termsAccepted, onTermsChange }: Step
       <ReviewSection title="LP Lock" onEdit={() => onEdit(6)}>
         <ReviewItem label="Duration" value={`${data.lp_lock?.duration_months} months`} />
         <ReviewItem label="Percentage" value={`${data.lp_lock?.percentage}%`} />
-        <ReviewItem label="Platform" value={data.lp_lock?.platform} />
       </ReviewSection>
 
       {/* Terms Acceptance */}
