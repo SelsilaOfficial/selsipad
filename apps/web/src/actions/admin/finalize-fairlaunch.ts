@@ -125,6 +125,8 @@ export async function finalizeFairlaunch(roundId: string, action: FairlaunchActi
     const rpcUrls: Record<string, string> = {
       '97': process.env.BSC_TESTNET_RPC_URL || 'https://bsc-testnet-rpc.publicnode.com',
       '56': process.env.BSC_MAINNET_RPC_URL || 'https://bsc-dataseed.binance.org',
+      '11155111': process.env.SEPOLIA_RPC_URL || 'https://rpc.sepolia.org',
+      '84532': process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org',
     };
 
     const rpcUrl = rpcUrls[round.chain];
@@ -343,7 +345,12 @@ export async function finalizeFairlaunch(roundId: string, action: FairlaunchActi
                 .not('user_id', 'is', null);
 
               if (contribs?.length) {
-                const totalContributed = contribs.reduce((sum, c) => sum + Number(c.amount), 0);
+                // BigInt math to avoid precision loss on large amounts
+                const totalContributed = contribs.reduce(
+                  (sum, c) => sum + BigInt(c.amount || '0'),
+                  0n
+                );
+                const referralPool = BigInt(split.referral_pool_amount || '0');
 
                 for (const contrib of contribs) {
                   // Check if contributor was referred
@@ -355,13 +362,16 @@ export async function finalizeFairlaunch(roundId: string, action: FairlaunchActi
                     .single();
 
                   if (rel?.referrer_id) {
-                    const share = Number(contrib.amount) / totalContributed;
-                    const proportionalAmount = Math.floor(
-                      Number(split.referral_pool_amount) * share
-                    ).toString();
+                    // BigInt proportional: (pool * contribution) / total
+                    const contribAmount = BigInt(contrib.amount || '0');
+                    const proportionalAmount =
+                      totalContributed > 0n
+                        ? ((referralPool * contribAmount) / totalContributed).toString()
+                        : '0';
 
                     const { error: ledgerErr } = await supabase.from('referral_ledger').insert({
                       referrer_id: rel.referrer_id,
+                      referee_id: contrib.user_id,
                       source_type: split.source_type,
                       source_id: split.source_id,
                       amount: proportionalAmount,
