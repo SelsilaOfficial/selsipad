@@ -22,6 +22,10 @@ contract PresaleFactory is AccessControl {
     address public immutable feeSplitter;
     address public immutable timelockExecutor;
     
+    // V2.4: LP infrastructure (mutable for upgrades)
+    address public dexRouter;
+    address public lpLocker;
+    
     // Presale tracking
     uint256 public presaleCount;
     mapping(uint256 => address) public rounds;
@@ -78,15 +82,36 @@ contract PresaleFactory is AccessControl {
     error InvalidLiquidityPercent();
     error ZeroAddress();
     
-    constructor(address _feeSplitter, address _timelockExecutor) {
+    constructor(
+        address _feeSplitter,
+        address _timelockExecutor,
+        address _dexRouter,
+        address _lpLocker
+    ) {
         if (_feeSplitter == address(0)) revert ZeroAddress();
         if (_timelockExecutor == address(0)) revert ZeroAddress();
+        if (_dexRouter == address(0)) revert ZeroAddress();
+        if (_lpLocker == address(0)) revert ZeroAddress();
         
         feeSplitter = _feeSplitter;
         timelockExecutor = _timelockExecutor;
+        dexRouter = _dexRouter;
+        lpLocker = _lpLocker;
         
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(FACTORY_ADMIN_ROLE, msg.sender);
+    }
+    
+    /// @notice Update DEX router address
+    function setDexRouter(address _r) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (_r == address(0)) revert ZeroAddress();
+        dexRouter = _r;
+    }
+    
+    /// @notice Update LP locker address  
+    function setLPLocker(address _l) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (_l == address(0)) revert ZeroAddress();
+        lpLocker = _l;
     }
     
     /**
@@ -133,7 +158,7 @@ contract PresaleFactory is AccessControl {
         // Revoke factory's admin role (optional - keep for now for flexibility)
         // MerkleVesting(vesting).revokeRole(DEFAULT_ADMIN_ROLE, address(this));
         
-        // Deploy PresaleRound
+        // Deploy PresaleRound (V2.4: with LP config)
         round = address(new PresaleRound(
             params.projectToken,
             params.paymentToken,
@@ -146,7 +171,11 @@ contract PresaleFactory is AccessControl {
             feeSplitter,
             vesting,
             params.projectOwner,
-            timelockExecutor  // Admin role for round
+            timelockExecutor,                       // Admin role
+            dexRouter,                              // V2.4: DEX router
+            lpLocker,                               // V2.4: LP locker
+            lpPlan.liquidityPercent,                 // V2.4: BPS
+            lpPlan.lockMonths * 30 days              // V2.4: seconds
         ));
         
         // Grant ADMIN_ROLE to round for calling setMerkleRoot during finalizeSuccess

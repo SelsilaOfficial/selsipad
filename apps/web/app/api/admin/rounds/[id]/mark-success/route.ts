@@ -55,7 +55,8 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         const provider = new ethers.JsonRpcProvider(rpcUrl);
         const roundContract = new ethers.Contract(roundAddress, PRESALE_ROUND_ABI as any, provider);
         const onChainStatus = await roundContract.status().catch(() => null);
-        if (onChainStatus !== null && Number(onChainStatus) !== 3) {
+        if (onChainStatus !== null && Number(onChainStatus) !== 4) {
+          // V2.4: FINALIZED_SUCCESS = 4
           return NextResponse.json(
             { error: 'On-chain round status is not FINALIZED_SUCCESS; cannot mark success' },
             { status: 400 }

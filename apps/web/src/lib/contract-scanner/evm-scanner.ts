@@ -28,9 +28,35 @@ interface CheckResult {
 export class EVMScanner {
   private readonly RPC_URLS: Record<string, string> = {
     EVM_56: process.env.NEXT_PUBLIC_BSC_RPC_URL || 'https://bsc-dataseed.binance.org',
+    EVM_97: 'https://bsc-testnet-rpc.publicnode.com',
     EVM_1: process.env.NEXT_PUBLIC_ETH_RPC_URL || 'https://eth.llamarpc.com',
     EVM_137: process.env.NEXT_PUBLIC_POLYGON_RPC_URL || 'https://polygon-rpc.com',
   };
+
+  // Map common chain identifiers to RPC_URLS keys
+  private readonly CHAIN_MAP: Record<string, string> = {
+    bsc_testnet: 'EVM_97',
+    bsc_mainnet: 'EVM_56',
+    bsc: 'EVM_56',
+    ethereum: 'EVM_1',
+    polygon: 'EVM_137',
+    '97': 'EVM_97',
+    '56': 'EVM_56',
+    '1': 'EVM_1',
+    '137': 'EVM_137',
+  };
+
+  /**
+   * Resolve RPC URL from network string (accepts EVM_97, bsc_testnet, 97, etc.)
+   */
+  private resolveRpcUrl(network: string): string {
+    // Direct match first
+    if (this.RPC_URLS[network]) return this.RPC_URLS[network];
+    // Try chain map
+    const mapped = this.CHAIN_MAP[network.toLowerCase()];
+    if (mapped && this.RPC_URLS[mapped]) return this.RPC_URLS[mapped];
+    throw new Error(`Unsupported network: ${network}`);
+  }
 
   /**
    * Scan contract address on specified network
@@ -73,10 +99,7 @@ export class EVMScanner {
    */
   private async checkCodeExists(address: string, network: string): Promise<CheckResult> {
     try {
-      const rpcUrl = this.RPC_URLS[network];
-      if (!rpcUrl) {
-        throw new Error(`Unsupported network: ${network}`);
-      }
+      const rpcUrl = this.resolveRpcUrl(network);
 
       const response = await fetch(rpcUrl, {
         method: 'POST',
@@ -118,7 +141,7 @@ export class EVMScanner {
    */
   private async checkProxyPattern(address: string, network: string): Promise<CheckResult> {
     try {
-      const rpcUrl = this.RPC_URLS[network];
+      const rpcUrl = this.resolveRpcUrl(network);
       const response = await fetch(rpcUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -133,24 +156,22 @@ export class EVMScanner {
       const data = await response.json();
       const code = data.result?.toLowerCase() || '';
 
-      // Common proxy patterns (delegatecall-based proxies)
+      // More specific proxy patterns (longer sequences reduce false positives)
       const proxyIndicators = [
-        '36', // calldatasize
-        '37', // calldatacopy
-        'f4', // delegatecall
-        '3d3d3d3d', // returndatasize pattern
+        '363d3d373d3d3d363d73', // EIP-1167 minimal proxy
+        '5860208158601c335a63', // UUPS proxy pattern
+        '360894a13ba1a3210667', // EIP-1967 implementation slot prefix
       ];
 
       const isProxy = proxyIndicators.some((indicator) => code.includes(indicator));
-      const isMinimalProxy = code.includes('363d3d373d3d3d363d73'); // EIP-1167 minimal proxy
 
-      if (isProxy || isMinimalProxy) {
+      if (isProxy) {
         return {
           name: 'PROXY_PATTERN',
           passed: false,
           severity: 'MEDIUM',
           message: 'Proxy contract detected - requires additional review',
-          details: { isMinimalProxy },
+          details: { isMinimalProxy: code.includes('363d3d373d3d3d363d73') },
         };
       }
 
@@ -175,7 +196,7 @@ export class EVMScanner {
    */
   private async checkOwnablePattern(address: string, network: string): Promise<CheckResult> {
     try {
-      const rpcUrl = this.RPC_URLS[network];
+      const rpcUrl = this.resolveRpcUrl(network);
 
       // Check for owner() function (Ownable pattern)
       const ownerSelector = '0x8da5cb5b'; // keccak256("owner()").slice(0, 10)
@@ -232,7 +253,7 @@ export class EVMScanner {
    */
   private async checkDangerousOpcodes(address: string, network: string): Promise<CheckResult> {
     try {
-      const rpcUrl = this.RPC_URLS[network];
+      const rpcUrl = this.resolveRpcUrl(network);
       const response = await fetch(rpcUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -247,9 +268,11 @@ export class EVMScanner {
       const data = await response.json();
       const code = data.result?.toLowerCase() || '';
 
+      // Use longer sequences to avoid false positives from addresses/constants
+      // Single bytes like 'ff' match too many legitimate bytecodes
       const dangerousPatterns = [
-        { opcode: 'ff', name: 'SELFDESTRUCT', severity: 'HIGH' as const },
-        { opcode: 'f2', name: 'CALLCODE', severity: 'MEDIUM' as const },
+        { opcode: '6080ff', name: 'SELFDESTRUCT_PATTERN', severity: 'HIGH' as const },
+        { opcode: 'ff00', name: 'SELFDESTRUCT', severity: 'HIGH' as const },
       ];
 
       const foundPatterns = dangerousPatterns.filter((pattern) => code.includes(pattern.opcode));

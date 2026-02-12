@@ -32,12 +32,22 @@ export default async function AdminLiquidityLocksPage() {
     .order('created_at', { ascending: false })
     .limit(20);
 
-  // Fetch active locks
+  // Fetch active locks with on-chain details
   const { data: activeLocks } = await supabase
     .from('liquidity_locks')
     .select(
       `
-      *,
+      id,
+      chain,
+      lock_id,
+      lp_token,
+      locker_address,
+      amount,
+      beneficiary,
+      locked_at,
+      locked_until,
+      lock_tx_hash,
+      status,
       round:launch_rounds!inner(
         id,
         project:projects!inner(id, name)

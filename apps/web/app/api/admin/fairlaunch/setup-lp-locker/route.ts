@@ -16,7 +16,7 @@ const FactoryABI = ['function adminExecutor() view returns (address)'];
 const FACTORY_ADDRESSES: Record<string, string> = {
   '97':
     process.env.NEXT_PUBLIC_FAIRLAUNCH_FACTORY_BSC_TESTNET ||
-    '0xBf8B3e6b88C46F1B99d1675436771e272eA284c7',
+    '0x837532947c93536CD7A13AC2aB66A5136C0c68C0',
   '56': process.env.NEXT_PUBLIC_FAIRLAUNCH_FACTORY_BSC_MAINNET || '',
 };
 

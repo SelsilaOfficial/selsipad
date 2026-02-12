@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useAccount } from 'wagmi';
-import { parseEther, formatEther } from 'viem';
+import { parseEther, formatEther, isAddress } from 'viem';
 import type { Address } from 'viem';
+import { useSearchParams } from 'next/navigation';
 import { StatusPill } from './StatusPill';
 import {
   useContribute,
@@ -34,7 +35,9 @@ export function ContributionForm({
 
   const [amount, setAmount] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
-  const [referrer, setReferrer] = useState<string>('');
+  const searchParams = useSearchParams();
+  const refParam = searchParams.get('ref') || '';
+  const [referrer, setReferrer] = useState<string>(isAddress(refParam) ? refParam : '');
   const [dbSaved, setDbSaved] = useState(false);
   const confirmedHashRef = useRef<string | null>(null);
 
@@ -70,10 +73,16 @@ export function ContributionForm({
     setError(null);
 
     try {
+      // Validate referrer is a valid address before passing
+      const resolvedReferrer: Address =
+        referrer && isAddress(referrer)
+          ? (referrer as Address)
+          : '0x0000000000000000000000000000000000000000';
+
       await contribute({
         roundAddress,
         amount: amountWei,
-        referrer: (referrer as Address) || '0x0000000000000000000000000000000000000000',
+        referrer: resolvedReferrer,
       });
     } catch (err: any) {
       console.error('Contribution error:', err);

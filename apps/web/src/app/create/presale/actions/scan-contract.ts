@@ -2,6 +2,7 @@
 
 import { getServerSession } from '@/lib/auth/session';
 import { createClient } from '@supabase/supabase-js';
+import { processScanById } from '@/lib/contract-scanner/scanner-executor';
 
 interface ActionResult<T = any> {
   success: boolean;
@@ -23,15 +24,14 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 export async function scanContractAddress(
   contractAddress: string,
   network: string
-): Promise<ActionResult<{
-  scan_id: string;
-  status: string;
-}>> {
+): Promise<
+  ActionResult<{
+    scan_id: string;
+    status: string;
+  }>
+> {
   try {
-    const session = await getServerSession();
-    if (!session) {
-      return { success: false, error: 'Not authenticated' };
-    }
+    // Auth is optional — scanning is a public contract check
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
       auth: { autoRefreshToken: false, persistSession: false },
@@ -82,23 +82,27 @@ export async function scanContractAddress(
 
     console.log('[Scan] Created scan run:', scanRun.id);
 
-    // Trigger scan execution
+    // Trigger scan execution directly (don't use HTTP fetch — it silently fails)
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001';
-      await fetch(`${baseUrl}/api/scanner/${scanRun.id}/execute`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
+      await processScanById(scanRun.id);
+      console.log('[Scan] Scan completed for:', scanRun.id);
     } catch (executeError) {
-      console.error('[Scan] Failed to trigger execution:', executeError);
-      // Non-blocking - scanner will pick it up
+      console.error('[Scan] Execution error:', executeError);
+      // Non-blocking - the status will be updated in DB regardless (FAIL on error)
     }
+
+    // Re-fetch the updated status after execution
+    const { data: updatedScan } = await supabase
+      .from('sc_scan_results')
+      .select('status')
+      .eq('id', scanRun.id)
+      .single();
 
     return {
       success: true,
       data: {
         scan_id: scanRun.id,
-        status: 'RUNNING',
+        status: updatedScan?.status || 'RUNNING',
       },
     };
   } catch (error: any) {
@@ -110,19 +114,16 @@ export async function scanContractAddress(
 /**
  * Get scan status by scan_id (not project_id)
  */
-export async function getScanStatus(
-  scanId: string
-): Promise<ActionResult<{
-  status: string;
-  risk_score: number | null;
-  risk_flags: string[];
-  summary: string | null;
-}>> {
+export async function getScanStatus(scanId: string): Promise<
+  ActionResult<{
+    status: string;
+    risk_score: number | null;
+    risk_flags: string[];
+    summary: string | null;
+  }>
+> {
   try {
-    const session = await getServerSession();
-    if (!session) {
-      return { success: false, error: 'Not authenticated' };
-    }
+    // Auth is optional — checking scan status is public
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
       auth: { autoRefreshToken: false, persistSession: false },

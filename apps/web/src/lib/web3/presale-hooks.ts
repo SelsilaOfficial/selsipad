@@ -317,8 +317,8 @@ export function useFinalizeSuccess() {
 
 /**
  * Hook for admin escrow-based finalization (success)
- * Calls finalizeSuccessEscrow(merkleRoot, totalAllocation, unsoldToBurn)
- * Use this for presales deployed via Factory v2.3+
+ * V2.4: Calls finalizeSuccessEscrow(merkleRoot, totalAllocation, unsoldToBurn, tokensForLP, tokenMinLP, bnbMinLP)
+ * Use this for presales deployed via Factory v2.4+
  */
 export function useFinalizeSuccessEscrow() {
   const { writeContract, data: hash, isPending, error } = useWriteContract();
@@ -328,17 +328,23 @@ export function useFinalizeSuccessEscrow() {
     merkleRoot,
     totalAllocation,
     unsoldToBurn = 0n,
+    tokensForLP = 0n,
+    tokenMinLP = 0n,
+    bnbMinLP = 0n,
   }: {
     roundAddress: Address;
     merkleRoot: `0x${string}`;
     totalAllocation: bigint;
     unsoldToBurn?: bigint;
+    tokensForLP?: bigint;
+    tokenMinLP?: bigint;
+    bnbMinLP?: bigint;
   }) => {
     return writeContract({
       address: roundAddress,
       abi: PRESALE_ROUND_ABI,
       functionName: 'finalizeSuccessEscrow',
-      args: [merkleRoot, totalAllocation, unsoldToBurn],
+      args: [merkleRoot, totalAllocation, unsoldToBurn, tokensForLP, tokenMinLP, bnbMinLP],
     });
   };
 

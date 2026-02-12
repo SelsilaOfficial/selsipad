@@ -54,9 +54,9 @@ const FACTORY_ABI = [
   },
 ] as const;
 
-// Factory addresses per chain
+// Factory addresses per chain (V2.4 — deployed 2026-02-12)
 const FACTORY_ADDRESSES: Record<string, string> = {
-  '97': '0xf3935d541A4F8fBED26c39f7E43625CE7b4d11E6', // BSC Testnet (v2.2 auto-burn)
+  '97': '0x67c3DAE448B55C3B056C39B173118d69b7891866', // BSC Testnet V2.4
 };
 
 const RPC_URLS: Record<string, string> = {
@@ -178,11 +178,16 @@ export async function deployPresale(roundId: string) {
     };
 
     // LP lock plan
+    // NOTE: Factory converts lockMonths * 30 days.
+    // PresaleRound requires >= 365 days, so 12 months (360 days) FAILS.
+    // Minimum is 13 months (390 days >= 365 days).
     const lpLock = params.lp_lock || {};
+    const rawLockMonths = lpLock.duration_months || 13;
+    const safeLockMonths = Math.max(rawLockMonths, 13); // Enforce minimum 13 to avoid MIN_12_MONTHS revert
     const lpPlan = {
-      lockMonths: BigInt(lpLock.duration_months || 12),
+      lockMonths: BigInt(safeLockMonths),
       dexId: ethers.id(lpLock.dex || 'pancakeswap'), // keccak256("pancakeswap")
-      liquidityPercent: BigInt((lpLock.percentage || 70) * 100), // percent→BPS
+      liquidityPercent: BigInt((lpLock.percentage || 60) * 100), // percent→BPS
     };
 
     // Compliance hash (hash of the submission data)

@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { validateContributionConfirm, PoolValidationError } from '@selsipad/shared';
 import { getAuthUserId } from '@/lib/auth/require-admin';
 import { ethers } from 'ethers';
+import { recordContribution } from '@/actions/referral/record-contribution';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -42,7 +43,10 @@ async function verifyContributeReceipt(
 
   const roundAddrLower = roundAddress.toLowerCase();
   if (receipt.to?.toLowerCase() !== roundAddrLower) {
-    return { ok: false, error: `Transaction target is not the round contract (expected ${roundAddress})` };
+    return {
+      ok: false,
+      error: `Transaction target is not the round contract (expected ${roundAddress})`,
+    };
   }
 
   const tx = await provider.getTransaction(txHash);
@@ -56,7 +60,10 @@ async function verifyContributeReceipt(
 
   const valueWei = tx.value ?? 0n;
   if (valueWei < expectedAmountWei) {
-    return { ok: false, error: `Transaction value ${valueWei.toString()} is less than expected ${expectedAmountWei.toString()}` };
+    return {
+      ok: false,
+      error: `Transaction value ${valueWei.toString()} is less than expected ${expectedAmountWei.toString()}`,
+    };
   }
 
   return { ok: true };
@@ -73,7 +80,10 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     const authHeader = request.headers.get('authorization');
     if (authHeader?.startsWith('Bearer ')) {
       const token = authHeader.replace('Bearer ', '');
-      const { data: { user }, error } = await supabase.auth.getUser(token);
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.getUser(token);
       if (!error && user) userId = user.id;
     }
     if (!userId) userId = await getAuthUserId(request);
@@ -161,6 +171,23 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         return NextResponse.json({ error: 'Failed to confirm contribution' }, { status: 500 });
       }
 
+      // ✅ Record for referral tracking on update path too
+      if (userId) {
+        try {
+          await recordContribution({
+            userId,
+            sourceType: 'PRESALE',
+            sourceId: roundId,
+            amount: ethers.parseEther(String(validatedData.amount)).toString(),
+            asset: round.raise_asset || 'NATIVE',
+            chain,
+            txHash: validatedData.tx_hash,
+          });
+        } catch (refErr) {
+          console.error('[contribute/confirm] Referral tracking error (non-fatal):', refErr);
+        }
+      }
+
       return NextResponse.json({ contribution: updated });
     }
 
@@ -182,6 +209,23 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     if (createError) {
       console.error('Error creating contribution:', createError);
       return NextResponse.json({ error: 'Failed to record contribution' }, { status: 500 });
+    }
+
+    // ✅ Record for referral tracking (activate relationship + create fee splits)
+    if (userId && newContribution) {
+      try {
+        await recordContribution({
+          userId,
+          sourceType: 'PRESALE',
+          sourceId: roundId,
+          amount: ethers.parseEther(String(validatedData.amount)).toString(),
+          asset: round.raise_asset || 'NATIVE',
+          chain,
+          txHash: validatedData.tx_hash,
+        });
+      } catch (refErr) {
+        console.error('[contribute/confirm] Referral tracking error (non-fatal):', refErr);
+      }
     }
 
     return NextResponse.json({ contribution: newContribution });

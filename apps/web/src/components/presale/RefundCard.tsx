@@ -7,7 +7,7 @@ import { useUserContribution, useClaimRefund } from '@/lib/web3/presale-hooks';
 
 interface RefundCardProps {
   roundAddress: string;
-  presaleStatus: number; // 4 = FINALIZED_FAILED, 5 = CANCELLED
+  presaleStatus: number; // V2.4: 5 = FINALIZED_FAILED, 6 = CANCELLED
 }
 
 export default function RefundCard({ roundAddress, presaleStatus }: RefundCardProps) {
@@ -20,12 +20,17 @@ export default function RefundCard({ roundAddress, presaleStatus }: RefundCardPr
     address || ''
   );
 
-  const { claimRefund, hash: txHash, isPending: isRefunding, error: txError } = useClaimRefund(roundAddress);
+  const {
+    claimRefund,
+    hash: txHash,
+    isPending: isRefunding,
+    error: txError,
+  } = useClaimRefund(roundAddress);
   const { data: receipt } = useWaitForTransactionReceipt({ hash: txHash });
   const isRefunded = !!receipt;
 
   // Only show refund card if presale is FAILED or CANCELLED
-  const isRefundable = presaleStatus === 4 || presaleStatus === 5;
+  const isRefundable = presaleStatus === 5 || presaleStatus === 6; // V2.4: FINALIZED_FAILED=5, CANCELLED=6
 
   // Check if user has contribution to refund
   const hasContribution = contribution && contribution > 0n;
@@ -70,11 +75,11 @@ export default function RefundCard({ roundAddress, presaleStatus }: RefundCardPr
 
         <div className="ml-3 flex-1">
           <h3 className="text-lg font-semibold text-red-900">
-            {presaleStatus === 4 ? 'Presale Failed' : 'Presale Cancelled'}
+            {presaleStatus === 5 ? 'Presale Failed' : 'Presale Cancelled'}
           </h3>
 
           <p className="mt-2 text-sm text-red-700">
-            {presaleStatus === 4
+            {presaleStatus === 5
               ? 'This presale did not meet the minimum softcap and has been finalized as FAILED. You can claim a full refund of your contribution.'
               : 'This presale has been cancelled. You can claim a full refund of your contribution.'}
           </p>

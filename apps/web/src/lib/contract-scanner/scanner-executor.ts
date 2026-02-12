@@ -44,7 +44,7 @@ export async function processPendingScans() {
     let processed = 0;
     for (const scan of scans) {
       try {
-        await processSingleScan(scan.id, scan.network, scan.target_address);
+        await processSingleScan(scan.id, scan.network, scan.target_address, scan.chain);
         processed++;
       } catch (error) {
         console.error(`Failed to process scan ${scan.id}:`, error);
@@ -61,7 +61,12 @@ export async function processPendingScans() {
 /**
  * Process a single scan run
  */
-async function processSingleScan(scanId: string, network: string, targetAddress: string) {
+async function processSingleScan(
+  scanId: string,
+  network: string,
+  targetAddress: string,
+  chain?: string
+) {
   const supabase = createClient(supabaseUrl, supabaseServiceKey, {
     auth: {
       autoRefreshToken: false,
@@ -74,9 +79,11 @@ async function processSingleScan(scanId: string, network: string, targetAddress:
 
   try {
     // Run scanner based on network
+    // Pass chain identifier (e.g. bsc_testnet, 97) for RPC resolution
+    const scanNetwork = chain || network;
     let result;
-    if (network.startsWith('EVM')) {
-      result = await evmScanner.scan(targetAddress, network);
+    if (network.startsWith('EVM') || network === 'EVM') {
+      result = await evmScanner.scan(targetAddress, scanNetwork);
     } else if (network === 'SOLANA') {
       // TODO: Implement Solana scanner
       throw new Error('Solana scanner not implemented yet');
@@ -104,7 +111,7 @@ async function processSingleScan(scanId: string, network: string, targetAddress:
       .eq('id', scanId)
       .single();
 
-    if (scan) {
+    if (scan?.project_id) {
       await supabase
         .from('projects')
         .update({ sc_scan_status: result.status })
@@ -170,5 +177,5 @@ export async function processScanById(scanId: string) {
     throw new Error('Scan not found');
   }
 
-  await processSingleScan(scan.id, scan.network, scan.target_address);
+  await processSingleScan(scan.id, scan.network, scan.target_address, scan.chain);
 }

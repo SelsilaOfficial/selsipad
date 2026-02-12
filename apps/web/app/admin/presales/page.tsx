@@ -171,6 +171,10 @@ export default function AdminPresalesPage() {
         const result = await finalizePresale(roundId, 'SUCCESS', {
           merkleRoot: prepData.merkleRoot,
           totalAllocation: prepData.totalAllocation,
+          unsoldToBurn: prepData.unsoldToBurn || '0',
+          tokensForLP: prepData.tokensForLP || '0',
+          tokenMinLP: prepData.tokenMinLP || '0',
+          bnbMinLP: prepData.bnbMinLP || '0',
         });
         if (!result.success) throw new Error(result.error);
         alert(`✅ Finalized as SUCCESS!\nTx: ${result.txHash}`);

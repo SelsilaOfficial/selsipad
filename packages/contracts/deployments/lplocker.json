@@ -1,7 +1,8 @@
 {
-  "lpLocker": "0x905A81F09c8ED76e71e82933f9b4978E41ac1b9F",
+  "lpLocker": "0xd15Fb6D4f57C9948A0FA7d079F8F658e0c486822",
   "deployer": "0x95D94D86CfC550897d2b80672a3c94c12429a90D",
   "network": "bscTestnet",
   "chainId": "97",
-  "deployedAt": "2026-02-04T01:04:06.982Z"
+  "deployedAt": "2026-02-12T04:23:00.000Z",
+  "note": "Unified LPLocker (shared by Presale + Fairlaunch), verified on BscScan"
 }

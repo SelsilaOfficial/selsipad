@@ -1,0 +1,30 @@
+{
+  "version": "2.4",
+  "network": "bscTestnet",
+  "chainId": "97",
+  "timestamp": "2026-02-12T00:28:46.867Z",
+  "deployBlock": 89830908,
+  "deployer": "0x95D94D86CfC550897d2b80672a3c94c12429a90D",
+  "admin": "0x178cf582e811B30205CBF4Bb7bE45A9dF31AaC4A",
+  "contracts": {
+    "factory": "0x67c3DAE448B55C3B056C39B173118d69b7891866",
+    "feeSplitter": "0x9CE09C9e370a3974f4D0c55D6a15C4d9F186d161",
+    "lpLocker": "0x762ef3C6573473F7DeE7520B5c014825b64EB0DF",
+    "dexRouter": "0xD99D1c33F9fC3444f8101754aBC46c52416550D1",
+    "timelock": "0x95D94D86CfC550897d2b80672a3c94c12429a90D"
+  },
+  "previousVersion": {
+    "version": "2.3",
+    "factory": "0xb6AB0db764dF5Ae4BBE8464289A22F5AcE0DdcAB",
+    "feeSplitter": "0xDCE874B2E99C6318Dc88157DA313Cc11D957d2aF"
+  },
+  "changes": [
+    "V2.4: Phase-based finalization with FinalizeSnapshot + 4 phase flags",
+    "V2.4: LP creation via PancakeRouter + LP lock via ILPLocker",
+    "V2.4: FINALIZING status for retry safety",
+    "V2.4: sweepExcess for admin cleanup of stray native tokens",
+    "V2.4: InsufficientTokenBudget guard (vesting + LP + burn <= balance)",
+    "V2.4: Fee-before-LP enforcement via FeeNotDone/LPNotDone guards",
+    "V2.4: Owner payout computed from snapshot, not address(this).balance"
+  ]
+}

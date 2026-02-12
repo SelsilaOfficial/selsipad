@@ -1,5 +1,3 @@
-'use client';
-
 import { useState, useEffect } from 'react';
 import { Shield, AlertTriangle, CheckCircle, Loader2, RefreshCw } from 'lucide-react';
 import { scanContractAddress, getScanStatus } from '../actions/scan-contract';
@@ -83,6 +81,18 @@ export function ExternalScanStep({
     if (result.success && result.data) {
       setScanId(result.data.scan_id);
       setScanStatus(result.data.status);
+
+      // If the scan already completed (reused result or fast execution),
+      // fire onScanComplete immediately since the polling useEffect
+      // only handles PENDING/RUNNING -> terminal transitions
+      if (['PASS', 'FAIL', 'NEEDS_REVIEW'].includes(result.data.status)) {
+        // Fetch full scan data for display
+        const fullResult = await getScanStatus(result.data.scan_id);
+        if (fullResult.success && fullResult.data) {
+          setScanResult(fullResult.data);
+        }
+        onScanComplete(result.data.status as 'PASS' | 'FAIL' | 'NEEDS_REVIEW');
+      }
     } else {
       setError(result.error || 'Failed to start scan');
       setScanStatus(null);

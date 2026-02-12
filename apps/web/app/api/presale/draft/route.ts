@@ -32,7 +32,16 @@ const CHAIN_MAP: Record<string, string> = {
 function normalizeToUTC(value: string | undefined | null, fallback: string): string {
   if (!value) return fallback;
   try {
-    const d = new Date(value);
+    // datetime-local inputs arrive without timezone, e.g. "2026-02-11T13:35".
+    // The UI labels say "WIB (UTC+7)", so we treat bare strings as WIB.
+    // Only skip if the string has an explicit TZ suffix after the time part:
+    //   ends with Z, or has +HH:MM / -HH:MM at the end (e.g. "+07:00", "-05:00")
+    let toParse = value;
+    const hasTZ = /Z$/i.test(value) || /[+-]\d{2}:\d{2}$/.test(value) || /[+-]\d{4}$/.test(value);
+    if (!hasTZ) {
+      toParse = value + '+07:00'; // Treat as WIB → will be converted to UTC by toISOString()
+    }
+    const d = new Date(toParse);
     if (isNaN(d.getTime())) return fallback;
     return d.toISOString();
   } catch {

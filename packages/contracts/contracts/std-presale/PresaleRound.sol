@@ -17,10 +17,36 @@ interface IMerkleVesting {
     function merkleRoot() external view returns (bytes32);
 }
 
+interface IPancakeRouter02 {
+    function addLiquidityETH(
+        address token,
+        uint amountTokenDesired,
+        uint amountTokenMin,
+        uint amountETHMin,
+        address to,
+        uint deadline
+    ) external payable returns (uint amountToken, uint amountETH, uint liquidity);
+    function factory() external pure returns (address);
+    function WETH() external pure returns (address);
+}
+
+interface IPancakeFactory {
+    function getPair(address tokenA, address tokenB) external view returns (address);
+}
+
+interface ILPLocker {
+    function lockTokens(
+        address lpToken,
+        uint256 amount,
+        uint256 unlockTime,
+        address beneficiary
+    ) external returns (uint256 lockId);
+}
+
 /**
  * @title PresaleRound
- * @notice Secure presale contract with refund-safe fee handling and scalable vesting
- * @dev v2.1 Compliant: Status sync, locked fee config, vault funding enforcement
+ * @notice Secure presale contract with refund-safe fee handling, vesting, LP creation & lock
+ * @dev v2.4.1b.1: Phase-based snapshot finalize with LP creation + lock
  */
 contract PresaleRound is ReentrancyGuard, Pausable, AccessControl {
     using SafeERC20 for IERC20;
@@ -32,6 +58,7 @@ contract PresaleRound is ReentrancyGuard, Pausable, AccessControl {
         UPCOMING,           // Not yet started
         ACTIVE,             // Accepting contributions
         ENDED,              // Time ended, awaiting finalization
+        FINALIZING,         // V2.4: Snapshot taken, finalize phases in progress
         FINALIZED_SUCCESS,  // Soft cap met, funds distributed
         FINALIZED_FAILED,   // Soft cap not met, refunds active
         CANCELLED           // Admin cancelled, refunds active
@@ -42,6 +69,16 @@ contract PresaleRound is ReentrancyGuard, Pausable, AccessControl {
         uint256 treasuryBps;       // Treasury share (250 = 2.5%)
         uint256 referralPoolBps;   // Referral pool share (200 = 2%)
         uint256 sbtStakingBps;     // SBT staking share (50 = 0.5%)
+    }
+
+    // V2.4: Finalize snapshot — computed once, used on every retry
+    struct FinalizeSnapshot {
+        uint256 totalNative;    // totalRaised at first finalize call
+        uint256 feeAmount;      // totalNative * feeBps / 10000
+        uint256 netAfterFee;    // totalNative - feeAmount
+        uint256 lpBnb;          // netAfterFee * liquidityBps / 10000
+        uint256 ownerBnb;       // netAfterFee - lpBnb
+        bool    taken;          // true after first computation
     }
     
     // Immutable Config
@@ -58,6 +95,12 @@ contract PresaleRound is ReentrancyGuard, Pausable, AccessControl {
     address public immutable feeSplitter;
     address public immutable vestingVault;
     address public immutable projectOwner;
+
+    // V2.4: LP Config (immutable)
+    address public immutable dexRouter;
+    address public immutable lpLocker;
+    uint256 public immutable liquidityBps;    // e.g. 6000 = 60%
+    uint256 public immutable lpLockDuration;  // seconds, e.g. 365 days
     
     // Fee Config
     FeeConfig public feeConfig;
@@ -67,9 +110,15 @@ contract PresaleRound is ReentrancyGuard, Pausable, AccessControl {
     uint256 public totalRaised;
     uint256 public tgeTimestamp; // Set at finalization
     
-    // Escrow finalization idempotency tracking
-    uint256 public burnedAmount;   // Amount of unsold tokens burned (0 = not yet burned)
-    bool public bnbDistributed;
+    // V2.4: Finalize state
+    FinalizeSnapshot public snap;
+    uint256 public burnedAmount;
+    bool    public vestingFunded;
+    bool    public feePaid;
+    bool    public lpCreated;
+    bool    public ownerPaid;
+    uint256 public lpLockId;
+    uint256 public lpUsedBnb;
     
     // Mappings
     mapping(address => uint256) public contributions;
@@ -92,6 +141,8 @@ contract PresaleRound is ReentrancyGuard, Pausable, AccessControl {
         uint256 burned,
         bytes32 merkleRoot
     );
+    event LiquidityAdded(address indexed pair, uint256 tokenAmount, uint256 bnbAmount, uint256 lpTokens);
+    event LPLocked(uint256 indexed lockId, address indexed lpToken, uint256 amount, uint256 unlockTime);
     
     // Errors
     error InvalidStatus();
@@ -110,6 +161,10 @@ contract PresaleRound is ReentrancyGuard, Pausable, AccessControl {
     error InvalidMerkleRoot();
     error FeeDistributionFailed();
     error VestingFundingFailed();
+    error LPNotDone();
+    error FeeNotDone();
+    error InsufficientNativeBal();
+    error InsufficientTokenBudget();
     
     constructor(
         address _projectToken,
@@ -123,13 +178,23 @@ contract PresaleRound is ReentrancyGuard, Pausable, AccessControl {
         address _feeSplitter,
         address _vestingVault,
         address _projectOwner,
-        address _admin
+        address _admin,
+        address _dexRouter,
+        address _lpLocker,
+        uint256 _liquidityBps,
+        uint256 _lpLockDuration
     ) {
         if (_hardCap < _softCap) revert InvalidStatus();
         if (_endTime <= _startTime) revert InvalidStatus();
         if (_feeSplitter == address(0)) revert InvalidAddress();
         if (_vestingVault == address(0)) revert InvalidAddress();
         if (_projectOwner == address(0)) revert InvalidAddress();
+        
+        // V2.4: LP config validation
+        require(_liquidityBps <= 10000, "INVALID_LP_BPS");
+        require(_dexRouter != address(0) || _liquidityBps == 0, "NEED_ROUTER");
+        require(_lpLocker != address(0) || _liquidityBps == 0, "NEED_LOCKER");
+        require(_lpLockDuration >= 365 days || _liquidityBps == 0, "MIN_12_MONTHS");
         
         projectToken = _projectToken;
         paymentToken = _paymentToken;
@@ -142,6 +207,10 @@ contract PresaleRound is ReentrancyGuard, Pausable, AccessControl {
         feeSplitter = _feeSplitter;
         vestingVault = _vestingVault;
         projectOwner = _projectOwner;
+        dexRouter = _dexRouter;
+        lpLocker = _lpLocker;
+        liquidityBps = _liquidityBps;
+        lpLockDuration = _lpLockDuration;
         
         status = Status.UPCOMING;
         
@@ -220,48 +289,37 @@ contract PresaleRound is ReentrancyGuard, Pausable, AccessControl {
     }
     
     /**
-     * @notice Finalize presale successfully (soft cap met)
+     * @notice Finalize presale successfully (soft cap met) — legacy non-escrow path
      * @dev V2.2: Deducts fee & distributes. Funds vesting vault. Burns unsold tokens. Sets TGE.
-     * @param merkleRoot The merkle root for vesting claims
-     * @param totalVestingAllocation Total tokens allocated for investor vesting
-     * @param totalTokensForSale Total tokens that were offered for sale
      */
     function finalizeSuccess(
         bytes32 merkleRoot,
         uint256 totalVestingAllocation,
         uint256 totalTokensForSale
     ) external onlyRole(ADMIN_ROLE) nonReentrant {
-        // V2.1 PATCH: Sync status
         _syncStatus();
         
         if (status != Status.ENDED) revert InvalidStatus();
         if (totalRaised < softCap) revert SoftCapNotMet();
         
-        // Calculate fee
         uint256 feeAmount = (totalRaised * feeConfig.totalBps) / 10000;
         uint256 netAmount = totalRaised - feeAmount;
         
-        // V2.1 PATCH: Fund vesting vault BEFORE setting root
         IERC20(projectToken).safeTransferFrom(
             projectOwner,
             vestingVault,
             totalVestingAllocation
         );
         
-        // Set merkle root (will revert if vault underfunded)
         IMerkleVesting(vestingVault).setMerkleRoot(merkleRoot, totalVestingAllocation);
         
-        // Distribute fee via FeeSplitter
         if (paymentToken == address(0)) {
-            // Native token
             IFeeSplitter(feeSplitter).distributeFeeNative{value: feeAmount}();
         } else {
-            // ERC20 token
             IERC20(paymentToken).forceApprove(feeSplitter, feeAmount);
             IFeeSplitter(feeSplitter).distributeFeeERC20(paymentToken, feeAmount);
         }
         
-        // Transfer net amount to project owner
         if (paymentToken == address(0)) {
             (bool success, ) = projectOwner.call{value: netAmount}("");
             if (!success) revert VestingFundingFailed();
@@ -269,28 +327,19 @@ contract PresaleRound is ReentrancyGuard, Pausable, AccessControl {
             IERC20(paymentToken).safeTransfer(projectOwner, netAmount);
         }
         
-        // V2.2: Auto-burn unsold tokens (anti-dump protection)
-        // If presale didn't reach hardcap, unsold tokens are burned
         if (totalRaised < hardCap && totalTokensForSale > 0) {
-            // Calculate unsold tokens proportionally:
-            // unsoldTokens = totalTokensForSale * (hardCap - totalRaised) / hardCap
             uint256 unsoldTokens = (totalTokensForSale * (hardCap - totalRaised)) / hardCap;
-            
             if (unsoldTokens > 0) {
-                // Transfer unsold tokens from projectOwner to burn address
                 IERC20(projectToken).safeTransferFrom(
                     projectOwner,
-                    address(0xdEaD),  // Standard burn address
+                    address(0xdEaD),
                     unsoldTokens
                 );
                 emit UnsoldTokensBurned(unsoldTokens);
             }
         }
         
-        // Set TGE timestamp
         tgeTimestamp = block.timestamp;
-        
-        // Update status
         status = Status.FINALIZED_SUCCESS;
         
         emit FinalizedSuccess(totalRaised, feeAmount, tgeTimestamp);
@@ -303,7 +352,6 @@ contract PresaleRound is ReentrancyGuard, Pausable, AccessControl {
         external 
         onlyRole(ADMIN_ROLE) 
     {
-        // V2.1 PATCH: Sync status
         _syncStatus();
         
         if (status != Status.ENDED) revert InvalidStatus();
@@ -332,7 +380,6 @@ contract PresaleRound is ReentrancyGuard, Pausable, AccessControl {
      * @dev V2.1: ALWAYS accessible when FAILED | CANCELLED (NOT affected by pause)
      */
     function claimRefund() external nonReentrant {
-        // V2.1 PATCH: Refund NOT blocked by pause
         if (status != Status.FINALIZED_FAILED && status != Status.CANCELLED) {
             revert RefundNotAvailable();
         }
@@ -342,7 +389,6 @@ contract PresaleRound is ReentrancyGuard, Pausable, AccessControl {
         
         contributions[msg.sender] = 0;
         
-        // Transfer full contribution back (NO fee deduction)
         if (paymentToken == address(0)) {
             (bool success, ) = msg.sender.call{value: amount}("");
             if (!success) revert VestingFundingFailed();
@@ -361,12 +407,10 @@ contract PresaleRound is ReentrancyGuard, Pausable, AccessControl {
         external 
         onlyRole(ADMIN_ROLE) 
     {
-        // V2.1 PATCH: Can only update if UPCOMING + no contributions + before start
         if (status != Status.UPCOMING) revert ConfigLocked();
         if (totalRaised > 0) revert ConfigLocked();
         if (block.timestamp >= startTime) revert ConfigLocked();
         
-        // Validate total equals sum
         if (newConfig.totalBps != 
             newConfig.treasuryBps + 
             newConfig.referralPoolBps + 
@@ -436,108 +480,218 @@ contract PresaleRound is ReentrancyGuard, Pausable, AccessControl {
     }
     
     // ────────────────────────────────────────────────────────
-    //  ESCROW-BASED FINALIZATION (v2.3)
+    //  ESCROW-BASED FINALIZATION (v2.4.1b.1)
+    //  Phase-based, snapshot-deterministic, retry-safe
     // ────────────────────────────────────────────────────────
     
     /**
      * @notice Finalize presale using tokens held in THIS contract (released from escrow)
-     * @dev 2-step flow: (1) escrow.release(projectId, address(this)) → tokens land here
-     *                   (2) this function settles everything from own balance
+     * @dev V2.4: Phase-based with deterministic snapshot. Retry-safe.
+     *      Flow: Snapshot → Vesting → Merkle → Burn → Fee → LP+Lock → Owner → FINALIZED
      * @param _merkleRoot Merkle root for vesting claims (ignored if already set)
      * @param totalVestingAllocation Total tokens for investor vesting
      * @param unsoldToBurn Tokens to send to burn address (0xdEaD)
+     * @param tokensForLP Tokens to pair with BNB for LP (calculated off-chain)
+     * @param tokenMinLP Min tokens for addLiquidity slippage protection
+     * @param bnbMinLP Min BNB for addLiquidity slippage protection
      */
     function finalizeSuccessEscrow(
         bytes32 _merkleRoot,
         uint256 totalVestingAllocation,
-        uint256 unsoldToBurn
+        uint256 unsoldToBurn,
+        uint256 tokensForLP,
+        uint256 tokenMinLP,
+        uint256 bnbMinLP
     ) external onlyRole(ADMIN_ROLE) nonReentrant {
-        // Prevent double finalize
+        // ═══ GATE ═══
         if (status == Status.FINALIZED_SUCCESS) revert AlreadyFinalized();
-        
-        // Sync status (ACTIVE → ENDED if endTime passed)
-        _syncStatus();
-        
-        // Must be ENDED with softcap met
-        if (status != Status.ENDED) revert InvalidStatus();
+        if (status != Status.ENDED && status != Status.FINALIZING) {
+            _syncStatus();
+            if (status != Status.ENDED && status != Status.FINALIZING)
+                revert InvalidStatus();
+        }
         if (totalRaised < softCap) revert SoftCapNotMet();
-        
-        // ── Step 1: Fund vesting vault (balance-based, idempotent) ──
-        uint256 vestingTopUp = 0;
+
+        // ═══ SNAPSHOT (once) ═══
+        if (!snap.taken) {
+            uint256 raised = totalRaised;
+            uint256 fee = (raised * feeConfig.totalBps) / 10000;
+            uint256 net = raised - fee;
+            uint256 lp  = (liquidityBps > 0) ? (net * liquidityBps) / 10000 : 0;
+
+            snap = FinalizeSnapshot({
+                totalNative: raised,
+                feeAmount:   fee,
+                netAfterFee: net,
+                lpBnb:       lp,
+                ownerBnb:    net - lp,
+                taken:       true
+            });
+
+            if (address(this).balance < raised) revert InsufficientNativeBal();
+
+            // V2.4.1b.1 FIX (1): validate token budget covers all phases
+            uint256 contractTokenBal = IERC20(projectToken).balanceOf(address(this));
+            if (contractTokenBal < totalVestingAllocation + tokensForLP + unsoldToBurn)
+                revert InsufficientTokenBudget();
+
+            // W1: if fee is zero, mark feePaid immediately
+            if (fee == 0) {
+                feePaid = true;
+            }
+
+            status = Status.FINALIZING;
+        }
+
+        // ════════════════════════════════════════
+        // PHASE 1 — Fund Vesting Vault
+        // ════════════════════════════════════════
+        if (!vestingFunded) {
+            uint256 vaultBal = IERC20(projectToken).balanceOf(vestingVault);
+            if (vaultBal < totalVestingAllocation) {
+                uint256 topUp = totalVestingAllocation - vaultBal;
+                IERC20(projectToken).safeTransfer(vestingVault, topUp);
+            }
+            vestingFunded = true;
+        }
+
+        // ════════════════════════════════════════
+        // PHASE 2 — Set Merkle Root (idempotent)
+        // ════════════════════════════════════════
+        bytes32 usedRoot = _merkleRoot;
         {
-            uint256 vaultBalance = IERC20(projectToken).balanceOf(vestingVault);
-            if (vaultBalance < totalVestingAllocation) {
-                vestingTopUp = totalVestingAllocation - vaultBalance;
-                uint256 roundBalance = IERC20(projectToken).balanceOf(address(this));
-                if (roundBalance < vestingTopUp) revert InsufficientTokenBalance();
-                IERC20(projectToken).safeTransfer(vestingVault, vestingTopUp);
+            bytes32 onChainRoot = IMerkleVesting(vestingVault).merkleRoot();
+            if (onChainRoot == bytes32(0)) {
+                if (_merkleRoot == bytes32(0)) revert InvalidMerkleRoot();
+                IMerkleVesting(vestingVault).setMerkleRoot(_merkleRoot, totalVestingAllocation);
+            } else {
+                usedRoot = onChainRoot;
             }
         }
-        
-        // ── Step 2: Set merkle root (idempotent — skip if already set) ──
-        // Tweak #2: Validate merkle root input
-        bytes32 usedRoot = _merkleRoot;
-        bytes32 onChainRoot = IMerkleVesting(vestingVault).merkleRoot();
-        if (onChainRoot == bytes32(0)) {
-            if (_merkleRoot == bytes32(0)) revert InvalidMerkleRoot();
-            IMerkleVesting(vestingVault).setMerkleRoot(_merkleRoot, totalVestingAllocation);
-        } else {
-            // Already set — record what's on-chain
-            usedRoot = onChainRoot;
-        }
-        
-        // ── Step 3: Burn unsold tokens (amount-tracked, idempotent) ──
-        // Tweak #3: Track burned amount for resume safety
+
+        // ════════════════════════════════════════
+        // PHASE 3 — Burn Unsold
+        // ════════════════════════════════════════
         uint256 actualBurned = 0;
         if (unsoldToBurn > 0 && burnedAmount < unsoldToBurn) {
             uint256 toBurn = unsoldToBurn - burnedAmount;
-            uint256 roundBalance = IERC20(projectToken).balanceOf(address(this));
-            if (roundBalance < toBurn) revert InsufficientTokenBalance();
             IERC20(projectToken).safeTransfer(address(0xdEaD), toBurn);
             burnedAmount = unsoldToBurn;
             actualBurned = toBurn;
             emit UnsoldTokensBurned(toBurn);
         }
-        
-        // ── Step 4: Finalize state BEFORE external calls (CEI pattern) ──
-        // Tweak #1: State changes before external native transfers
-        tgeTimestamp = block.timestamp;
-        status = Status.FINALIZED_SUCCESS;
-        
-        // ── Step 5: BNB distribution (fee + net to owner) ──
-        uint256 totalNative = address(this).balance;
-        uint256 feeAmount = 0;
-        uint256 netAmount = 0;
-        if (totalNative > 0 && !bnbDistributed) {
-            feeAmount = (totalNative * feeConfig.totalBps) / 10000;
-            netAmount = totalNative - feeAmount;
-            
-            bnbDistributed = true; // Set flag before external calls
-            
-            // Tweak #4: FeeSplitter wrapped with try/catch
-            if (feeAmount > 0) {
-                try IFeeSplitter(feeSplitter).distributeFeeNative{value: feeAmount}() {
-                    // Fee distributed successfully
-                } catch {
-                    revert FeeDistributionFailed();
-                }
-            }
-            
-            // Transfer net to project owner
-            if (netAmount > 0) {
-                (bool ok, ) = projectOwner.call{value: netAmount}("");
-                if (!ok) revert NativeTransferFailed();
+
+        // ════════════════════════════════════════
+        // PHASE 4 — Fee → FeeSplitter
+        // ════════════════════════════════════════
+        if (!feePaid && snap.feeAmount > 0) {
+            try IFeeSplitter(feeSplitter).distributeFeeNative{value: snap.feeAmount}() {
+                feePaid = true;
+            } catch {
+                revert FeeDistributionFailed();
             }
         }
-        
+
+        // ════════════════════════════════════════
+        // PHASE 5 — Add Liquidity + Lock LP
+        // ════════════════════════════════════════
+        if (!lpCreated && liquidityBps > 0 && tokensForLP > 0 && snap.lpBnb > 0) {
+            // V2.4.1b.1 FIX (2): enforce fee paid before LP
+            if (!feePaid && snap.feeAmount > 0) revert FeeNotDone();
+
+            if (address(this).balance < snap.lpBnb) revert InsufficientNativeBal();
+
+            // 5a: Approve tokens to router
+            IERC20(projectToken).forceApprove(dexRouter, tokensForLP);
+
+            // 5b: Add liquidity — to = address(this) to receive LP tokens
+            (uint256 usedToken, uint256 usedBnb, uint256 liquidity) =
+                IPancakeRouter02(dexRouter).addLiquidityETH{value: snap.lpBnb}(
+                    projectToken,
+                    tokensForLP,
+                    tokenMinLP,
+                    bnbMinLP,
+                    address(this),          // LP tokens → this contract
+                    block.timestamp + 300
+                );
+
+            // 5c: Get pair + lock LP
+            address wbnb = IPancakeRouter02(dexRouter).WETH();
+            address pair = IPancakeFactory(
+                IPancakeRouter02(dexRouter).factory()
+            ).getPair(projectToken, wbnb);
+
+            IERC20(pair).forceApprove(lpLocker, liquidity);
+            lpLockId = ILPLocker(lpLocker).lockTokens(
+                pair,
+                liquidity,
+                block.timestamp + lpLockDuration,
+                projectOwner
+            );
+
+            lpUsedBnb = usedBnb;     // persist for owner dust calc
+            lpCreated = true;
+
+            emit LiquidityAdded(pair, usedToken, usedBnb, liquidity);
+            emit LPLocked(lpLockId, pair, liquidity, block.timestamp + lpLockDuration);
+
+            // 5d: Dust token → burn
+            if (tokensForLP > usedToken) {
+                IERC20(projectToken).safeTransfer(address(0xdEaD), tokensForLP - usedToken);
+            }
+        }
+
+        // ════════════════════════════════════════
+        // PHASE 6 — Remainder BNB → Owner
+        // ════════════════════════════════════════
+        if (!ownerPaid) {
+            // W2: enforce fee done before owner payout
+            if (!feePaid && snap.feeAmount > 0) revert FeeNotDone();
+
+            // Enforce LP done before owner (when LP is configured)
+            if (liquidityBps > 0 && snap.lpBnb > 0 && !lpCreated) revert LPNotDone();
+
+            // Computed payout (never raw balance)
+            uint256 lpDustBnb = 0;
+            if (lpCreated && snap.lpBnb > lpUsedBnb) {
+                lpDustBnb = snap.lpBnb - lpUsedBnb;
+            }
+            uint256 toOwner = snap.ownerBnb + lpDustBnb;
+
+            if (toOwner > 0) {
+                if (address(this).balance < toOwner) revert InsufficientNativeBal();
+                (bool ok, ) = projectOwner.call{value: toOwner}("");
+                if (!ok) revert NativeTransferFailed();
+            }
+            ownerPaid = true;
+        }
+
+        // ════════════════════════════════════════
+        // PHASE 7 — Finalize Status (LAST)
+        // ════════════════════════════════════════
+        tgeTimestamp = block.timestamp;
+        status = Status.FINALIZED_SUCCESS;
+
         emit FinalizedSuccessEscrow(
-            totalNative,
-            feeAmount,
-            netAmount,
-            vestingTopUp,
-            actualBurned,
-            usedRoot
+            snap.totalNative, snap.feeAmount, snap.ownerBnb,
+            totalVestingAllocation, actualBurned, usedRoot
         );
+    }
+
+    // ────────────────────────────────────────────────────────
+    //  ADMIN UTILITIES
+    // ────────────────────────────────────────────────────────
+
+    /// @notice Sweep excess native tokens not part of the raise (external deposits, etc)
+    /// @dev Only callable after FINALIZED_SUCCESS to avoid interfering with finalize phases
+    function sweepExcess(address to) external onlyRole(ADMIN_ROLE) nonReentrant {
+        if (status != Status.FINALIZED_SUCCESS) revert InvalidStatus();
+        if (to == address(0)) revert InvalidAddress();
+        uint256 excess = address(this).balance;
+        if (excess > 0) {
+            (bool ok, ) = to.call{value: excess}("");
+            if (!ok) revert NativeTransferFailed();
+        }
     }
     
     /**

@@ -307,11 +307,19 @@ async function main() {
     entries
   );
 
-  await projectToken.transfer(vesting, totalAllocation);
-  await projectToken.approve(round, totalAllocation);
+  // v2.3 finalizeSuccess pulls tokens from projectOwner via safeTransferFrom
+  // Do NOT manually transfer to vesting - the contract handles it
+  // Approve round for both vesting allocation + potential unsold burn
+  const totalTokensForSale = totalAllocation; // all tokens allocated are for sale in this test
+  await projectToken.approve(round, totalAllocation + totalTokensForSale);
 
   const roundFinalizer = new hre.ethers.Contract(round, roundAbi, finalizer);
-  const finalizeTx = await roundFinalizer.finalizeSuccess(merkleRoot, totalAllocation);
+  // v2.3: finalizeSuccess(merkleRoot, totalVestingAllocation, totalTokensForSale)
+  const finalizeTx = await roundFinalizer.finalizeSuccess(
+    merkleRoot,
+    totalAllocation,
+    totalTokensForSale
+  );
   await finalizeTx.wait();
   console.log('   finalizeSuccess tx:', finalizeTx.hash);
 

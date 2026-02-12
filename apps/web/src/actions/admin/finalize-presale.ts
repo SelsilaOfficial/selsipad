@@ -4,6 +4,7 @@ import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { cookies } from 'next/headers';
 import { ethers } from 'ethers';
 import { revalidatePath } from 'next/cache';
+import { recordLPLock } from './record-lp-lock';
 
 const RPC_URLS: Record<string, string> = {
   '97': process.env.BSC_TESTNET_RPC_URL || 'https://bsc-testnet-rpc.publicnode.com',
@@ -25,13 +26,21 @@ const MERKLE_VESTING_ABI = [
   'function token() view returns (address)',
 ];
 
-// PresaleRound ABI — kept for status checks and FAILED finalization
+// PresaleRound ABI — V2.4: updated for 6-param finalizeSuccessEscrow
 const PRESALE_ROUND_ABI = [
   'function finalizeFailed(string reason) external',
   'function status() view returns (uint8)',
   'function totalRaised() view returns (uint256)',
   'function softCap() view returns (uint256)',
   'function hardCap() view returns (uint256)',
+  'function feeConfig() view returns (uint256 totalBps, uint256 treasuryBps, uint256 referralPoolBps, uint256 sbtStakingBps)',
+  'function snap() view returns (bool taken)',
+  'function feePaid() view returns (bool)',
+  'function lpCreated() view returns (bool)',
+  'function ownerPaid() view returns (bool)',
+  'function vestingFunded() view returns (bool)',
+  'function finalizeSuccessEscrow(bytes32 _merkleRoot, uint256 totalVestingAllocation, uint256 unsoldToBurn, uint256 tokensForLP, uint256 tokenMinLP, uint256 bnbMinLP) external',
+  'event Contributed(address indexed contributor, uint256 amount, address indexed referrer)',
 ];
 
 // Known escrow vault addresses per chain
@@ -56,6 +65,9 @@ export async function finalizePresale(
     merkleRoot?: string;
     totalAllocation?: string;
     unsoldToBurn?: string;
+    tokensForLP?: string;
+    tokenMinLP?: string;
+    bnbMinLP?: string;
     failureReason?: string;
   }
 ) {
@@ -220,39 +232,46 @@ export async function finalizePresale(
 
       // ─── Step 2: Call finalizeSuccessEscrow on round contract ───
       const ROUND_FINALIZE_ABI = [
-        'function finalizeSuccessEscrow(bytes32 _merkleRoot, uint256 _totalVestingAllocation, uint256 _unsoldToBurn) external',
+        'function finalizeSuccessEscrow(bytes32 _merkleRoot, uint256 _totalVestingAllocation, uint256 _unsoldToBurn, uint256 _tokensForLP, uint256 _tokenMinLP, uint256 _bnbMinLP) external',
         'function status() view returns (uint8)',
-        'function bnbDistributed() view returns (bool)',
+        'function feePaid() view returns (bool)',
+        'function lpCreated() view returns (bool)',
+        'function ownerPaid() view returns (bool)',
+        'function vestingFunded() view returns (bool)',
       ];
       const roundContract = new ethers.Contract(contractAddress, ROUND_FINALIZE_ABI, adminWallet);
 
-      // Check if already finalized
+      // Check if already finalized — V2.4: status 3 = FINALIZING (resumable), 4 = FINALIZED_SUCCESS (done)
       const currentStatus = await (roundContract as any).status();
-      if (currentStatus === 3n) {
-        const bnbDist = await (roundContract as any).bnbDistributed();
-        if (bnbDist) {
-          console.log('[finalizePresale] Already fully finalized on-chain');
-        } else {
-          console.log(
-            '[finalizePresale] Status is FINALIZED but BNB not distributed — resuming...'
-          );
-          const finalizeTx = await (roundContract as any).finalizeSuccessEscrow(
-            options.merkleRoot,
-            BigInt(options.totalAllocation),
-            BigInt(unsoldToBurn),
-            { gasLimit: 1000000 }
-          );
-          console.log('[finalizePresale] Resume finalize tx:', finalizeTx.hash);
-          await finalizeTx.wait();
-          txHashes.push(finalizeTx.hash);
-        }
-      } else {
-        console.log('[finalizePresale] Calling finalizeSuccessEscrow...');
+      if (currentStatus === 4n) {
+        // Already fully finalized
+        console.log('[finalizePresale] Already fully finalized on-chain');
+      } else if (currentStatus === 3n) {
+        // FINALIZING — resume from where we left off
+        console.log('[finalizePresale] Status is FINALIZING — resuming phases...');
         const finalizeTx = await (roundContract as any).finalizeSuccessEscrow(
           options.merkleRoot,
           BigInt(options.totalAllocation),
           BigInt(unsoldToBurn),
-          { gasLimit: 1000000 }
+          BigInt(options.tokensForLP || '0'),
+          BigInt(options.tokenMinLP || '0'),
+          BigInt(options.bnbMinLP || '0'),
+          { gasLimit: 5000000 }
+        );
+        console.log('[finalizePresale] Resume finalize tx:', finalizeTx.hash);
+        await finalizeTx.wait();
+        txHashes.push(finalizeTx.hash);
+      } else {
+        // ENDED or just synced — start finalization
+        console.log('[finalizePresale] Calling finalizeSuccessEscrow (V2.4, 6 params)...');
+        const finalizeTx = await (roundContract as any).finalizeSuccessEscrow(
+          options.merkleRoot,
+          BigInt(options.totalAllocation),
+          BigInt(unsoldToBurn),
+          BigInt(options.tokensForLP || '0'),
+          BigInt(options.tokenMinLP || '0'),
+          BigInt(options.bnbMinLP || '0'),
+          { gasLimit: 5000000 }
         );
         console.log('[finalizePresale] Finalize tx:', finalizeTx.hash);
         const finalizeReceipt = await finalizeTx.wait();
@@ -290,8 +309,27 @@ export async function finalizePresale(
           .eq('id', round.project_id);
       }
 
-      // Process fee splits
-      await processPresaleFeeSplits(supabase, round, totalRaised);
+      // Process fee splits (V2.4: upsert + on-chain referral)
+      await processPresaleFeeSplits(supabase, round, totalRaised, provider);
+
+      // ─── Step 4: Record LP Lock to DB ───
+      // Parse TokensLocked event from the finalize receipt
+      if (txHashes.length > 0) {
+        try {
+          const lastTxHash = txHashes[txHashes.length - 1];
+          const lockReceipt = await provider.getTransactionReceipt(lastTxHash);
+          if (lockReceipt) {
+            const lockResult = await recordLPLock(lockReceipt, roundId, round.chain || '');
+            if (lockResult.success) {
+              console.log(`[finalizePresale] LP Lock recorded: lockId=${lockResult.lockId}`);
+            } else {
+              console.warn('[finalizePresale] LP Lock recording skipped:', lockResult.error);
+            }
+          }
+        } catch (lockErr) {
+          console.warn('[finalizePresale] LP Lock recording error (non-fatal):', lockErr);
+        }
+      }
 
       revalidatePath('/admin');
       return {
@@ -392,33 +430,43 @@ async function getEscrowProjectId(
 async function processPresaleFeeSplits(
   supabase: ReturnType<typeof createServiceRoleClient>,
   round: any,
-  totalRaised: bigint
+  totalRaised: bigint,
+  provider: ethers.JsonRpcProvider
 ) {
   try {
-    const params = round.params as any;
-    const feeBps = params.fees_referral?.platform_fee_bps || 500; // default 5%
-    const feeAmount = (totalRaised * BigInt(feeBps)) / 10000n;
+    // FIX 4: Read feeBps from on-chain contract, not DB params
+    const presaleContract = new ethers.Contract(
+      round.round_address || round.contract_address,
+      PRESALE_ROUND_ABI,
+      provider
+    );
+    const feeConfig = await (presaleContract as any).feeConfig();
+    const feeBps = BigInt(feeConfig.totalBps);
+    const feeAmount = (totalRaised * feeBps) / 10000n;
 
-    // Columns are numeric(78,0) — must store in wei (integer), not ETH
-    const treasuryWei = (feeAmount * 50n) / 100n; // 50% to treasury
-    const referralWei = (feeAmount * 40n) / 100n; // 40% to referral pool
-    const stakingWei = feeAmount - treasuryWei - referralWei; // 10% remainder to staking
+    // Columns are numeric(78,0) — store in wei
+    const treasuryWei = (feeAmount * 50n) / 100n;
+    const referralWei = (feeAmount * 40n) / 100n;
+    const stakingWei = feeAmount - treasuryWei - referralWei;
 
-    // Create fee_splits entry (columns match actual DB schema)
+    // Fee_splits: upsert (idempotent on retry)
     const { data: feeSplit, error: feeError } = await supabase
       .from('fee_splits')
-      .insert({
-        source_id: round.id,
-        source_type: 'PRESALE',
-        total_amount: feeAmount.toString(),
-        treasury_amount: treasuryWei.toString(),
-        referral_pool_amount: referralWei.toString(),
-        staking_pool_amount: stakingWei.toString(),
-        asset: 'BNB',
-        chain: round.chain || '97',
-        processed: true,
-        processed_at: new Date().toISOString(),
-      })
+      .upsert(
+        {
+          source_id: round.id,
+          source_type: 'PRESALE',
+          total_amount: feeAmount.toString(),
+          treasury_amount: treasuryWei.toString(),
+          referral_pool_amount: referralWei.toString(),
+          staking_pool_amount: stakingWei.toString(),
+          asset: 'BNB',
+          chain: round.chain || '97',
+          processed: true,
+          processed_at: new Date().toISOString(),
+        },
+        { onConflict: 'source_type,source_id' }
+      )
       .select()
       .single();
 
@@ -428,39 +476,79 @@ async function processPresaleFeeSplits(
     }
 
     console.log(
-      '[processPresaleFeeSplits] Fee split created:',
+      '[processPresaleFeeSplits] Fee split upserted:',
       feeSplit?.id,
+      'feeBps:',
+      feeBps.toString(),
       'amount:',
       ethers.formatEther(feeAmount),
       'BNB'
     );
 
-    // Create referral ledger entries for contributors with referrers
-    const { data: contributions } = await supabase
-      .from('contributions')
-      .select('user_id, amount, referrer_id')
-      .eq('round_id', round.id)
-      .not('referrer_id', 'is', null);
+    // FIX 5+6: Referral from on-chain Contributed events with bounded block range and bigint math
+    const roundAddress = round.round_address || round.contract_address;
+    const deployBlock = round.deployment_block_number || 0;
+    const endBlock = 'latest'; // could store end_block in DB
+    const filter = (presaleContract as any).filters.Contributed();
+    const events = await presaleContract.queryFilter(filter, deployBlock, endBlock);
 
-    if (contributions && contributions.length > 0 && feeSplit) {
-      const totalContributions = contributions.reduce((sum, c) => sum + parseFloat(c.amount), 0);
+    const totalRaisedWei = totalRaised;
+    let referralCount = 0;
 
-      for (const contrib of contributions) {
-        const proportion = parseFloat(contrib.amount) / totalContributions;
-        // referralWei is the total referral pool — split proportionally
-        const referralReward = Number(referralWei) * proportion;
+    for (const event of events) {
+      const parsedLog = event as ethers.EventLog;
+      if (!parsedLog.args) continue;
+      const [contributor, amount, referrer] = parsedLog.args;
+      if (referrer === ethers.ZeroAddress) continue;
 
-        await supabase.from('referral_ledger').insert({
-          user_id: contrib.referrer_id,
-          fee_split_id: feeSplit.id,
+      // Look up wallets → user_ids (case-insensitive)
+      const { data: referrerWallet } = await supabase
+        .from('wallets')
+        .select('user_id')
+        .ilike('address', referrer)
+        .single();
+      const { data: contribWallet } = await supabase
+        .from('wallets')
+        .select('user_id')
+        .ilike('address', contributor)
+        .single();
+
+      if (!referrerWallet?.user_id || !contribWallet?.user_id) continue;
+
+      // FIX 5: pure bigint — no Number() precision loss
+      const proportionalAmount = (referralWei * BigInt(amount)) / totalRaisedWei;
+
+      const { error: ledgerErr } = await supabase.from('referral_ledger').upsert(
+        {
+          referrer_id: referrerWallet.user_id,
           source_type: 'PRESALE_CONTRIBUTION',
-          amount: referralReward,
-          status: 'PENDING',
-        });
-      }
+          source_id: feeSplit.id,
+          referee_id: contribWallet.user_id,
+          amount: proportionalAmount.toString(),
+          asset: 'BNB',
+          chain: round.chain || '97',
+          status: 'CLAIMABLE',
+        },
+        { onConflict: 'source_type,source_id,referee_id' }
+      );
 
-      console.log('[processPresaleFeeSplits] Created', contributions.length, 'referral entries');
+      if (!ledgerErr) {
+        referralCount++;
+        console.log(
+          `[processPresaleFeeSplits] Referral reward ${proportionalAmount.toString()} → referrer ${referrerWallet.user_id}`
+        );
+      } else if (ledgerErr.code !== '23505') {
+        console.error('[processPresaleFeeSplits] Ledger upsert error:', ledgerErr);
+      }
     }
+
+    console.log(
+      '[processPresaleFeeSplits] Created',
+      referralCount,
+      'referral entries from',
+      events.length,
+      'on-chain events'
+    );
   } catch (error) {
     console.error('[processPresaleFeeSplits] Error:', error);
   }

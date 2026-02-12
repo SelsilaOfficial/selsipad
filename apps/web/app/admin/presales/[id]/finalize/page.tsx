@@ -15,6 +15,10 @@ import { PresaleStatusLabel, PresaleStatusColor } from '@/lib/web3/presale-contr
 interface FinalizationPreview {
   merkleRoot: string;
   totalAllocation: string;
+  unsoldToBurn: string;
+  tokensForLP: string;
+  tokenMinLP: string;
+  bnbMinLP: string;
   contributorCount: number;
   snapshotHash: string;
   allocations: Array<{
@@ -26,6 +30,8 @@ interface FinalizationPreview {
     target: string;
     data: string;
   };
+  // Also accept top-level target from prepare-finalize route
+  target?: string;
 }
 
 export default function AdminFinalizePage() {
@@ -36,6 +42,9 @@ export default function AdminFinalizePage() {
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [unsoldToBurn, setUnsoldToBurn] = useState('0');
+  const [tokensForLP, setTokensForLP] = useState('0');
+  const [tokenMinLP, setTokenMinLP] = useState('0');
+  const [bnbMinLP, setBnbMinLP] = useState('0');
 
   // Read contract data
   const { data: status } = usePresaleStatus(
@@ -75,6 +84,12 @@ export default function AdminFinalizePage() {
 
       const data = await response.json();
       setPreview(data);
+
+      // Autofill LP params from prepare-finalize response
+      setUnsoldToBurn(data.unsoldToBurn || '0');
+      setTokensForLP(data.tokensForLP || '0');
+      setTokenMinLP(data.tokenMinLP || '0');
+      setBnbMinLP(data.bnbMinLP || '0');
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -86,12 +101,16 @@ export default function AdminFinalizePage() {
   const handleDirectExecute = async () => {
     if (!preview) return;
 
+    const roundAddr = (preview.target || preview.calldata?.target) as `0x${string}`;
     try {
       await executeFinalize({
-        roundAddress: preview.calldata.target as `0x${string}`,
+        roundAddress: roundAddr,
         merkleRoot: preview.merkleRoot as `0x${string}`,
         totalAllocation: BigInt(preview.totalAllocation),
         unsoldToBurn: BigInt(unsoldToBurn || '0'),
+        tokensForLP: BigInt(tokensForLP || '0'),
+        tokenMinLP: BigInt(tokenMinLP || '0'),
+        bnbMinLP: BigInt(bnbMinLP || '0'),
       });
     } catch (err: any) {
       setError(err.message);
@@ -306,21 +325,59 @@ export default function AdminFinalizePage() {
                     ⚠️ Execute finalizeSuccessEscrow directly. Only enabled in testnet.
                   </p>
 
-                  <div className="mb-3">
-                    <label className="text-sm font-medium text-yellow-800 block mb-1">
-                      Unsold Tokens to Burn (wei)
-                    </label>
-                    <input
-                      type="text"
-                      value={unsoldToBurn}
-                      onChange={(e) => setUnsoldToBurn(e.target.value)}
-                      placeholder="0"
-                      className="w-full border border-yellow-300 rounded px-3 py-1.5 text-sm font-mono bg-white"
-                    />
-                    <p className="text-xs text-yellow-600 mt-1">
-                      Set to 0 if no unsold tokens need burning
-                    </p>
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <div>
+                      <label className="text-sm font-medium text-yellow-800 block mb-1">
+                        Unsold to Burn (wei)
+                      </label>
+                      <input
+                        type="text"
+                        value={unsoldToBurn}
+                        onChange={(e) => setUnsoldToBurn(e.target.value)}
+                        placeholder="0"
+                        className="w-full border border-yellow-300 rounded px-3 py-1.5 text-sm font-mono bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-yellow-800 block mb-1">
+                        Tokens for LP (wei)
+                      </label>
+                      <input
+                        type="text"
+                        value={tokensForLP}
+                        onChange={(e) => setTokensForLP(e.target.value)}
+                        placeholder="0"
+                        className="w-full border border-yellow-300 rounded px-3 py-1.5 text-sm font-mono bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-yellow-800 block mb-1">
+                        Token Min LP (wei)
+                      </label>
+                      <input
+                        type="text"
+                        value={tokenMinLP}
+                        onChange={(e) => setTokenMinLP(e.target.value)}
+                        placeholder="0"
+                        className="w-full border border-yellow-300 rounded px-3 py-1.5 text-sm font-mono bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-yellow-800 block mb-1">
+                        BNB Min LP (wei)
+                      </label>
+                      <input
+                        type="text"
+                        value={bnbMinLP}
+                        onChange={(e) => setBnbMinLP(e.target.value)}
+                        placeholder="0"
+                        className="w-full border border-yellow-300 rounded px-3 py-1.5 text-sm font-mono bg-white"
+                      />
+                    </div>
                   </div>
+                  <p className="text-xs text-yellow-600 mb-3">
+                    Auto-filled from prepare-finalize. Override only if needed.
+                  </p>
 
                   <button
                     onClick={handleDirectExecute}

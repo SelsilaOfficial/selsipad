@@ -18,6 +18,7 @@ import { cookies } from 'next/headers';
 import { createClient } from '@supabase/supabase-js';
 import { generateMerkleTree } from '@/lib/server/merkle/generate-tree';
 import { parseEther } from 'viem';
+import { ethers } from 'ethers';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -89,21 +90,86 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
     const totalRaised = contributions.reduce((sum, c) => sum + parseEther(String(c.amount)), 0n);
 
-    // 4. Calculate token allocations based on contribution proportions
+    // 4. Read token decimals on-chain (FIX 3: don't assume 18 decimals)
     const roundParams = round.params as any;
-    const tokensForSale = parseEther(String(roundParams?.token_for_sale || '0'));
+    const rpcUrl = process.env.BSC_TESTNET_RPC_URL || 'https://bsc-testnet-rpc.publicnode.com';
+    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const tokenContract = new ethers.Contract(
+      round.token_address,
+      ['function decimals() view returns (uint8)'],
+      provider
+    );
+    const tokenDecimals = Number(await (tokenContract as any).decimals());
+    const tokenUnit = 10n ** BigInt(tokenDecimals);
 
-    if (tokensForSale === 0n) {
+    // FIX 3: token_for_sale parsed ONLY via parseUnits(tokenDecimals)
+    const tokensForSaleWei = ethers.parseUnits(
+      String(roundParams?.token_for_sale || '0'),
+      tokenDecimals
+    );
+    const pricePerToken = roundParams?.price ? parseFloat(roundParams.price) : 0;
+
+    if (tokensForSaleWei === 0n) {
       return NextResponse.json(
         { error: 'token_for_sale is 0 — cannot calculate allocations' },
         { status: 400 }
       );
     }
 
-    const allocations = contributions.map((c) => ({
-      address: c.wallet_address,
-      allocation: (parseEther(String(c.amount)) * tokensForSale) / totalRaised,
-    }));
+    if (pricePerToken <= 0) {
+      return NextResponse.json(
+        { error: 'price_per_token is 0 — cannot calculate allocations' },
+        { status: 400 }
+      );
+    }
+
+    // Fixed price allocation: tokens = contribution * tokenUnit / priceWei
+    const priceWei = parseEther(String(pricePerToken));
+    const allocations = contributions.map((c) => {
+      const contributionWei = parseEther(String(c.amount));
+      const tokenAllocation = (contributionWei * tokenUnit) / priceWei;
+      return {
+        address: c.wallet_address,
+        allocation: tokenAllocation,
+      };
+    });
+
+    // FIX 4: Read feeBps from on-chain contract, not params
+    const roundContract = new ethers.Contract(
+      round.round_address,
+      [
+        'function feeConfig() view returns (uint256 totalBps, uint256 treasuryBps, uint256 referralPoolBps, uint256 sbtStakingBps)',
+      ],
+      provider
+    );
+    const feeConfig = await (roundContract as any).feeConfig();
+    const feeBps = BigInt(feeConfig.totalBps);
+
+    // LP calculation
+    const totalRaisedWei = parseEther(String(round.total_raised || '0'));
+    const feeAmount = (totalRaisedWei * feeBps) / 10000n;
+    const netAfterFee = totalRaisedWei - feeAmount;
+    const lpPercentBps = BigInt((roundParams.lp_lock?.percentage || 60) * 100);
+    const lpBnbAmount = (netAfterFee * lpPercentBps) / 10000n;
+    const tokensForLP = (lpBnbAmount * tokenUnit) / priceWei;
+
+    // Burn = tokensForSale - sold - LP reserve
+    const totalTokensSold = allocations.reduce((sum, a) => sum + a.allocation, 0n);
+    const unsoldToBurn =
+      tokensForSaleWei > totalTokensSold + tokensForLP
+        ? tokensForSaleWei - totalTokensSold - tokensForLP
+        : 0n;
+
+    // Slippage (default 5%)
+    const slippageBps = BigInt(roundParams.slippage_bps || 500);
+    const tokenMinLP = (tokensForLP * (10000n - slippageBps)) / 10000n;
+    const bnbMinLP = (lpBnbAmount * (10000n - slippageBps)) / 10000n;
+
+    console.log('[prepare-finalize] tokensForSale:', tokensForSaleWei.toString());
+    console.log('[prepare-finalize] totalTokensSold:', totalTokensSold.toString());
+    console.log('[prepare-finalize] tokensForLP:', tokensForLP.toString());
+    console.log('[prepare-finalize] unsoldToBurn:', unsoldToBurn.toString());
+    console.log('[prepare-finalize] feeBps (from contract):', feeBps.toString());
 
     // 5. Generate merkle tree
     const merkleData = generateMerkleTree(
@@ -134,15 +200,20 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       })
       .eq('id', params.id);
 
-    // 7. Return proposal payload
+    // 7. Return proposal payload (V2.4: includes LP params)
     return NextResponse.json({
       success: true,
       merkleRoot: merkleData.root,
       totalAllocation: merkleData.totalAllocation.toString(),
+      unsoldToBurn: unsoldToBurn.toString(),
+      tokensForLP: tokensForLP.toString(),
+      tokenMinLP: tokenMinLP.toString(),
+      bnbMinLP: bnbMinLP.toString(),
+      feeBps: feeBps.toString(),
       allocations: allocations.map((a) => ({
         address: a.address,
         allocation: a.allocation.toString(),
-        allocationFormatted: (Number(a.allocation) / 1e18).toFixed(6),
+        allocationFormatted: (Number(a.allocation) / Number(tokenUnit)).toFixed(6),
       })),
       snapshotHash: merkleData.snapshotHash,
       target: round.round_address,

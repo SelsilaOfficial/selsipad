@@ -26,10 +26,12 @@ export default async function FairlaunchDetailPage({ params }: { params: { id: s
   // Fetch fairlaunch detail
   const { data: fairlaunch, error } = await supabase
     .from('launch_rounds')
-    .select(`
+    .select(
+      `
       *,
       project:projects (*)
-    `)
+    `
+    )
     .eq('id', params.id)
     .eq('type', 'FAIRLAUNCH')
     .single();
@@ -39,7 +41,13 @@ export default async function FairlaunchDetailPage({ params }: { params: { id: s
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 py-8">
+    <div
+      className="min-h-screen bg-black text-white py-8"
+      style={{
+        fontFamily:
+          '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+      }}
+    >
       <div className="container mx-auto px-4">
         <FairlaunchDetail fairlaunch={fairlaunch} userAddress={session?.address} />
       </div>

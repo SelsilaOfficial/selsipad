@@ -44,9 +44,10 @@ const PRESALE_STATUS = {
   UPCOMING: 0,
   ACTIVE: 1,
   ENDED: 2,
-  FINALIZED_SUCCESS: 3,
-  FINALIZED_FAILED: 4,
-  CANCELLED: 5,
+  FINALIZING: 3, // V2.4: snapshot taken, phases in progress
+  FINALIZED_SUCCESS: 4, // was 3 in V2.3
+  FINALIZED_FAILED: 5, // was 4 in V2.3
+  CANCELLED: 6, // was 5 in V2.3
 } as const;
 
 // ─── Helpers ──────────────────────────────────

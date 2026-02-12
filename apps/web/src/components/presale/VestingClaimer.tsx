@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { formatEther } from 'viem';
+import { type Address } from 'viem';
 import { useWaitForTransactionReceipt } from 'wagmi';
 import {
   usePresaleVestingVault,
-  usePresaleTGETimestamp,
+  usePresaleTgeTimestamp,
   useVestingSchedule,
   useClaimableAmount,
   useClaimedAmount,
@@ -45,26 +45,33 @@ export default function VestingClaimer({ presaleId, userAddress }: VestingClaime
   }, [presaleId]);
 
   // Read vesting vault address and TGE timestamp from presale contract
-  const { data: vestingVaultAddress } = usePresaleVestingVault(roundAddress);
-  const { data: tgeTimestamp } = usePresaleTGETimestamp(roundAddress);
+  const roundAddr = roundAddress ? (roundAddress as Address) : undefined;
+  const { data: vestingVaultAddress } = usePresaleVestingVault(roundAddr);
+  const { data: tgeTimestamp } = usePresaleTgeTimestamp(roundAddr);
 
   // Read vesting schedule
-  const { data: vestingSchedule } = useVestingSchedule(vestingVaultAddress || '');
+  const vestingVaultAddr = vestingVaultAddress as Address | undefined;
+  const vestingSchedule = useVestingSchedule(vestingVaultAddr);
 
   // Read claimed amount
   const { data: claimedAmount, refetch: refetchClaimed } = useClaimedAmount(
-    vestingVaultAddress || '',
-    userAddress
+    vestingVaultAddr,
+    userAddress as Address | undefined
   );
 
   // Calculate claimable amount (only if we have the proof)
   const { data: claimableAmount, refetch: refetchClaimable } = useClaimableAmount(
-    vestingVaultAddress || '',
-    userAddress,
+    vestingVaultAddr,
+    userAddress as Address | undefined,
     proof ? BigInt(proof.allocation) : 0n
   );
 
-  const { claim: executeClaim, hash: txHash, isPending: isClaiming, error: claimError } = useClaimVesting();
+  const {
+    claim: executeClaim,
+    hash: txHash,
+    isPending: isClaiming,
+    error: claimError,
+  } = useClaimVesting();
   const { data: receipt } = useWaitForTransactionReceipt({ hash: txHash });
   const isClaimed = !!receipt;
 
@@ -128,8 +135,9 @@ export default function VestingClaimer({ presaleId, userAddress }: VestingClaime
   // Calculate vesting progress
   const now = Math.floor(Date.now() / 1000);
   const tge = tgeTimestamp ? Number(tgeTimestamp) : 0;
-  const cliffEnd = vestingSchedule ? tge + Number(vestingSchedule.cliffDuration) : 0;
-  const vestingEnd = vestingSchedule ? cliffEnd + Number(vestingSchedule.linearDuration) : 0;
+  const hasSchedule = !!vestingSchedule.cliffDuration;
+  const cliffEnd = hasSchedule ? tge + Number(vestingSchedule.cliffDuration) : 0;
+  const vestingEnd = hasSchedule ? cliffEnd + Number(vestingSchedule.vestingDuration) : 0;
 
   const isCliffActive = now < cliffEnd;
   const isVestingActive = now >= cliffEnd && now < vestingEnd;
@@ -197,7 +205,7 @@ export default function VestingClaimer({ presaleId, userAddress }: VestingClaime
       </div>
 
       {/* Vesting Timeline */}
-      {vestingSchedule && (
+      {hasSchedule && (
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-xl font-bold text-gray-900 mb-4">Vesting Schedule</h2>
 
@@ -209,7 +217,9 @@ export default function VestingClaimer({ presaleId, userAddress }: VestingClaime
               />
               <div className="ml-3 flex-1">
                 <div className="flex justify-between">
-                  <span className="font-medium">TGE ({vestingSchedule.tgePercent / 100}%)</span>
+                  <span className="font-medium">
+                    TGE ({Number(vestingSchedule.tgeUnlockBps || 0) / 100}%)
+                  </span>
                   <span className="text-sm text-gray-500">
                     {new Date(tge * 1000).toLocaleDateString()}
                   </span>
@@ -217,7 +227,7 @@ export default function VestingClaimer({ presaleId, userAddress }: VestingClaime
                 {proof && (
                   <p className="text-sm text-gray-600 mt-1">
                     {(
-                      (Number(proof.allocation) * Number(vestingSchedule.tgePercent)) /
+                      (Number(proof.allocation) * Number(vestingSchedule.tgeUnlockBps || 0)) /
                       10000 /
                       1e18
                     ).toLocaleString()}{' '}

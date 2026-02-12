@@ -3,6 +3,7 @@
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { getServerSession } from '@/lib/auth/session';
 import { ethers } from 'ethers';
+import { recordLPLock } from './record-lp-lock';
 
 export type FairlaunchAction =
   | 'finalize'
@@ -95,7 +96,9 @@ export async function finalizeFairlaunch(roundId: string, action: FairlaunchActi
     // Get round details
     const { data: round, error: roundError } = await supabase
       .from('launch_rounds')
-      .select('id, status, chain, contract_address, total_raised, params, start_at, end_at, project_id')
+      .select(
+        'id, status, chain, contract_address, total_raised, params, start_at, end_at, project_id'
+      )
       .eq('id', roundId)
       .single();
 
@@ -198,6 +201,23 @@ export async function finalizeFairlaunch(roundId: string, action: FairlaunchActi
     console.log(
       `[finalizeFairlaunch] Post-execution: isFinalized=${isFinalizedNow}, step=${currentStep}`
     );
+
+    // Record LP Lock if lockLP was executed (step 3 → 4) or full finalize completed
+    if (action === 'lockLP' || (action === 'finalize' && Number(currentStep) >= 4)) {
+      try {
+        const txReceipt = await provider.getTransactionReceipt(tx.hash);
+        if (txReceipt) {
+          const lockResult = await recordLPLock(txReceipt, roundId, round.chain || '');
+          if (lockResult.success) {
+            console.log(`[finalizeFairlaunch] LP Lock recorded: lockId=${lockResult.lockId}`);
+          } else {
+            console.warn('[finalizeFairlaunch] LP Lock recording skipped:', lockResult.error);
+          }
+        }
+      } catch (lockErr) {
+        console.warn('[finalizeFairlaunch] LP Lock recording error (non-fatal):', lockErr);
+      }
+    }
 
     // Update DB if fully finalized
     if (isFinalizedNow) {

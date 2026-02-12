@@ -1,0 +1,25 @@
+{
+  "version": "2.3",
+  "network": "bscTestnet",
+  "chainId": "97",
+  "timestamp": "2026-02-11T09:53:06.641Z",
+  "deployer": "0x95D94D86CfC550897d2b80672a3c94c12429a90D",
+  "admin": "0x178cf582e811B30205CBF4Bb7bE45A9dF31AaC4A",
+  "contracts": {
+    "feeSplitter": "0xDCE874B2E99C6318Dc88157DA313Cc11D957d2aF",
+    "factory": "0xb6AB0db764dF5Ae4BBE8464289A22F5AcE0DdcAB"
+  },
+  "previousVersion": {
+    "version": "2.2",
+    "feeSplitter": "0xa91e51F043Bc455dAae1f74Ad1991Df4C711b5ED",
+    "factory": "0xf3935d541A4F8fBED26c39f7E43625CE7b4d11E6"
+  },
+  "changes": [
+    "PresaleRound now has finalizeSuccessEscrow(bytes32, uint256, uint256)",
+    "CEI pattern: status set before external BNB calls",
+    "uint256 burnedAmount replaces bool unsoldBurned (resume-safe)",
+    "FeeSplitter try/catch with FeeDistributionFailed error",
+    "InvalidMerkleRoot validation added",
+    "VestingFundingFailed kept for legacy functions"
+  ]
+}

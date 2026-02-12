@@ -362,7 +362,7 @@ export function ExploreClientContent({ initialProjects }: ExploreClientContentPr
                           </span>
                           <Countdown
                             targetDate={
-                              project.status === 'upcoming' ? project.startDate : project.endDate
+                              project.status === 'upcoming' ? project.startDate ?? '' : project.endDate ?? ''
                             }
                           />
                         </div>

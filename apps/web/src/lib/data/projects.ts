@@ -149,21 +149,107 @@ export async function getFeaturedProjects(): Promise<Project[]> {
 /**
  * Get Project By ID
  *
- * Fetches a single project with full details
+ * Fetches a single project with full details.
+ * Joins launch_rounds for live presale/fairlaunch data (V2.4).
+ *
+ * The `id` parameter can be either a project ID or a launch_round ID.
  */
 export async function getProjectById(id: string): Promise<Project | null> {
   const supabase = createClient();
 
   try {
-    const { data, error } = await supabase.from('projects').select('*').eq('id', id).single();
+    // First try: id is a launch_round ID (used from explore page routing)
+    const { data: roundData } = await supabase
+      .from('launch_rounds')
+      .select(
+        `
+        *,
+        projects (
+          id, name, symbol, description, logo_url, status,
+          kyc_submission_id, scan_result_id, metadata, factory_address
+        )
+      `
+      )
+      .eq('id', id)
+      .single();
 
-    if (error) {
+    if (roundData && roundData.projects) {
+      const project = roundData.projects as any;
+      const params = (roundData.params as any) || {};
+
+      return {
+        id: roundData.id,
+        name: params.project_name || project.name,
+        symbol: params.token_symbol || project.symbol || 'TBD',
+        logo: params.logo_url || project.logo_url || '/placeholder-logo.png',
+        description: params.project_description || project.description || '',
+        type: (roundData.type?.toLowerCase() || 'presale') as 'presale' | 'fairlaunch',
+        network: mapChainToNetwork(roundData.chain),
+        chain: roundData.chain,
+        status: calculateRealTimeStatus(roundData),
+        raised: Number(roundData.total_raised) || 0,
+        target: params.softcap || params.hardcap || 1000,
+        kyc_verified: !!project.kyc_submission_id,
+        audit_status: project.scan_result_id ? 'pass' : null,
+        lp_lock: !!(params.lp_lock || params.lp_lock_months),
+        contract_address: roundData.round_address || roundData.contract_address,
+        startDate: roundData.start_at,
+        endDate: roundData.end_at,
+      };
+    }
+
+    // Second try: id is a project ID — join launch_rounds
+    const { data, error } = await supabase
+      .from('projects')
+      .select(
+        `
+        *,
+        launch_rounds (
+          id, type, status, chain, start_at, end_at,
+          contract_address, round_address, total_raised,
+          total_participants, params
+        )
+      `
+      )
+      .eq('id', id)
+      .single();
+
+    if (error || !data) {
       console.error('Error fetching project:', error);
       return null;
     }
 
-    if (!data) return null;
+    // If project has launch_rounds, use the most relevant one
+    const rounds = data.launch_rounds || [];
+    const activeRound =
+      rounds.find((r: any) =>
+        ['DEPLOYED', 'LIVE', 'ACTIVE', 'ENDED'].includes(r.status?.toUpperCase())
+      ) || rounds[0];
 
+    if (activeRound) {
+      const params = activeRound.params || {};
+      return {
+        id: activeRound.id, // Use round ID for detail page routing
+        name: params.project_name || data.name,
+        symbol: params.token_symbol || data.symbol || 'TBD',
+        logo: params.logo_url || data.logo_url || '/placeholder-logo.png',
+        description: params.project_description || data.description || '',
+        type: (activeRound.type?.toLowerCase() || 'presale') as 'presale' | 'fairlaunch',
+        network: mapChainToNetwork(activeRound.chain),
+        chain: activeRound.chain,
+        status: calculateRealTimeStatus(activeRound),
+        raised: Number(activeRound.total_raised) || 0,
+        target: params.softcap || params.hardcap || 1000,
+        kyc_verified: !!data.kyc_submission_id,
+        audit_status: data.scan_result_id ? 'pass' : null,
+        lp_lock: !!(params.lp_lock || params.lp_lock_months),
+        contract_address: activeRound.round_address || activeRound.contract_address,
+        startDate: activeRound.start_at,
+        endDate: activeRound.end_at,
+      };
+    }
+
+    // Fallback: no launch_rounds, use static metadata
     const mapped = mapProjectsToFrontend([data]);
     return mapped[0] || null;
   } catch (err) {
@@ -251,6 +337,10 @@ export async function getAllProjects(filters?: {
             status === 'LIVE' ||
             status === 'ACTIVE' ||
             status === 'ENDED' ||
+            status === 'FINALIZED' ||
+            status === 'FINALIZED_SUCCESS' ||
+            status === 'FINALIZED_FAILED' ||
+            status === 'CANCELLED' ||
             status === 'FAILED'
           );
         })
@@ -346,6 +436,11 @@ function mapProjectStatus(dbStatus: string): 'live' | 'upcoming' | 'ended' {
     case 'IN_REVIEW':
       return 'upcoming';
     case 'ENDED':
+    case 'FINALIZED':
+    case 'FINALIZED_SUCCESS':
+    case 'FINALIZED_FAILED':
+    case 'CANCELLED':
+    case 'FAILED':
     case 'REJECTED':
       return 'ended';
     default:
@@ -383,6 +478,10 @@ function mapLaunchRoundStatus(dbStatus: string): 'live' | 'upcoming' | 'ended' {
     case 'ENDED':
     case 'COMPLETED':
     case 'CANCELLED':
+    case 'FINALIZED':
+    case 'FINALIZED_SUCCESS':
+    case 'FINALIZED_FAILED':
+    case 'FAILED':
       return 'ended';
     default:
       return 'upcoming';
