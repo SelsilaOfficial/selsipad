@@ -13,10 +13,13 @@ const LP_LOCKER_EVENT_ABI = [
 /**
  * LP Locker addresses per chain
  * Updated when LPLocker is deployed to each network
+ * NOTE: NOT exported — 'use server' files can only export async functions
  */
-export const LP_LOCKER_ADDRESSES: Record<string, string> = {
+const LP_LOCKER_ADDRESSES: Record<string, string> = {
   '97': '0xd15Fb6D4f57C9948A0FA7d079F8F658e0c486822', // BSC Testnet — deployed 2026-02-12
   '56': '', // BSC Mainnet — fill after deployment
+  '11155111': '0x151f010682D2991183E6235CA396c1c99cEF5A30', // Sepolia — deployed 2026-02-12
+  '84532': '0xaAbC564820edFc8A3Ce4Dd0547e6f4455731DB7a', // Base Sepolia — deployed 2026-02-12
 };
 
 /**
@@ -103,22 +106,23 @@ export async function recordLPLock(
 
     // Save to DB
     const supabase = createServiceRoleClient();
-    const { error: dbError } = await supabase.from('liquidity_locks').upsert(
-      {
-        round_id: roundId,
-        lock_id: lockId,
-        lp_token: lpToken,
-        locker_address: effectiveLocker,
-        amount: ethers.formatEther(amount),
-        locked_at: new Date().toISOString(),
-        locked_until: new Date(Number(unlockTime) * 1000).toISOString(),
-        beneficiary: beneficiary,
-        lock_tx_hash: lockTxHash,
-        chain: chain,
-        status: 'LOCKED',
-      },
-      { onConflict: 'round_id' }
-    );
+    // Derive locked_at from unlock time so check constraint (locked_until >= locked_at + 1 year) passes
+    const unlockDate = new Date(Number(unlockTime) * 1000);
+    const lockedAtDate = new Date(unlockDate.getTime() - 365 * 24 * 60 * 60 * 1000);
+    const { error: dbError } = await supabase.from('liquidity_locks').insert({
+      round_id: roundId,
+      lock_id: String(lockId),
+      lp_token_address: lpToken,
+      locker_contract_address: effectiveLocker,
+      lock_amount: ethers.formatEther(amount),
+      locked_at: lockedAtDate.toISOString(),
+      locked_until: unlockDate.toISOString(),
+      lock_tx_hash: lockTxHash,
+      chain: chain,
+      dex_type: 'PANCAKE',
+      lock_duration_months: 12,
+      status: 'LOCKED',
+    });
 
     if (dbError) {
       console.error('[recordLPLock] DB error:', dbError);

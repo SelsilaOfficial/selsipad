@@ -60,13 +60,12 @@ export async function getLPLocks(): Promise<LPLockItem[]> {
       ),
       liquidity_locks(
         lock_id,
-        lp_token,
-        locker_address,
-        amount,
+        lp_token_address,
+        locker_contract_address,
+        lock_amount,
         locked_at,
         locked_until,
         lock_tx_hash,
-        beneficiary,
         status
       )
     `
@@ -101,13 +100,13 @@ export async function getLPLocks(): Promise<LPLockItem[]> {
       status: r.status || 'UNKNOWN',
       // On-chain lock data from liquidity_locks
       lockId: lockRecord?.lock_id ?? null,
-      lpTokenAddress: lockRecord?.lp_token || null,
-      lockerAddress: lockRecord?.locker_address || null,
-      lockAmount: lockRecord?.amount || null,
+      lpTokenAddress: lockRecord?.lp_token_address || null,
+      lockerAddress: lockRecord?.locker_contract_address || null,
+      lockAmount: lockRecord?.lock_amount || null,
       lockedAt: lockRecord?.locked_at || r.deployed_at || null,
       lockedUntil: lockRecord?.locked_until || null,
       lockTxHash: lockRecord?.lock_tx_hash || r.params?.lock_tx_hash || null,
-      beneficiary: lockRecord?.beneficiary || null,
+      beneficiary: null,
       logoUrl: r.project?.logo_url || null,
     };
   });

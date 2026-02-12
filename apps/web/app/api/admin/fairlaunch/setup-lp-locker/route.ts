@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ethers } from 'ethers';
 import { createClient } from '@/lib/supabase/server';
-import lpLockerDeployment from '@/../../packages/contracts/deployments/lplocker.json';
 
 const FairlaunchABI = {
   abi: [
@@ -16,9 +15,34 @@ const FactoryABI = ['function adminExecutor() view returns (address)'];
 const FACTORY_ADDRESSES: Record<string, string> = {
   '97':
     process.env.NEXT_PUBLIC_FAIRLAUNCH_FACTORY_BSC_TESTNET ||
-    '0x837532947c93536CD7A13AC2aB66A5136C0c68C0',
+    '0xa6dE6Ebd3E0ED5AcbE9c07B59C738C610821e175', // Pair Pre-Create Fix (Feb 12)
   '56': process.env.NEXT_PUBLIC_FAIRLAUNCH_FACTORY_BSC_MAINNET || '',
+  '11155111':
+    process.env.NEXT_PUBLIC_FAIRLAUNCH_FACTORY_SEPOLIA ||
+    '0x53850a56397379Da8572A6a47003bca88bB52A24', // V2 Router Fix (Feb 12)
+  '84532':
+    process.env.NEXT_PUBLIC_FAIRLAUNCH_FACTORY_BASE_SEPOLIA ||
+    '0xeEf8C1da1b94111237c419AB7C6cC30761f31572', // Full Infra Deploy (Feb 12)
 };
+
+/** LP Locker addresses per chain */
+const LP_LOCKER_ADDRESSES: Record<string, string> = {
+  '97': '0xd15Fb6D4f57C9948A0FA7d079F8F658e0c486822', // BSC Testnet
+  '56': '', // BSC Mainnet — TBD
+  '11155111': '0x151f010682D2991183E6235CA396c1c99cEF5A30', // Sepolia
+  '84532': '0xaAbC564820edFc8A3Ce4Dd0547e6f4455731DB7a', // Base Sepolia
+};
+
+/** RPC URLs per chain */
+function getRpcUrl(chain: string): string {
+  const rpcs: Record<string, string | undefined> = {
+    '97': process.env.BSC_TESTNET_RPC_URL || 'https://data-seed-prebsc-1-s1.bnbchain.org:8545',
+    '56': process.env.BSC_MAINNET_RPC_URL,
+    '11155111': process.env.SEPOLIA_RPC_URL || 'https://rpc.sepolia.org',
+    '84532': process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org',
+  };
+  return rpcs[chain] || rpcs['97']!;
+}
 
 const ADMIN_ROLE = ethers.id('ADMIN_ROLE');
 
@@ -50,18 +74,18 @@ export async function POST(req: NextRequest) {
           ? '56'
           : rawChain;
 
-    // Get LP Locker address from deployment
-    const lpLockerAddress = lpLockerDeployment.lpLocker;
-    console.log('[Setup LP Locker] LP Locker address:', lpLockerAddress);
+    // Get LP Locker address for this chain
+    const lpLockerAddress = LP_LOCKER_ADDRESSES[chain];
+    console.log('[Setup LP Locker] LP Locker address:', lpLockerAddress, 'for chain:', chain);
 
     if (!lpLockerAddress || lpLockerAddress === ethers.ZeroAddress) {
-      return NextResponse.json({ error: 'LP Locker not deployed' }, { status: 500 });
+      return NextResponse.json(
+        { error: `LP Locker not deployed for chain ${chain}` },
+        { status: 500 }
+      );
     }
 
-    const rpcUrl =
-      chain === '56'
-        ? process.env.BSC_MAINNET_RPC_URL
-        : process.env.BSC_TESTNET_RPC_URL || 'https://data-seed-prebsc-1-s1.bnbchain.org:8545';
+    const rpcUrl = getRpcUrl(chain);
     const provider = new ethers.JsonRpcProvider(rpcUrl);
 
     // CRITICAL: DEPLOYER_PRIVATE_KEY must be the factory's adminExecutor (that wallet gets ADMIN_ROLE on each Fairlaunch)
