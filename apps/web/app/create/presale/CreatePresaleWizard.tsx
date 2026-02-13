@@ -26,6 +26,7 @@ import {
   type FullPresaleConfig,
   type ComplianceStatus,
 } from '@/../../packages/shared/src/validators/presale-wizard';
+import { AnimatedBackground } from '@/components/home/figma/AnimatedBackground';
 
 interface CreatePresaleWizardProps {
   walletAddress: string;
@@ -433,216 +434,266 @@ export function CreatePresaleWizard({
     lp_lock_valid: (wizardData.lp_lock?.duration_months || 0) >= 12,
   };
 
+  const progressPercentage = Math.round(((currentStep + 1) / 10) * 100);
+
   return (
-    <div className="max-w-4xl mx-auto">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-white mb-2">Create Presale</h1>
-        <p className="text-gray-400">
-          Launch your token presale in 9 simple steps. Your progress is automatically saved.
-        </p>
-      </div>
+    <div className="min-h-screen bg-black text-white relative overflow-hidden font-sans selection:bg-cyan-500/30 -mx-4 sm:-mx-6 -my-8 px-4 sm:px-6 py-8">
+      {/* Animated Background Layer */}
+      <AnimatedBackground />
 
-      {/* Stepper */}
-      <PresaleWizardStepper
-        currentStep={currentStep}
-        totalSteps={10}
-        completedSteps={completedSteps}
-        onStepClick={handleStepClick}
-        className="mb-8"
-      />
+      {/* Subtle Dark Overlay for Readability */}
+      <div className="fixed inset-0 bg-black/30 pointer-events-none z-[1]" />
 
-      {/* Main Content Card */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-8 mb-6">
-        {/* Step Content */}
-        {currentStep === 0 && (
-          <Step0ContractMode
-            data={{
-              contract_mode: wizardData.contract_mode,
-              contract_address: wizardData.contract_address,
-              scan_status: wizardData.scan_status,
-              template_audit_status: wizardData.template_audit_status,
-            }}
-            onChange={(data) => {
-              setWizardData({
-                ...wizardData,
-                network: data.network || wizardData.network,
-                contract_mode: data.contract_mode,
-                contract_address: data.contract_address,
-                scan_status: data.scan_status,
-                template_audit_status: data.template_audit_status,
-                // Token info from on-chain read (ExternalScanStep / TemplateModeStep)
-                total_supply: data.total_supply || wizardData.total_supply,
-                token_name: data.token_name || wizardData.token_name,
-                token_symbol: data.token_symbol || wizardData.token_symbol,
-                token_decimals: data.token_decimals || wizardData.token_decimals,
-              });
-            }}
-            projectId={projectId}
-            network={wizardData.network || ''}
-            errors={errors}
-          />
-        )}
-
-        {currentStep === 1 && (
-          <Step1BasicInfo
-            data={wizardData.basics || {}}
-            onChange={(data) => setWizardData({ ...wizardData, basics: data })}
-            errors={errors}
-            selectedNetwork={wizardData.network}
-          />
-        )}
-
-        {currentStep === 2 && (
-          <Step2SaleParams
-            data={(wizardData.sale_params || {}) as any}
-            onChange={(data) => setWizardData({ ...wizardData, sale_params: data })}
-            errors={errors}
-            network={wizardData.network || wizardData.basics?.network}
-            totalSupply={wizardData.total_supply}
-            tokenAddress={wizardData.contract_address}
-            onTotalSupplyRead={(supply) => {
-              if (supply && supply !== wizardData.total_supply) {
-                setWizardData((prev: any) => ({ ...prev, total_supply: supply }));
-              }
-            }}
-            onTokenSymbolRead={(symbol) => {
-              if (symbol && symbol !== wizardData.token_symbol) {
-                setWizardData((prev: any) => ({ ...prev, token_symbol: symbol }));
-              }
-            }}
-            onTokenDecimalsRead={(decimals) => {
-              if (decimals !== undefined && decimals !== wizardData.token_decimals) {
-                setWizardData((prev: any) => ({ ...prev, token_decimals: decimals }));
-              }
-            }}
-          />
-        )}
-
-        {currentStep === 3 && (
-          <Step3AntiBot
-            data={(wizardData.anti_bot || {}) as any}
-            onChange={(data) => setWizardData({ ...wizardData, anti_bot: data })}
-            errors={errors}
-          />
-        )}
-
-        {currentStep === 4 && (
-          <Step4InvestorVesting
-            data={(wizardData.investor_vesting || {}) as any}
-            onChange={(data) => setWizardData({ ...wizardData, investor_vesting: data })}
-            errors={errors}
-          />
-        )}
-
-        {currentStep === 5 && (
-          <Step6LpLock
-            data={(wizardData.lp_lock || {}) as any}
-            onChange={(data) => setWizardData({ ...wizardData, lp_lock: data })}
-            errors={errors}
-          />
-        )}
-
-        {currentStep === 6 && (
-          <Step5TeamVesting
-            data={(wizardData.team_vesting || {}) as any}
-            onChange={(data) => setWizardData({ ...wizardData, team_vesting: data })}
-            errors={errors}
-            totalTokenSupply={wizardData.total_supply || '0'}
-            tokensForSale={wizardData.sale_params?.total_tokens || '0'}
-            lpLockPercentage={wizardData.lp_lock?.percentage || 0}
-          />
-        )}
-
-        {currentStep === 7 && (
-          <Step7Fees
-            data={(wizardData.fees_referral || {}) as any}
-            onChange={(data) => setWizardData({ ...wizardData, fees_referral: data })}
-          />
-        )}
-
-        {currentStep === 8 && (
-          <Step8Review
-            data={wizardData}
-            onEdit={handleStepClick}
-            termsAccepted={termsAccepted}
-            onTermsChange={setTermsAccepted}
-          />
-        )}
-
-        {currentStep === 9 && (
-          <Step9Submit
-            complianceStatus={complianceStatus}
-            wizardData={wizardData}
-            isSubmitting={isSubmitting}
-            tokenAddress={
-              wizardData.contract_address || wizardData.sale_params?.token_address || ''
-            }
-            tokenDecimals={wizardData.token_decimals || 18}
-            tokensForSale={wizardData.sale_params?.total_tokens || '0'}
-            teamAllocation={wizardData.team_vesting?.team_allocation || '0'}
-            lpLockPercentage={wizardData.lp_lock?.percentage || 0}
-            network={wizardData.network || wizardData.basics?.network || ''}
-          />
-        )}
-      </div>
-
-      {/* Navigation Buttons */}
-      <div className="flex items-center justify-between gap-4">
-        <button
-          type="button"
-          onClick={handleBack}
-          disabled={currentStep === 0}
-          className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-colors ${
-            currentStep === 0
-              ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
-              : 'bg-gray-800 text-white hover:bg-gray-700'
-          }`}
-        >
-          <ArrowLeft className="w-5 h-5" />
-          Back
-        </button>
-
-        <div className="flex items-center gap-3">
-          {/* Save Draft Button */}
-          {currentStep < 9 && (
+      {/* Content Layer */}
+      <div className="relative z-10 max-w-[1000px] mx-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-4">
             <button
-              type="button"
-              onClick={handleSaveDraft}
-              className="flex items-center gap-2 px-6 py-3 rounded-lg font-medium bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors"
+              onClick={() => router.push('/create')}
+              className="p-3 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
             >
-              <Save className="w-5 h-5" />
-              Save Draft
+              <ArrowLeft className="w-5 h-5 text-[#39AEC4]" />
             </button>
-          )}
+            <div>
+              <h1
+                className="text-2xl font-bold bg-gradient-to-r from-[#39AEC4] to-[#756BBA] bg-clip-text text-transparent"
+                style={{ fontFamily: 'Audiowide, sans-serif' }}
+              >
+                Create Presale
+              </h1>
+              <p className="text-sm text-gray-400">Launch your IDO on SELSIPAD</p>
+            </div>
+          </div>
 
-          {/* Next Button */}
-          {currentStep < 10 && (
-            <button
-              type="button"
-              onClick={handleNext}
-              className="flex items-center gap-2 px-6 py-3 rounded-lg font-medium bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white transition-colors"
-            >
-              {currentStep === 9 ? 'Review Compliance' : 'Next'}
-              <ArrowRight className="w-5 h-5" />
-            </button>
-          )}
+          <div className="hidden sm:flex items-center gap-3 bg-white/5 px-4 py-2 rounded-full border border-white/10">
+            <div className="w-2 h-2 rounded-full bg-[#39AEC4] animate-pulse" />
+            <span className="text-sm font-medium text-gray-300">Step {currentStep + 1} of 10</span>
+          </div>
         </div>
-      </div>
 
-      {/* Cancel Link */}
-      <div className="mt-6 text-center">
-        <button
-          type="button"
-          onClick={() => {
-            if (confirm('Are you sure you want to cancel? Your draft will be saved.')) {
-              router.push('/presales');
-            }
-          }}
-          className="text-gray-500 hover:text-gray-400 text-sm"
-        >
-          Cancel and return to presales
-        </button>
+        {/* Progress Bar */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-semibold text-[#39AEC4]">Progress</span>
+            <span className="text-sm text-gray-400">{progressPercentage}%</span>
+          </div>
+          <div className="h-2 bg-white/5 rounded-full overflow-hidden border border-white/5">
+            <div
+              className="h-full bg-gradient-to-r from-[#39AEC4] to-[#756BBA] transition-all duration-500 ease-out relative"
+              style={{ width: `${progressPercentage}%` }}
+            >
+              <div className="absolute inset-0 bg-white/20 animate-[shimmer_2s_infinite]" />
+            </div>
+          </div>
+        </div>
+
+        {/* Main Content Card */}
+        <div className="rounded-[24px] bg-gradient-to-br from-[#1A1A20] to-[#0A0A0C] border border-[#39AEC4]/20 p-6 sm:p-8 shadow-2xl shadow-black/50 relative overflow-hidden group">
+          {/* Glossy overlay effect */}
+          <div className="absolute inset-0 bg-gradient-to-b from-white/[0.03] to-transparent pointer-events-none" />
+
+          {/* Step Content Wrapper */}
+          <div className="relative z-10">
+            {/* Stepper Display (Simplified for new UI) */}
+            <div className="mb-8 overflow-x-auto pb-2 -mx-2 px-2">
+              <PresaleWizardStepper
+                currentStep={currentStep}
+                totalSteps={10}
+                completedSteps={completedSteps}
+                onStepClick={handleStepClick}
+                className="min-w-[600px]"
+              />
+            </div>
+
+            {currentStep === 0 && (
+              <Step0ContractMode
+                data={{
+                  contract_mode: wizardData.contract_mode,
+                  contract_address: wizardData.contract_address,
+                  scan_status: wizardData.scan_status,
+                  template_audit_status: wizardData.template_audit_status,
+                }}
+                onChange={(data) => {
+                  setWizardData({
+                    ...wizardData,
+                    network: data.network || wizardData.network,
+                    contract_mode: data.contract_mode,
+                    contract_address: data.contract_address,
+                    scan_status: data.scan_status,
+                    template_audit_status: data.template_audit_status,
+                    total_supply: data.total_supply || wizardData.total_supply,
+                    token_name: data.token_name || wizardData.token_name,
+                    token_symbol: data.token_symbol || wizardData.token_symbol,
+                    token_decimals: data.token_decimals || wizardData.token_decimals,
+                  });
+                }}
+                projectId={projectId}
+                network={wizardData.network || ''}
+                errors={errors}
+              />
+            )}
+
+            {currentStep === 1 && (
+              <Step1BasicInfo
+                data={wizardData.basics || {}}
+                onChange={(data) => setWizardData({ ...wizardData, basics: data })}
+                errors={errors}
+                selectedNetwork={wizardData.network}
+              />
+            )}
+
+            {currentStep === 2 && (
+              <Step2SaleParams
+                data={(wizardData.sale_params || {}) as any}
+                onChange={(data) => setWizardData({ ...wizardData, sale_params: data })}
+                errors={errors}
+                network={wizardData.network || wizardData.basics?.network}
+                totalSupply={wizardData.total_supply}
+                tokenAddress={wizardData.contract_address}
+                onTotalSupplyRead={(supply) => {
+                  if (supply && supply !== wizardData.total_supply) {
+                    setWizardData((prev: any) => ({ ...prev, total_supply: supply }));
+                  }
+                }}
+                onTokenSymbolRead={(symbol) => {
+                  if (symbol && symbol !== wizardData.token_symbol) {
+                    setWizardData((prev: any) => ({ ...prev, token_symbol: symbol }));
+                  }
+                }}
+                onTokenDecimalsRead={(decimals) => {
+                  if (decimals !== undefined && decimals !== wizardData.token_decimals) {
+                    setWizardData((prev: any) => ({ ...prev, token_decimals: decimals }));
+                  }
+                }}
+              />
+            )}
+
+            {currentStep === 3 && (
+              <Step3AntiBot
+                data={(wizardData.anti_bot || {}) as any}
+                onChange={(data) => setWizardData({ ...wizardData, anti_bot: data })}
+                errors={errors}
+              />
+            )}
+
+            {currentStep === 4 && (
+              <Step4InvestorVesting
+                data={(wizardData.investor_vesting || {}) as any}
+                onChange={(data) => setWizardData({ ...wizardData, investor_vesting: data })}
+                errors={errors}
+              />
+            )}
+
+            {currentStep === 5 && (
+              <Step6LpLock
+                data={(wizardData.lp_lock || {}) as any}
+                onChange={(data) => setWizardData({ ...wizardData, lp_lock: data })}
+                errors={errors}
+              />
+            )}
+
+            {currentStep === 6 && (
+              <Step5TeamVesting
+                data={(wizardData.team_vesting || {}) as any}
+                onChange={(data) => setWizardData({ ...wizardData, team_vesting: data })}
+                errors={errors}
+                totalTokenSupply={wizardData.total_supply || '0'}
+                tokensForSale={wizardData.sale_params?.total_tokens || '0'}
+                lpLockPercentage={wizardData.lp_lock?.percentage || 0}
+              />
+            )}
+
+            {currentStep === 7 && (
+              <Step7Fees
+                data={(wizardData.fees_referral || {}) as any}
+                onChange={(data) => setWizardData({ ...wizardData, fees_referral: data })}
+              />
+            )}
+
+            {currentStep === 8 && (
+              <Step8Review
+                data={wizardData}
+                onEdit={handleStepClick}
+                termsAccepted={termsAccepted}
+                onTermsChange={setTermsAccepted}
+              />
+            )}
+
+            {currentStep === 9 && (
+              <Step9Submit
+                complianceStatus={complianceStatus}
+                wizardData={wizardData}
+                isSubmitting={isSubmitting}
+                tokenAddress={
+                  wizardData.contract_address || wizardData.sale_params?.token_address || ''
+                }
+                tokenDecimals={wizardData.token_decimals || 18}
+                tokensForSale={wizardData.sale_params?.total_tokens || '0'}
+                teamAllocation={wizardData.team_vesting?.team_allocation || '0'}
+                lpLockPercentage={wizardData.lp_lock?.percentage || 0}
+                network={wizardData.network || wizardData.basics?.network || ''}
+              />
+            )}
+          </div>
+
+          {/* Navigation Buttons */}
+          <div className="flex items-center justify-between mt-10 pt-6 border-t border-white/5">
+            <div className="flex items-center gap-4">
+              <button
+                type="button"
+                onClick={handleBack}
+                disabled={currentStep === 0}
+                className={`flex items-center gap-2 px-6 py-3 rounded-[14px] font-semibold transition-all border ${
+                  currentStep === 0
+                    ? 'bg-white/5 border-white/5 text-gray-600 cursor-not-allowed'
+                    : 'bg-white/5 border-white/10 text-white hover:bg-white/10 hover:border-white/20'
+                }`}
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Back
+              </button>
+
+              {/* Save Draft Button - Only show if not submitting */}
+              {currentStep < 9 && (
+                <button
+                  type="button"
+                  onClick={handleSaveDraft}
+                  className="hidden sm:flex items-center gap-2 px-6 py-3 rounded-[14px] font-semibold bg-white/5 border border-white/10 text-[#39AEC4] hover:bg-[#39AEC4]/10 hover:border-[#39AEC4]/30 transition-all"
+                >
+                  <Save className="w-4 h-4" />
+                  Save Draft
+                </button>
+              )}
+            </div>
+
+            {currentStep < 10 && (
+              <button
+                type="button"
+                onClick={handleNext}
+                className="flex items-center gap-2 px-8 py-3 rounded-[14px] font-bold bg-gradient-to-r from-[#39AEC4] to-[#756BBA] hover:from-[#4EABC8] hover:to-[#756BBA] transition-all shadow-lg shadow-[#756BBA]/20 transform hover:-translate-y-0.5"
+              >
+                {currentStep === 9 ? 'Review Compliance' : 'Next Step'}
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Footer Link */}
+        <div className="mt-8 text-center">
+          <button
+            type="button"
+            onClick={() => {
+              if (confirm('Are you sure you want to cancel? Your draft will be saved.')) {
+                router.push('/presales');
+              }
+            }}
+            className="text-sm font-medium text-gray-500 hover:text-[#39AEC4] transition-colors"
+          >
+            Cancel and return to dashboard
+          </button>
+        </div>
       </div>
     </div>
   );

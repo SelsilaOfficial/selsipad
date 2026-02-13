@@ -1,5 +1,14 @@
 import { createClient } from '@supabase/supabase-js';
-import { MessageSquare, Clock, CheckCircle2, XCircle, Play, AlertCircle, Pin } from 'lucide-react';
+import {
+  MessageSquare,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  Play,
+  AlertCircle,
+  Pin,
+  Radio,
+} from 'lucide-react';
 import Link from 'next/link';
 import { QuickStartButton } from '@/components/ama/QuickStartButton';
 
@@ -313,12 +322,23 @@ export default async function AMAManagementPage() {
                     </td>
                     <td className="p-4">{getStatusBadge(ama.status)}</td>
                     <td className="p-4 text-right">
-                      <Link
-                        href={`/admin/ama/review/${ama.id}`}
-                        className="text-indigo-400 hover:text-indigo-300 text-sm font-medium"
-                      >
-                        Manage →
-                      </Link>
+                      <div className="flex items-center justify-end gap-2">
+                        {ama.status === 'LIVE' && (
+                          <Link
+                            href={`/ama/${ama.id}`}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded-lg transition-colors text-sm font-medium border border-red-600/30"
+                          >
+                            <Radio className="w-3 h-3 animate-pulse" />
+                            Join as Host
+                          </Link>
+                        )}
+                        <Link
+                          href={`/admin/ama/review/${ama.id}`}
+                          className="text-indigo-400 hover:text-indigo-300 text-sm font-medium"
+                        >
+                          Manage →
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 ))}

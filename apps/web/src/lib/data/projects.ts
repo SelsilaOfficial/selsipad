@@ -8,19 +8,31 @@ export interface Project {
   name: string;
   symbol: string;
   logo: string; // Maps to logo_url in DB
+  banner?: string; // Maps to banner_url/cover_image
   description: string;
   type: 'presale' | 'fairlaunch';
   network: 'SOL' | 'EVM';
   chain?: string; // Specific chain ID (97, 56, 1, 11155111, 8453, 84532, etc.)
+  currency: string; // BNB, ETH, SOL
   status: 'live' | 'upcoming' | 'ended';
   raised: number;
   target: number;
+  participants?: number;
   kyc_verified: boolean;
   audit_status: 'pass' | 'pending' | null;
   lp_lock: boolean;
   contract_address?: string; // Fairlaunch/Presale contract address
   startDate?: string; // ISO timestamp for countdown
   endDate?: string; // ISO timestamp for countdown
+  metadata?: any; // Generic metadata object
+  factory_address?: string; // Factory address for SAFU check
+  tokenomics?: {
+    total_supply: number;
+    tokens_for_presale: number;
+    tokens_for_liquidity: number;
+    team_allocation: number;
+    liquidity_percent: number;
+  };
 }
 
 /**
@@ -61,8 +73,8 @@ export async function getTrendingProjects(): Promise<Project[]> {
           description,
           logo_url,
           status,
-          kyc_submission_id,
-          scan_result_id,
+          kyc_status,
+          sc_scan_status,
           metadata
         )
       `
@@ -88,14 +100,26 @@ export async function getTrendingProjects(): Promise<Project[]> {
         name: project.name,
         symbol: project.symbol || 'TBD',
         logo: project.logo_url || '/placeholder-logo.png',
+        banner: metadata.banner_url || metadata.cover_image || '/placeholder-banner.jpg',
         description: project.description || '',
         type: metadata.type || 'presale',
         network: metadata.chain || 'SOL',
+        currency: metadata.currency || (metadata.chain === 'SOL' ? 'SOL' : 'BNB'),
         status: mapProjectStatus(project.status),
         raised: metadata.raised || 0,
         target: metadata.target || 1000,
-        kyc_verified: !!project.kyc_submission_id,
-        audit_status: project.scan_result_id ? 'pass' : null,
+        participants: metadata.participants || 0,
+        kyc_verified: !!(
+          project.kyc_status === 'VERIFIED' ||
+          project.metadata?.kyc_verified ||
+          project.metadata?.safu
+        ),
+        audit_status:
+          project.sc_scan_status === 'PASS' ||
+          project.metadata?.audit_status ||
+          project.metadata?.audit
+            ? 'pass'
+            : null,
         lp_lock: metadata.lp_lock || false,
       };
     });
@@ -159,43 +183,95 @@ export async function getProjectById(id: string): Promise<Project | null> {
 
   try {
     // First try: id is a launch_round ID (used from explore page routing)
-    const { data: roundData } = await supabase
+    const { data: roundData, error: roundError } = await supabase
       .from('launch_rounds')
       .select(
         `
         *,
         projects (
           id, name, symbol, description, logo_url, status,
-          kyc_submission_id, scan_result_id, metadata, factory_address
+          kyc_status, sc_scan_status, metadata, factory_address
         )
       `
       )
       .eq('id', id)
       .single();
 
-    if (roundData && roundData.projects) {
-      const project = roundData.projects as any;
-      const params = (roundData.params as any) || {};
+    if (roundError) {
+      console.log('[getProjectById] Round Lookup Error/Empty:', roundError.message, id);
+    }
 
-      return {
-        id: roundData.id,
-        name: params.project_name || project.name,
-        symbol: params.token_symbol || project.symbol || 'TBD',
-        logo: params.logo_url || project.logo_url || '/placeholder-logo.png',
-        description: params.project_description || project.description || '',
-        type: (roundData.type?.toLowerCase() || 'presale') as 'presale' | 'fairlaunch',
-        network: mapChainToNetwork(roundData.chain),
-        chain: roundData.chain,
-        status: calculateRealTimeStatus(roundData),
-        raised: Number(roundData.total_raised) || 0,
-        target: params.softcap || params.hardcap || 1000,
-        kyc_verified: !!project.kyc_submission_id,
-        audit_status: project.scan_result_id ? 'pass' : null,
-        lp_lock: !!(params.lp_lock || params.lp_lock_months),
-        contract_address: roundData.round_address || roundData.contract_address,
-        startDate: roundData.start_at,
-        endDate: roundData.end_at,
-      };
+    if (roundData) {
+      let project = roundData.projects as any;
+
+      // Fallback: If join failed (RLS or other issue) but we have project_id, fetch it manually
+      if (!project && roundData.project_id) {
+        console.log(
+          '[getProjectById] Join failed, fetching project manually:',
+          roundData.project_id
+        );
+        const { data: projectData } = await supabase
+          .from('projects')
+          .select('*')
+          .eq('id', roundData.project_id)
+          .single();
+
+        if (projectData) {
+          project = projectData;
+        }
+      }
+
+      if (!project) {
+        console.error('[getProjectById] Orphaned Round (No Project Linked):', id);
+      } else {
+        console.log('[getProjectById] Found Launch Round:', id);
+        const params = (roundData.params as any) || {};
+
+        return {
+          id: roundData.id,
+          name: params.project_name || project.name,
+          symbol: params.token_symbol || project.symbol || 'TBD',
+          logo: params.logo_url || project.logo_url || '/placeholder-logo.png',
+          banner: params.banner_url || params.cover_image || '/placeholder-banner.jpg',
+          description: params.project_description || project.description || '',
+          type: (roundData.type?.toLowerCase() || 'presale') as 'presale' | 'fairlaunch',
+          network: mapChainToNetwork(roundData.chain),
+          currency: getCurrencySymbol(roundData.chain),
+          chain: roundData.chain,
+          status: calculateRealTimeStatus(roundData),
+          raised: Number(roundData.total_raised) || 0,
+          target: params.softcap || params.hardcap || 1000,
+          participants: roundData.total_participants || 0,
+          kyc_verified: !!(
+            project.kyc_status === 'VERIFIED' ||
+            project.metadata?.kyc_verified ||
+            project.metadata?.safu ||
+            params.safu ||
+            params.kyc ||
+            (Array.isArray(project.metadata?.security_badges) &&
+              project.metadata?.security_badges.includes('SAFU'))
+          ),
+          audit_status:
+            project.sc_scan_status === 'PASS' ||
+            project.metadata?.audit_status ||
+            project.metadata?.audit ||
+            params.audit ||
+            params.audit_link ||
+            (Array.isArray(project.metadata?.security_badges) &&
+              (project.metadata?.security_badges.includes('SC_PASS') ||
+                project.metadata?.security_badges.includes('AUDIT')))
+              ? 'pass'
+              : null,
+          lp_lock: !!(params.lp_lock || params.lp_lock_months),
+          contract_address: roundData.round_address || roundData.contract_address,
+          startDate: roundData.start_at,
+          endDate: roundData.end_at,
+          // ✅ Add metadata and factory_address for SAFU badges
+          metadata: project.metadata || {},
+          factory_address: project.factory_address || null,
+          tokenomics: extractTokenomics(params),
+        };
+      }
     }
 
     // Second try: id is a project ID — join launch_rounds
@@ -233,19 +309,41 @@ export async function getProjectById(id: string): Promise<Project | null> {
         name: params.project_name || data.name,
         symbol: params.token_symbol || data.symbol || 'TBD',
         logo: params.logo_url || data.logo_url || '/placeholder-logo.png',
+        banner: params.banner_url || params.cover_image || '/placeholder-banner.jpg',
         description: params.project_description || data.description || '',
         type: (activeRound.type?.toLowerCase() || 'presale') as 'presale' | 'fairlaunch',
         network: mapChainToNetwork(activeRound.chain),
+        currency: getCurrencySymbol(activeRound.chain),
         chain: activeRound.chain,
         status: calculateRealTimeStatus(activeRound),
         raised: Number(activeRound.total_raised) || 0,
         target: params.softcap || params.hardcap || 1000,
-        kyc_verified: !!data.kyc_submission_id,
-        audit_status: data.scan_result_id ? 'pass' : null,
+        participants: activeRound.total_participants || 0,
+        kyc_verified: !!(
+          data.kyc_status === 'VERIFIED' ||
+          data.metadata?.kyc_verified ||
+          data.metadata?.safu ||
+          params.safu ||
+          params.kyc ||
+          (Array.isArray(data.metadata?.security_badges) &&
+            data.metadata?.security_badges.includes('SAFU'))
+        ),
+        audit_status:
+          data.sc_scan_status === 'PASS' ||
+          data.metadata?.audit_status ||
+          data.metadata?.audit ||
+          params.audit ||
+          params.audit_link ||
+          (Array.isArray(data.metadata?.security_badges) &&
+            (data.metadata?.security_badges.includes('SC_PASS') ||
+              data.metadata?.security_badges.includes('AUDIT')))
+            ? 'pass'
+            : null,
         lp_lock: !!(params.lp_lock || params.lp_lock_months),
         contract_address: activeRound.round_address || activeRound.contract_address,
         startDate: activeRound.start_at,
         endDate: activeRound.end_at,
+        tokenomics: extractTokenomics(params),
       };
     }
 
@@ -352,15 +450,36 @@ export async function getAllProjects(filters?: {
             name: params.project_name || project.name,
             symbol: params.token_symbol || project.symbol || 'TBD',
             logo: params.logo_url || project.logo_url || '/placeholder-logo.png',
+            banner: params.banner_url || params.cover_image || '/placeholder-banner.jpg',
             description: params.project_description || project.description || '',
             type: round.type?.toLowerCase() as 'presale' | 'fairlaunch',
             network: mapChainToNetwork(round.chain),
+            currency: getCurrencySymbol(round.chain),
             chain: round.chain, // Add specific chain ID
             status: calculateRealTimeStatus(round),
             raised: Number(round.total_raised) || 0,
             target: params.softcap || params.hardcap || 1000,
-            kyc_verified: !!project.kyc_submission_id,
-            audit_status: project.scan_result_id ? 'pass' : null,
+            participants: round.total_participants || 0,
+            kyc_verified: !!(
+              project.kyc_status === 'VERIFIED' ||
+              project.metadata?.kyc_verified ||
+              project.metadata?.safu ||
+              params.safu ||
+              params.kyc ||
+              (Array.isArray(project.metadata?.security_badges) &&
+                project.metadata?.security_badges.includes('SAFU'))
+            ),
+            audit_status:
+              project.sc_scan_status === 'PASS' ||
+              project.metadata?.audit_status ||
+              project.metadata?.audit ||
+              params.audit ||
+              params.audit_link ||
+              (Array.isArray(project.metadata?.security_badges) &&
+                (project.metadata?.security_badges.includes('SC_PASS') ||
+                  project.metadata?.security_badges.includes('AUDIT')))
+                ? 'pass'
+                : null,
             lp_lock: params.lp_lock || false,
             contract_address: round.contract_address, // Add contract address
             startDate: round.start_at, // ISO timestamp for countdown
@@ -368,6 +487,7 @@ export async function getAllProjects(filters?: {
             // ✅ Add metadata and factory_address for SAFU badges
             metadata: project.metadata || {},
             factory_address: project.factory_address || null,
+            tokenomics: extractTokenomics(params),
           };
         });
     });
@@ -377,7 +497,8 @@ export async function getAllProjects(filters?: {
       console.log('[Explore Debug] Sample filtered project:', {
         name: projects[0].name,
         status: projects[0].status,
-        type: projects[0].type,
+        kyc: projects[0].kyc_verified,
+        audit: projects[0].audit_status,
       });
     }
 
@@ -413,12 +534,15 @@ function mapProjectsToFrontend(dbProjects: any[]): Project[] {
       name: project.name,
       symbol: project.symbol || 'TBD',
       logo: project.logo_url || '/placeholder-logo.png',
+      banner: metadata.banner_url || metadata.cover_image || '/placeholder-banner.jpg',
       description: project.description || '',
       type: metadata.type || 'presale',
       network: metadata.chain || 'SOL',
+      currency: metadata.currency || (metadata.chain === 'SOL' ? 'SOL' : 'BNB'),
       status: mapProjectStatus(project.status),
       raised: metadata.raised || 0,
       target: metadata.target || 1000,
+      participants: metadata.participants || 0,
       kyc_verified: !!project.kyc_submission_id,
       audit_status: project.scan_result_id ? 'pass' : null,
       lp_lock: metadata.lp_lock || false,
@@ -528,4 +652,28 @@ function calculateRealTimeStatus(round: any): 'live' | 'upcoming' | 'ended' {
     }
     return 'upcoming';
   }
+}
+
+function extractTokenomics(params: any) {
+  const presale = Number(params.tokens_for_sale || 0);
+  const liquidity = Number(params.liquidity_tokens || 0);
+  const team = Number(params.team_vesting_tokens || 0);
+  // If explicitly provided in params, use it. Otherwise sum components.
+  const total = params.total_supply ? Number(params.total_supply) : presale + liquidity + team;
+
+  return {
+    total_supply: total,
+    tokens_for_presale: presale,
+    tokens_for_liquidity: liquidity,
+    team_allocation: team,
+    liquidity_percent: Number(params.liquidity_percent || 0),
+  };
+}
+
+function getCurrencySymbol(chain: string): string {
+  if (chain === '97' || chain === '56') return 'BNB';
+  if (chain === '1' || chain === '11155111') return 'ETH';
+  if (chain === 'SOLANA') return 'SOL';
+  if (chain === '8453' || chain === '84532') return 'ETH'; // Base uses ETH
+  return 'EVM';
 }

@@ -1,9 +1,11 @@
 /**
  * Custom hook for Blue Check purchase via smart contract
+ *
+ * Handles chain validation (BSC Testnet only) and graceful error handling.
  */
 
-import { useState, useEffect } from 'react';
-import { useAccount, usePublicClient, useWalletClient } from 'wagmi';
+import { useState, useEffect, useCallback } from 'react';
+import { useAccount, usePublicClient, useWalletClient, useChainId, useSwitchChain } from 'wagmi';
 import { parseEther, formatEther } from 'viem';
 
 // Contract ABI (simplified)
@@ -31,8 +33,9 @@ const BLUECHECK_ABI = [
   },
 ] as const;
 
-// BlueCheckRegistry deployed to BSC Testnet
+// BlueCheckRegistry deployed to BSC Testnet (Chain ID: 97)
 const BLUECHECK_CONTRACT_ADDRESS = '0x57d4789062F3f2DbB504d11A98Fc9AeA390Be8E2' as `0x${string}`;
+const REQUIRED_CHAIN_ID = 97; // BSC Testnet
 
 interface UseBlueCheckPurchaseReturn {
   requiredBNB: string;
@@ -41,14 +44,18 @@ interface UseBlueCheckPurchaseReturn {
   isLoading: boolean;
   isPurchasing: boolean;
   error: string | null;
+  isWrongChain: boolean;
   purchaseBlueCheck: () => Promise<void>;
   checkPurchaseStatus: () => Promise<boolean>;
+  switchToBSCTestnet: () => Promise<void>;
 }
 
 export function useBlueCheckPurchase(): UseBlueCheckPurchaseReturn {
   const { address } = useAccount();
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
+  const chainId = useChainId();
+  const { switchChain } = useSwitchChain();
 
   const [requiredBNB, setRequiredBNB] = useState<string>('0');
   const [requiredBNBRaw, setRequiredBNBRaw] = useState<bigint>(0n);
@@ -57,21 +64,40 @@ export function useBlueCheckPurchase(): UseBlueCheckPurchaseReturn {
   const [isPurchasing, setIsPurchasing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch required BNB on mount
+  const isWrongChain = chainId !== REQUIRED_CHAIN_ID;
+
+  // Switch to BSC Testnet
+  const switchToBSCTestnet = useCallback(async () => {
+    try {
+      await switchChain({ chainId: REQUIRED_CHAIN_ID });
+      setError(null);
+    } catch (err: any) {
+      console.error('Failed to switch chain:', err);
+      setError('Failed to switch to BSC Testnet. Please switch manually in your wallet.');
+    }
+  }, [switchChain]);
+
+  // Fetch required BNB on mount (only on correct chain)
   useEffect(() => {
-    if (publicClient) {
+    if (publicClient && !isWrongChain) {
       fetchRequiredBNB();
       if (address) {
         checkPurchaseStatus();
       }
+    } else if (isWrongChain) {
+      // Clear any stale error when on wrong chain
+      setError(null);
+      setRequiredBNB('0');
+      setRequiredBNBRaw(0n);
     }
-  }, [publicClient, address]);
+  }, [publicClient, address, isWrongChain]);
 
   const fetchRequiredBNB = async () => {
-    if (!publicClient) return;
+    if (!publicClient || isWrongChain) return;
 
     try {
       setIsLoading(true);
+      setError(null);
       const result = await publicClient.readContract({
         address: BLUECHECK_CONTRACT_ADDRESS,
         abi: BLUECHECK_ABI,
@@ -82,14 +108,23 @@ export function useBlueCheckPurchase(): UseBlueCheckPurchaseReturn {
       setRequiredBNB(formatEther(result));
     } catch (err: any) {
       console.error('Error fetching required BNB:', err);
-      setError(err.message || 'Failed to fetch price');
+      // Provide a user-friendly error message
+      if (err.message?.includes('returned no data') || err.message?.includes('0x')) {
+        setError(
+          'Unable to read contract. Please ensure you are connected to BSC Testnet (Chain ID: 97).'
+        );
+      } else if (err.message?.includes('Price not set')) {
+        setError('Contract price has not been configured yet. Please contact support.');
+      } else {
+        setError('Failed to fetch BNB price. Please try again or switch to BSC Testnet.');
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
   const checkPurchaseStatus = async (): Promise<boolean> => {
-    if (!publicClient || !address) return false;
+    if (!publicClient || !address || isWrongChain) return false;
 
     try {
       const result = await publicClient.readContract({
@@ -113,8 +148,18 @@ export function useBlueCheckPurchase(): UseBlueCheckPurchaseReturn {
       return;
     }
 
+    if (isWrongChain) {
+      setError('Please switch to BSC Testnet before purchasing.');
+      return;
+    }
+
     if (hasPurchased) {
       setError('Already purchased Blue Check');
+      return;
+    }
+
+    if (requiredBNBRaw === 0n) {
+      setError('Price not loaded. Please refresh and try again.');
       return;
     }
 
@@ -143,7 +188,15 @@ export function useBlueCheckPurchase(): UseBlueCheckPurchaseReturn {
       }
     } catch (err: any) {
       console.error('Error purchasing Blue Check:', err);
-      setError(err.message || 'Failed to purchase Blue Check');
+
+      // Translate common wallet errors
+      if (err.message?.includes('User rejected') || err.message?.includes('user rejected')) {
+        setError('Transaction cancelled by user.');
+      } else if (err.message?.includes('insufficient funds')) {
+        setError('Insufficient BNB balance for this transaction.');
+      } else {
+        setError(err.shortMessage || err.message || 'Failed to purchase Blue Check');
+      }
       throw err;
     } finally {
       setIsPurchasing(false);
@@ -177,7 +230,9 @@ export function useBlueCheckPurchase(): UseBlueCheckPurchaseReturn {
     isLoading,
     isPurchasing,
     error,
+    isWrongChain,
     purchaseBlueCheck,
     checkPurchaseStatus,
+    switchToBSCTestnet,
   };
 }

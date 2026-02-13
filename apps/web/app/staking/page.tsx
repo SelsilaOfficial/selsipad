@@ -1,12 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Shield, TrendingUp, Loader2 } from 'lucide-react';
+import { Shield, TrendingUp, Loader2, ArrowLeft } from 'lucide-react';
 import { SBTVerifyCard } from '@/components/staking/SBTVerifyCard';
 import { StakePanel } from '@/components/staking/StakePanel';
 import { RewardClaimPanel } from '@/components/staking/RewardClaimPanel';
-
-import { PageHeader } from '@/components/layout';
+import Link from 'next/link';
 
 export default function SBTStakingPage() {
   const [isVerified, setIsVerified] = useState(false);
@@ -59,7 +58,17 @@ export default function SBTStakingPage() {
 
   return (
     <div className="min-h-screen bg-bg-page pb-20">
-      <PageHeader title="SBT Staking" showBack />
+      <header className="sticky top-0 z-30 bg-bg-page border-b border-border-subtle">
+        <div className="container mx-auto px-4 max-w-4xl flex items-center h-14">
+          <Link
+            href="/"
+            className="p-2 -ml-2 text-text-secondary hover:text-text-primary transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Link>
+          <h1 className="text-heading-lg text-text-primary truncate">SBT Staking</h1>
+        </div>
+      </header>
       <div className="container mx-auto px-4 max-w-4xl py-8">
         {/* Header */}
         <div className="mb-8">

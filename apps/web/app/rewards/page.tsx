@@ -1,17 +1,19 @@
 /**
  * Rewards Page - Referral Dashboard
  * Shows user's referral statistics, earnings, and referred users
+ * Premium design with AnimatedBackground and glassmorphism
  */
 
 import { redirect } from 'next/navigation';
-import Link from 'next/link';
 import { getServerSession } from '@/lib/auth/session';
 import { getReferralStats } from '@/actions/referral/get-stats';
-import { PageHeader, PageContainer } from '@/components/layout';
+import { AnimatedBackground } from '@/components/home/figma/AnimatedBackground';
 import { ReferralStatsCards } from '@/components/referral/ReferralStatsCards';
 import { ReferralList } from '@/components/referral/ReferralList';
 import { ReferralExplainer } from '@/components/referral/ReferralExplainer';
 import { ReferralCodeDisplay } from '@/components/referral/ReferralCodeDisplay';
+import Link from 'next/link';
+import { ArrowLeft } from 'lucide-react';
 
 export default async function RewardsPage() {
   const session = await getServerSession();
@@ -25,67 +27,62 @@ export default async function RewardsPage() {
 
   if (!success || !stats) {
     console.error('Failed to load referral stats:', error);
-    // Show empty state but don't redirect
   }
 
-  /* Custom Header matching Profile page */
   return (
-    <div className="min-h-screen bg-black text-white pb-20 font-sans selection:bg-cyan-500/30">
-      <div className="sticky top-0 z-30 bg-black/80 backdrop-blur-md border-b border-white/10">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link href="/" className="text-gray-400 hover:text-white transition-colors">
-              <svg
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M19 12H5M12 19l-7-7 7-7" />
-              </svg>
-            </Link>
-            <div>
-              <h1 className="text-xl font-bold text-white">Referral Rewards</h1>
-              <p className="text-xs text-gray-500 font-medium">Track your earnings</p>
+    <div className="min-h-screen bg-black text-white dark relative overflow-hidden">
+      {/* Animated Background Layer */}
+      <AnimatedBackground />
+
+      {/* Subtle Dark Overlay for Readability */}
+      <div className="fixed inset-0 bg-black/30 pointer-events-none z-[1]" />
+
+      {/* Content Layer */}
+      <div className="relative z-10">
+        {/* Sticky Header */}
+        <header className="sticky top-0 z-50 backdrop-blur-xl bg-black/60 border-b border-[#39AEC4]/20">
+          <div className="container mx-auto px-4 sm:px-6 py-3 sm:py-4 max-w-7xl">
+            <div className="flex items-center gap-3">
+              <Link href="/" className="p-2 rounded-full hover:bg-[#39AEC4]/10 transition-colors">
+                <ArrowLeft className="w-5 h-5 text-[#39AEC4]" />
+              </Link>
+              <div>
+                <h1 className="text-lg sm:text-xl font-bold">Referral Rewards</h1>
+                <p className="text-xs text-gray-400">Track your earnings</p>
+              </div>
             </div>
           </div>
+        </header>
 
-          {/* Optional: Add an action button here if needed, or keep empty to match Profile alignment */}
-        </div>
+        {/* Main Content */}
+        <main className="container mx-auto px-4 sm:px-6 py-6 sm:py-8 pb-24 md:pb-12 max-w-7xl">
+          {stats ? (
+            <>
+              {/* Stats Grid */}
+              <ReferralStatsCards stats={stats} />
+
+              {/* Main Grid Layout */}
+              <div className="grid lg:grid-cols-3 gap-4 sm:gap-6 mt-6">
+                {/* Left Column - Referral List */}
+                <div className="lg:col-span-2">
+                  <ReferralList referredUsers={stats.referredUsers} />
+                </div>
+
+                {/* Right Column - Code & Explainer */}
+                <div className="space-y-4 sm:space-y-6">
+                  <ReferralCodeDisplay />
+                  <ReferralExplainer />
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="rounded-[20px] bg-gradient-to-br from-white/5 to-white/[0.02] backdrop-blur-xl border border-[#39AEC4]/20 p-8 sm:p-12 shadow-xl shadow-[#756BBA]/10 text-center min-h-[300px] flex flex-col items-center justify-center">
+              <p className="text-xl mb-2 text-white">Failed to load referral data</p>
+              <p className="text-sm text-gray-500">{error || 'Please try again later'}</p>
+            </div>
+          )}
+        </main>
       </div>
-
-      <PageContainer className="py-6">
-        {stats ? (
-          <div className="space-y-6">
-            <ReferralStatsCards stats={stats} />
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2 space-y-6">
-                {/* Pass referred users or use a client component if needed */}
-                {/* The original code just used stats.referredUsers, assuming ReferralList handles it */}
-                <ReferralList referredUsers={stats.referredUsers} />
-              </div>
-              <div className="space-y-6">
-                {/* We need to pass the referral code if available in stats or fetch it. 
-                    The original code didn't pass props to ReferralCodeDisplay? 
-                    Let's check ReferralCodeDisplay definition if needed, but for now presume it fetches its own or uses context.
-                    Actually, looking at previous code, it was <ReferralCodeDisplay /> without props.
-                */}
-                <ReferralCodeDisplay />
-                <ReferralExplainer />
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="text-center py-12">
-            <p className="text-xl mb-2 text-white">Failed to load referral data</p>
-            <p className="text-sm text-gray-500">{error || 'Please try again later'}</p>
-          </div>
-        )}
-      </PageContainer>
     </div>
   );
 }

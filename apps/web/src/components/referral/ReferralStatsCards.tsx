@@ -1,7 +1,6 @@
 'use client';
 
 import { Users, UserCheck, DollarSign, Clock } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui';
 import type { ReferralStats } from '@/actions/referral/get-stats';
 
 interface Props {
@@ -9,7 +8,6 @@ interface Props {
 }
 
 export function ReferralStatsCards({ stats }: Props) {
-  // Convert wei to USDT (assuming 18 decimals for most tokens)
   const formatUSDT = (weiAmount: string): string => {
     try {
       const amount = BigInt(weiAmount);
@@ -29,15 +27,25 @@ export function ReferralStatsCards({ stats }: Props) {
       value: stats.totalReferrals.toString(),
       subtitle: `${stats.activeReferrals} active, ${stats.pendingReferrals} pending`,
       icon: Users,
-      gradient: 'from-blue-500/20 to-cyan-500/20',
-      iconColor: 'text-blue-400',
+      gradientFrom: 'from-[#39AEC4]/20',
+      gradientTo: 'to-[#39AEC4]/5',
+      borderColor: 'border-[#39AEC4]/30',
+      shadowColor: 'shadow-[#39AEC4]/10',
+      shadowHover: 'hover:shadow-[#39AEC4]/20',
+      iconBg: 'bg-[#39AEC4]/20',
+      iconColor: 'text-[#39AEC4]',
     },
     {
       title: 'Active Referrals',
       value: stats.activeReferrals.toString(),
       subtitle: 'Users who contributed',
       icon: UserCheck,
-      gradient: 'from-green-500/20 to-emerald-500/20',
+      gradientFrom: 'from-green-500/20',
+      gradientTo: 'to-green-500/5',
+      borderColor: 'border-green-500/30',
+      shadowColor: 'shadow-green-500/10',
+      shadowHover: 'hover:shadow-green-500/20',
+      iconBg: 'bg-green-500/20',
       iconColor: 'text-green-400',
     },
     {
@@ -45,38 +53,49 @@ export function ReferralStatsCards({ stats }: Props) {
       value: `$${formatUSDT(stats.totalEarnings)}`,
       subtitle: 'USDT equivalent',
       icon: DollarSign,
-      gradient: 'from-purple-500/20 to-pink-500/20',
-      iconColor: 'text-purple-400',
+      gradientFrom: 'from-[#756BBA]/20',
+      gradientTo: 'to-[#756BBA]/5',
+      borderColor: 'border-[#756BBA]/30',
+      shadowColor: 'shadow-[#756BBA]/10',
+      shadowHover: 'hover:shadow-[#756BBA]/20',
+      iconBg: 'bg-[#756BBA]/20',
+      iconColor: 'text-[#756BBA]',
     },
     {
       title: 'Pending Rewards',
       value: `$${formatUSDT(stats.pendingEarnings)}`,
       subtitle: 'Being processed',
       icon: Clock,
-      gradient: 'from-orange-500/20 to-yellow-500/20',
-      iconColor: 'text-orange-400',
+      gradientFrom: 'from-amber-500/20',
+      gradientTo: 'to-amber-500/5',
+      borderColor: 'border-amber-500/30',
+      shadowColor: 'shadow-amber-500/10',
+      shadowHover: 'hover:shadow-amber-500/20',
+      iconBg: 'bg-amber-500/20',
+      iconColor: 'text-amber-400',
     },
   ];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
       {statsCards.map((stat) => {
         const Icon = stat.icon;
         return (
-          <Card key={stat.title} className="border-gray-800">
-            <CardContent className={`bg-gradient-to-br ${stat.gradient} p-6`}>
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex-1">
-                  <p className="text-sm text-gray-400 mb-1">{stat.title}</p>
-                  <p className="text-2xl font-bold text-white">{stat.value}</p>
-                </div>
-                <div className={`p-3 rounded-lg bg-gray-900/50`}>
-                  <Icon className={`w-6 h-6 ${stat.iconColor}`} />
-                </div>
+          <div
+            key={stat.title}
+            className={`rounded-[16px] sm:rounded-[20px] bg-gradient-to-br ${stat.gradientFrom} ${stat.gradientTo} backdrop-blur-xl border ${stat.borderColor} p-4 sm:p-5 shadow-lg ${stat.shadowColor} ${stat.shadowHover} transition-all`}
+          >
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                <p className="text-xs sm:text-sm text-gray-400 mb-1">{stat.title}</p>
+                <h3 className="text-2xl sm:text-3xl font-bold">{stat.value}</h3>
               </div>
-              <p className="text-xs text-gray-500">{stat.subtitle}</p>
-            </CardContent>
-          </Card>
+              <div className={`p-2 sm:p-2.5 rounded-full ${stat.iconBg}`}>
+                <Icon className={`w-4 h-4 sm:w-5 sm:h-5 ${stat.iconColor}`} />
+              </div>
+            </div>
+            <p className="text-xs text-gray-500">{stat.subtitle}</p>
+          </div>
         );
       })}
     </div>

@@ -133,31 +133,6 @@ export function ProfileClientContent({
           </div>
         </div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Total Contributed */}
-          <div className="bg-black border border-white/10 rounded-xl p-5 relative overflow-hidden group hover:border-white/20 transition-colors">
-            <p className="text-xs text-gray-400 font-medium mb-1">Total Contributed</p>
-            <div className="flex items-center gap-2">
-              <span className="text-2xl font-bold text-white font-mono group-hover:text-cyan-400 transition-colors">
-                {multiChainStats?.totalContributedUSD
-                  ? `$${multiChainStats.totalContributedUSD.toFixed(2)}`
-                  : '0'}
-              </span>
-            </div>
-          </div>
-
-          {/* Tokens Claimed */}
-          <div className="bg-black border border-white/10 rounded-xl p-5 relative overflow-hidden group hover:border-white/20 transition-colors">
-            <p className="text-xs text-gray-400 font-medium mb-1">Tokens Claimed</p>
-            <div className="flex items-center gap-2">
-              <span className="text-2xl font-bold text-white font-mono group-hover:text-purple-400 transition-colors">
-                {profile.total_claimed || 0}
-              </span>
-            </div>
-          </div>
-        </div>
-
         {/* Badge Collection */}
         <div className="space-y-4">
           <div>
@@ -309,13 +284,16 @@ export function ProfileClientContent({
           </div>
         </div>
 
-        {/* Transaction History Button */}
+        {/* Portfolio Button */}
         <div className="pt-4">
-          <button className="w-full py-4 rounded-xl bg-gradient-to-r from-gray-900 to-gray-800 border border-white/10 hover:border-white/20 transition-all text-center group">
+          <Link
+            href="/portfolio"
+            className="block w-full py-4 rounded-xl bg-gradient-to-r from-gray-900 to-gray-800 border border-white/10 hover:border-white/20 transition-all text-center group"
+          >
             <span className="text-sm font-bold text-white group-hover:text-cyan-400 transition-colors flex items-center justify-center gap-2">
-              Transaction History
+              Portfolio
             </span>
-          </button>
+          </Link>
         </div>
       </PageContainer>
     </div>

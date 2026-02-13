@@ -2,7 +2,7 @@
 
 /**
  * AMALiveRoom Component
- * 
+ *
  * Discord-style live chat room for AMA sessions
  * Premium glassmorphism dark theme
  */
@@ -39,32 +39,32 @@ export function AMALiveRoom({
     pinMessageById,
     deleteMessageById,
   } = useAMAChat(amaId);
-  
+
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  
+
   // Auto-scroll to bottom on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
-  
+
   const handleSend = async () => {
     if (!input.trim() || isSending) return;
-    
+
     const content = input;
     setInput('');
     await sendMessage(content);
     inputRef.current?.focus();
   };
-  
+
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
   };
-  
+
   return (
     <div className="flex flex-col h-[600px] bg-[#0a0a0f] rounded-2xl border border-white/10 overflow-hidden">
       {/* Header */}
@@ -84,16 +84,16 @@ export function AMALiveRoom({
               </>
             )}
           </div>
-          
+
           <div className="h-6 w-px bg-white/20" />
-          
+
           {/* Title */}
           <div>
             <h2 className="text-white font-semibold">{projectName} AMA</h2>
-            <p className="text-gray-400 text-sm">Hosted by @{developerName}</p>
+            <p className="text-gray-400 text-sm">Hosted by SELSIPAD Team</p>
           </div>
         </div>
-        
+
         {/* Viewer Count */}
         <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-full">
           <span className="text-lg">👥</span>
@@ -101,7 +101,7 @@ export function AMALiveRoom({
           <span className="text-gray-400 text-sm">watching</span>
         </div>
       </div>
-      
+
       {/* Main Content */}
       <div className="flex flex-1 overflow-hidden">
         {/* Messages Area */}
@@ -137,7 +137,7 @@ export function AMALiveRoom({
                 )}
                 <div ref={messagesEndRef} />
               </div>
-              
+
               {/* Input Area */}
               <div className="px-4 py-4 border-t border-white/10 bg-black/30">
                 {isLive ? (
@@ -171,10 +171,12 @@ export function AMALiveRoom({
                     🔒 This AMA has ended. Chat is now read-only.
                   </div>
                 )}
-                
+
                 {/* Connection Status */}
                 <div className="flex items-center justify-center gap-2 mt-2">
-                  <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+                  <div
+                    className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}
+                  />
                   <span className="text-gray-500 text-xs">
                     {isConnected ? 'Connected' : 'Reconnecting...'}
                   </span>
@@ -183,7 +185,7 @@ export function AMALiveRoom({
             </>
           )}
         </div>
-        
+
         {/* Sidebar - Pinned & Developer Info */}
         <div className="w-72 bg-black/20 border-l border-white/10 flex flex-col">
           {/* Pinned Messages */}
@@ -206,14 +208,33 @@ export function AMALiveRoom({
               </div>
             </div>
           )}
-          
-          {/* Developer Info */}
+
+          {/* Host & Developer Info */}
           <div className="p-4 flex-1">
-            <div className="flex items-center gap-2 mb-4">
-              <span className="text-lg">👨‍💻</span>
-              <span className="text-white font-medium text-sm">DEVELOPER</span>
+            {/* Host Info */}
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-lg">🛡️</span>
+              <span className="text-white font-medium text-sm">HOST</span>
             </div>
-            
+
+            <div className="p-3 bg-[#39AEC4]/5 rounded-xl border border-[#39AEC4]/20 mb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-gradient-to-br from-[#39AEC4] to-[#756BBA] rounded-full flex items-center justify-center">
+                  <span className="text-white font-bold text-sm">S</span>
+                </div>
+                <div>
+                  <p className="text-[#39AEC4] font-medium text-sm">SELSIPAD Team</p>
+                  <p className="text-gray-500 text-xs">Moderator</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Developer (Guest) Info */}
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-lg">👨‍💻</span>
+              <span className="text-white font-medium text-sm">GUEST</span>
+            </div>
+
             <div className="p-4 bg-white/5 rounded-xl border border-white/10">
               <div className="flex items-center gap-3 mb-3">
                 <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-full flex items-center justify-center">
@@ -226,7 +247,7 @@ export function AMALiveRoom({
                   <p className="text-gray-400 text-sm">{projectName}</p>
                 </div>
               </div>
-              
+
               <div className="flex items-center gap-2">
                 <span className="px-2 py-1 bg-green-500/20 text-green-400 text-xs font-medium rounded-full border border-green-500/30">
                   ✓ Dev Verified
@@ -252,7 +273,9 @@ interface MessageBubbleProps {
 function MessageBubble({ message, isDeveloperHost, onPin, onDelete }: MessageBubbleProps) {
   const isSystem = message.message_type === 'SYSTEM';
   const isDeveloper = message.message_type === 'DEVELOPER';
-  
+  const isHost = message.message_type === 'HOST';
+  const isHighlighted = isDeveloper || isHost;
+
   if (isSystem) {
     return (
       <div className="flex justify-center">
@@ -262,49 +285,75 @@ function MessageBubble({ message, isDeveloperHost, onPin, onDelete }: MessageBub
       </div>
     );
   }
-  
+
   return (
-    <div className={`group flex gap-3 ${isDeveloper ? 'bg-indigo-500/5 -mx-4 px-4 py-3 rounded-lg border-l-2 border-indigo-500' : ''}`}>
+    <div
+      className={`group flex gap-3 ${
+        isHost
+          ? 'bg-[#39AEC4]/5 -mx-4 px-4 py-3 rounded-lg border-l-2 border-[#39AEC4]'
+          : isDeveloper
+            ? 'bg-indigo-500/5 -mx-4 px-4 py-3 rounded-lg border-l-2 border-indigo-500'
+            : ''
+      }`}
+    >
       {/* Avatar */}
-      <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center ${
-        isDeveloper 
-          ? 'bg-gradient-to-br from-indigo-500 to-purple-500' 
-          : 'bg-white/10'
-      }`}>
+      <div
+        className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center ${
+          isHost
+            ? 'bg-gradient-to-br from-[#39AEC4] to-[#756BBA]'
+            : isDeveloper
+              ? 'bg-gradient-to-br from-indigo-500 to-purple-500'
+              : 'bg-white/10'
+        }`}
+      >
         {message.avatar_url ? (
-          <img src={message.avatar_url} alt="" className="w-full h-full rounded-full object-cover" />
+          <img
+            src={message.avatar_url}
+            alt=""
+            className="w-full h-full rounded-full object-cover"
+          />
         ) : (
           <span className="text-white font-medium">
             {message.username?.charAt(0).toUpperCase() || '?'}
           </span>
         )}
       </div>
-      
+
       {/* Content */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <span className={`font-medium ${isDeveloper ? 'text-indigo-400' : 'text-gray-300'}`}>
+          <span
+            className={`font-medium ${
+              isHost ? 'text-[#39AEC4]' : isDeveloper ? 'text-indigo-400' : 'text-gray-300'
+            }`}
+          >
             @{message.username || 'Anonymous'}
           </span>
-          
-          {isDeveloper && (
-            <span className="px-1.5 py-0.5 bg-indigo-500/30 text-indigo-300 text-xs font-medium rounded">
-              DEVELOPER
+
+          {isHost && (
+            <span className="px-1.5 py-0.5 bg-[#39AEC4]/30 text-[#39AEC4] text-xs font-medium rounded">
+              HOST
             </span>
           )}
-          
-          {message.is_verified && !isDeveloper && (
+
+          {isDeveloper && (
+            <span className="px-1.5 py-0.5 bg-indigo-500/30 text-indigo-300 text-xs font-medium rounded">
+              GUEST
+            </span>
+          )}
+
+          {message.is_verified && !isHighlighted && (
             <span className="text-blue-400 text-xs">✓</span>
           )}
-          
+
           <span className="text-gray-600 text-xs">
             {formatDistanceToNow(new Date(message.created_at), { addSuffix: true })}
           </span>
         </div>
-        
+
         <p className="text-gray-200 mt-1 break-words">{message.content}</p>
       </div>
-      
+
       {/* Actions (visible on hover) */}
       <div className="opacity-0 group-hover:opacity-100 flex items-start gap-1 transition-opacity">
         {isDeveloperHost && !message.is_pinned_message && (

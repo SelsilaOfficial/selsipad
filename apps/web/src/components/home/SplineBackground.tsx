@@ -1,29 +1,17 @@
 'use client';
 
-import React, { Suspense } from 'react';
+import React from 'react';
+import { AnimatedBackground } from './figma/AnimatedBackground';
 
-// Lazy load Spline to avoid heavy initial bundle size
-const Spline = React.lazy(() => import('@splinetool/react-spline'));
-
+/**
+ * SplineBackground - Replaced with lightweight AnimatedBackground
+ *
+ * Previously loaded @splinetool/react-spline (~2.5MB runtime)
+ * which caused 5-10 second page load delays across all pages.
+ *
+ * Now uses the CSS/Framer Motion AnimatedBackground instead,
+ * which achieves a similar visual effect with near-zero bundle cost.
+ */
 export function SplineBackground() {
-  return (
-    <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
-      {/* Fallback while loading */}
-      <Suspense
-        fallback={
-          <div className="w-full h-full bg-black flex items-center justify-center">
-            <div className="animate-pulse text-[#39AEC4]">Loading 3D Scene...</div>
-          </div>
-        }
-      >
-        <Spline
-          className="w-full h-full"
-          scene="https://prod.spline.design/tlQbfPCmTOar9ktx/scene.splinecode"
-        />
-      </Suspense>
-
-      {/* Overlay to ensure text readability if the 3D scene is too bright */}
-      <div className="absolute inset-0 bg-black/40 pointer-events-none" />
-    </div>
-  );
+  return <AnimatedBackground />;
 }

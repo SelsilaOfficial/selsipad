@@ -38,7 +38,7 @@ export default async function LockPage() {
           </div>
         </div>
       </div>
-      <PageContainer className="py-8">
+      <PageContainer maxWidth="xl" className="py-8">
         {/* Hero Section */}
         <div className="mb-8 text-center">
           <h1 className="text-3xl font-bold text-white mb-2">🔒 Liquidity Transparency</h1>

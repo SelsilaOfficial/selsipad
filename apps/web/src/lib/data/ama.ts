@@ -12,17 +12,24 @@ import { createClient as createServiceClient } from '@supabase/supabase-js';
 
 export type AMAStatus = 'PENDING' | 'PINNED' | 'LIVE' | 'ENDED' | 'REJECTED';
 
+export type AMAType = 'TEXT' | 'VOICE' | 'VIDEO';
+
 export interface AMARequest {
   id: string;
   project_id: string;
   developer_id: string;
+  host_id?: string;
   project_name: string;
   description: string;
   scheduled_at: string;
   payment_tx_hash: string;
   payment_amount_bnb: number;
   status: AMAStatus;
+  type: AMAType;
+  video_enabled: boolean;
   is_pinned: boolean;
+  started_at?: string;
+  ended_at?: string;
   created_at: string;
 }
 
@@ -31,10 +38,11 @@ export interface AMAMessage {
   ama_id: string;
   user_id: string;
   content: string;
-  message_type: 'USER' | 'DEVELOPER' | 'SYSTEM' | 'PINNED';
+  message_type: 'USER' | 'DEVELOPER' | 'HOST' | 'SYSTEM' | 'PINNED';
   username: string;
   avatar_url?: string;
   is_developer: boolean;
+  is_host: boolean;
   is_verified: boolean;
   is_pinned_message: boolean;
   is_deleted: boolean;
@@ -64,6 +72,7 @@ export async function getAMAMessages(amaId: string): Promise<AMAMessage[]> {
 
 /**
  * Send AMA Message
+ * Role detection: TEAM_MOD badge → HOST, developer_id match → DEVELOPER, else → USER
  */
 export async function sendAMAMessage(amaId: string, content: string) {
   console.log('[sendAMAMessage] Starting...', { amaId, content });
@@ -96,24 +105,41 @@ export async function sendAMAMessage(amaId: string, content: string) {
 
   console.log('[sendAMAMessage] Profile:', profile);
 
-  // Check if user is the developer
+  // Check if user is the developer (guest)
   const { data: ama } = await supabase
     .from('ama_requests')
-    .select('developer_id')
+    .select('developer_id, host_id')
     .eq('id', amaId)
     .single();
 
   const isDeveloper = ama?.developer_id === session.userId;
-  console.log('[sendAMAMessage] isDeveloper:', isDeveloper);
+
+  // Check if user has TEAM_MOD badge (host)
+  const { data: teamBadge } = await supabase
+    .from('user_badges')
+    .select('badge_key')
+    .eq('user_id', session.userId)
+    .eq('badge_key', 'TEAM_MOD')
+    .limit(1);
+
+  const isHost = (teamBadge && teamBadge.length > 0) || ama?.host_id === session.userId;
+
+  // Determine message type: HOST > DEVELOPER > USER
+  let messageType: 'HOST' | 'DEVELOPER' | 'USER' = 'USER';
+  if (isHost) messageType = 'HOST';
+  else if (isDeveloper) messageType = 'DEVELOPER';
+
+  console.log('[sendAMAMessage] Role:', { isDeveloper, isHost, messageType });
 
   const messageData = {
     ama_id: amaId,
     user_id: session.userId,
     content: content.trim(),
-    message_type: isDeveloper ? 'DEVELOPER' : 'USER',
+    message_type: messageType,
     username: profile?.nickname || 'Anonymous',
     avatar_url: profile?.avatar_url,
     is_developer: isDeveloper,
+    is_host: isHost,
     is_verified: profile?.kyc_status === 'APPROVED',
   };
 
@@ -135,7 +161,7 @@ export async function sendAMAMessage(amaId: string, content: string) {
 }
 
 /**
- * Pin a message (Developer only)
+ * Pin a message (Host or Developer)
  */
 export async function pinMessage(messageId: string, amaId: string) {
   const session = await getServerSession();
@@ -144,17 +170,34 @@ export async function pinMessage(messageId: string, amaId: string) {
     return { success: false, error: 'Authentication required' };
   }
 
-  const supabase = createClient();
+  // Use service role to bypass RLS
+  const supabase = createServiceClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
 
-  // Verify user is the developer
+  // Check if user is developer OR host (TEAM_MOD badge)
   const { data: ama } = await supabase
     .from('ama_requests')
-    .select('developer_id')
+    .select('developer_id, host_id')
     .eq('id', amaId)
     .single();
 
-  if (ama?.developer_id !== session.userId) {
-    return { success: false, error: 'Only the developer can pin messages' };
+  const isDeveloper = ama?.developer_id === session.userId;
+  const isHostById = ama?.host_id === session.userId;
+
+  // Check TEAM_MOD badge
+  const { data: teamBadge } = await supabase
+    .from('user_badges')
+    .select('badge_key')
+    .eq('user_id', session.userId)
+    .eq('badge_key', 'TEAM_MOD')
+    .limit(1);
+
+  const isHost = isHostById || (teamBadge && teamBadge.length > 0);
+
+  if (!isDeveloper && !isHost) {
+    return { success: false, error: 'Only the host or developer can pin messages' };
   }
 
   const { error } = await supabase

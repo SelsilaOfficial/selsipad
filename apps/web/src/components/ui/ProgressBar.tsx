@@ -10,6 +10,7 @@ export interface ProgressBarProps {
   size?: 'sm' | 'md' | 'lg';
   variant?: 'default' | 'success' | 'warning';
   className?: string;
+  indicatorClassName?: string;
 }
 
 export const ProgressBar: React.FC<ProgressBarProps> = ({
@@ -21,6 +22,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
   size = 'md',
   variant = 'default',
   className,
+  indicatorClassName,
 }) => {
   const percentage = Math.min(Math.max((value / max) * 100, 0), 100);
 
@@ -51,7 +53,11 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
 
       <div className={cn('w-full bg-bg-elevated rounded-full overflow-hidden', sizes[size])}>
         <div
-          className={cn('h-full rounded-full transition-all duration-300', variants[variant])}
+          className={cn(
+            'h-full rounded-full transition-all duration-300',
+            variants[variant],
+            indicatorClassName
+          )}
           style={{ width: `${percentage}%` }}
         />
       </div>

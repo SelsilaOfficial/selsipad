@@ -1,380 +1,283 @@
 'use client';
 
-import { useState } from 'react';
-import Link from 'next/link';
-import {
-  Card,
-  CardContent,
-  StatusBadge,
-  ProgressBar,
-  FilterPills,
-  EmptyState,
-  EmptyIcon,
-  SkeletonCard,
-  Countdown,
-} from '@/components/ui';
-import { PageContainer, BottomSheet } from '@/components/layout';
+import { useState, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
+import { ArrowLeft, Search, Filter, X } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatedBackground } from '@/components/home/figma/AnimatedBackground';
+import { ExploreProjectCard } from '@/components/explore/ExploreProjectCard';
 import type { Project } from '@/lib/data/projects';
-import type { FilterPill } from '@/components/ui';
+import { Card, CardContent, EmptyState, EmptyIcon } from '@/components/ui';
+
+type NetworkType = 'All' | 'EVM' | 'Solana';
+type StatusType = 'All' | 'Upcoming' | 'Live' | 'Ended';
+type ProjectType = 'All' | 'Presale' | 'Fairlaunch' | 'Bonding Curve';
 
 interface ExploreClientContentProps {
   initialProjects: Project[];
 }
 
 export function ExploreClientContent({ initialProjects }: ExploreClientContentProps) {
-  const [projects, setProjects] = useState<Project[]>(initialProjects);
-  const [loading, setLoading] = useState(false);
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'live' | 'upcoming' | 'ended'>('all');
-  const [chainFilter, setChainFilter] = useState<'all' | 'EVM' | 'SOL'>('all');
-  const [typeFilter, setTypeFilter] = useState<'all' | 'presale' | 'fairlaunch' | 'bonding'>('all');
-  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
+  const router = useRouter();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedNetwork, setSelectedNetwork] = useState<NetworkType>('All');
+  const [selectedStatus, setSelectedStatus] = useState<StatusType>('All');
+  const [selectedType, setSelectedType] = useState<ProjectType>('All');
+  const [showFilters, setShowFilters] = useState(false);
 
-  // Filter projects client-side
-  const filteredProjects = projects.filter((project) => {
-    // 1. Search Filter
-    if (search) {
-      const searchLower = search.toLowerCase();
-      if (
-        !project.name.toLowerCase().includes(searchLower) &&
-        !project.symbol.toLowerCase().includes(searchLower)
-      ) {
-        return false;
+  // Filter projects
+  const filteredProjects = useMemo(() => {
+    return initialProjects.filter((project) => {
+      // Search filter
+      const searchLower = searchQuery.toLowerCase();
+      const matchesSearch =
+        project.name.toLowerCase().includes(searchLower) ||
+        project.symbol.toLowerCase().includes(searchLower) ||
+        project.description.toLowerCase().includes(searchLower);
+
+      // Network filter
+      let matchesNetwork = true;
+      if (selectedNetwork === 'EVM') matchesNetwork = project.network === 'EVM';
+      if (selectedNetwork === 'Solana') matchesNetwork = project.network === 'SOL';
+
+      // Status filter
+      let matchesStatus = true;
+      if (selectedStatus !== 'All') {
+        matchesStatus = project.status === selectedStatus.toLowerCase();
       }
-    }
 
-    // 2. Chain Filter
-    if (chainFilter !== 'all' && project.network !== chainFilter) {
-      return false;
-    }
+      // Type filter
+      let matchesType = true;
+      if (selectedType !== 'All') {
+        // Map 'Bonding Curve' to matching type if it existed, currently only presale/fairlaunch
+        if (selectedType === 'Bonding Curve') {
+          // Assuming 'bonding_curve' doesn't exist yet in Project type, so strict check might fail or return false
+          // safe cast as any if needs checking unknown types
+          matchesType = (project as any).type === 'bonding_curve';
+        } else {
+          matchesType = project.type === selectedType.toLowerCase();
+        }
+      }
 
-    // 3. Status Filter
-    if (statusFilter !== 'all' && project.status !== statusFilter) {
-      return false;
-    }
+      return matchesSearch && matchesNetwork && matchesStatus && matchesType;
+    });
+  }, [initialProjects, searchQuery, selectedNetwork, selectedStatus, selectedType]);
 
-    // 4. Type Filter (presale, fairlaunch, bonding curve)
-    if (typeFilter !== 'all') {
-      // Assuming project has a 'type' field from launch_rounds
-      const projectType = (project as any).type?.toLowerCase();
-      if (typeFilter === 'presale' && projectType !== 'presale') return false;
-      if (typeFilter === 'fairlaunch' && projectType !== 'fairlaunch') return false;
-      if (typeFilter === 'bonding' && projectType !== 'bonding_curve') return false;
-    }
+  const clearFilters = () => {
+    setSearchQuery('');
+    setSelectedNetwork('All');
+    setSelectedStatus('All');
+    setSelectedType('All');
+  };
 
-    return true;
-  });
+  const hasActiveFilters =
+    searchQuery || selectedNetwork !== 'All' || selectedStatus !== 'All' || selectedType !== 'All';
 
   return (
-    <div className="min-h-screen bg-bg-page pb-20">
-      <PageContainer className="py-4 space-y-6">
-        {/* Header with Back Button - aligned with content */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => (window.location.href = '/')}
-              className="hidden sm:flex items-center justify-center w-8 h-8 rounded-lg text-text-secondary hover:text-text-primary hover:bg-white/5 transition-all border border-border-subtle/50 hover:border-border-subtle"
-              aria-label="Go back"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 19l-7-7 7-7"
-                />
-              </svg>
-            </button>
-            <h1 className="text-2xl font-bold text-text-primary">Explore Projects</h1>
-          </div>
-          <button
-            onClick={() => setFilterSheetOpen(true)}
-            className="p-2 text-text-secondary hover:text-text-primary transition-colors lg:hidden"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
-              />
-            </svg>
-          </button>
-        </div>
-        {/* Search & Desktop Filters */}
-        <div className="space-y-4">
-          <div className="relative">
-            <input
-              type="search"
-              placeholder="Cari project..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-bg-input border border-border-subtle rounded-xl px-4 py-3 pl-11 text-text-primary placeholder:text-text-tertiary focus:border-primary-main focus:ring-1 focus:ring-primary-main transition-all shadow-sm"
-            />
-            <svg
-              className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-text-tertiary pointer-events-none"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-              />
-            </svg>
-          </div>
+    <div className="min-h-screen bg-black text-white relative overflow-hidden">
+      {/* Animated Background Layer */}
+      <AnimatedBackground />
 
-          {/* Quick Filters (Visible on all screens) */}
-          <div className="flex flex-col gap-4">
-            {/* Chain Selector */}
-            <div>
-              <label className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2 block">
-                Network / Chain
-              </label>
-              <div className="flex gap-2 p-1 bg-bg-elevated rounded-lg w-max">
-                {(['all', 'EVM', 'SOL'] as const).map((chain) => (
-                  <button
-                    key={chain}
-                    onClick={() => setChainFilter(chain)}
-                    className={`
-                        px-4 py-2 rounded-md text-sm font-medium transition-all active:scale-95
-                        ${
-                          chainFilter === chain
-                            ? 'bg-bg-card shadow-sm text-primary-main border border-primary-main/20'
-                            : 'text-text-secondary hover:text-text-primary hover:bg-white/5'
-                        }
-                      `}
-                  >
-                    {chain === 'all' ? 'All Chains' : chain === 'EVM' ? 'EVM (BSC/Base)' : 'Solana'}
-                  </button>
-                ))}
-              </div>
-            </div>
+      {/* Subtle Dark Overlay for Readability */}
+      <div className="fixed inset-0 bg-black/30 pointer-events-none z-[1]" />
 
-            {/* Status Selector */}
-            <div>
-              <label className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2 block">
-                Project Status
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {(['all', 'live', 'upcoming', 'ended'] as const).map((status) => (
-                  <button
-                    key={status}
-                    onClick={() => setStatusFilter(status)}
-                    className={`
-                        px-3.5 py-2 rounded-full text-sm font-medium border transition-all active:scale-95
-                        ${
-                          statusFilter === status
-                            ? 'bg-primary-main/10 border-primary-main text-primary-main'
-                            : 'bg-transparent border-border-subtle text-text-secondary hover:border-gray-500'
-                        }
-                      `}
-                  >
-                    {status === 'all'
-                      ? 'All Status'
-                      : status.charAt(0).toUpperCase() + status.slice(1)}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Project Type Selector */}
-          <div>
-            <label className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2 block">
-              Project Type
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {(['all', 'presale', 'fairlaunch', 'bonding'] as const).map((type) => (
+      {/* Content Layer */}
+      <div className="relative z-10">
+        {/* Sticky Header */}
+        <header className="sticky top-0 z-50 backdrop-blur-xl bg-black/60 border-b border-[#39AEC4]/20">
+          <div className="container mx-auto px-4 sm:px-6 py-3 sm:py-4">
+            <div className="flex items-center justify-between mb-3 sm:mb-4">
+              {/* Back Button & Title */}
+              <div className="flex items-center gap-3">
                 <button
-                  key={type}
-                  onClick={() => setTypeFilter(type)}
-                  className={`
-                    px-3.5 py-2 rounded-full text-sm font-medium border transition-all active:scale-95
-                    ${
-                      typeFilter === type
-                        ? 'bg-primary-main/10 border-primary-main text-primary-main'
-                        : 'bg-transparent border-border-subtle text-text-secondary hover:border-gray-500'
-                    }
-                  `}
+                  onClick={() => router.push('/')}
+                  className="p-2 rounded-full hover:bg-[#39AEC4]/10 transition-colors"
                 >
-                  {type === 'all'
-                    ? 'All Types'
-                    : type === 'presale'
-                      ? 'Presale'
-                      : type === 'fairlaunch'
-                        ? 'Fairlaunch'
-                        : 'Bonding Curve'}
+                  <ArrowLeft className="w-5 h-5 text-[#39AEC4]" />
                 </button>
-              ))}
+                <div>
+                  <h1 className="text-lg sm:text-xl font-bold">Explore Launchpad</h1>
+                  <p className="text-xs text-gray-400">{filteredProjects.length} projects found</p>
+                </div>
+              </div>
+
+              {/* Filter Toggle (Mobile) */}
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className="md:hidden p-2 rounded-full hover:bg-[#39AEC4]/10 transition-colors"
+              >
+                <Filter className="w-5 h-5 text-[#39AEC4]" />
+              </button>
+            </div>
+
+            {/* Search Bar */}
+            <div className="relative mb-3 sm:mb-4">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search projects by name, symbol, or description..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-12 pr-4 py-3 rounded-[16px] bg-white/5 backdrop-blur-xl border border-[#39AEC4]/20 text-white placeholder:text-gray-500 focus:outline-none focus:border-[#39AEC4]/40 transition-colors"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-[#39AEC4]/10 transition-colors"
+                >
+                  <X className="w-4 h-4 text-gray-400" />
+                </button>
+              )}
+            </div>
+
+            {/* Filters */}
+            <div className={`${showFilters ? 'block' : 'hidden'} md:block`}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                {/* Network Toggle */}
+                <div>
+                  <label className="text-xs text-gray-400 mb-2 block">Network</label>
+                  <div className="flex items-center gap-1 bg-white/5 rounded-[12px] p-1 border border-[#39AEC4]/20">
+                    <button
+                      onClick={() => setSelectedNetwork('All')}
+                      className={`flex-1 px-3 py-2 rounded-[8px] text-xs font-semibold transition-all ${
+                        selectedNetwork === 'All'
+                          ? 'bg-gradient-to-r from-[#39AEC4] to-[#756BBA] text-white'
+                          : 'text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      All
+                    </button>
+                    <button
+                      onClick={() => setSelectedNetwork('EVM')}
+                      className={`flex-1 px-3 py-2 rounded-[8px] text-xs font-semibold transition-all ${
+                        selectedNetwork === 'EVM'
+                          ? 'bg-gradient-to-r from-[#39AEC4] to-[#4EABC8] text-white'
+                          : 'text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      EVM
+                    </button>
+                    <button
+                      onClick={() => setSelectedNetwork('Solana')}
+                      className={`flex-1 px-3 py-2 rounded-[8px] text-xs font-semibold transition-all ${
+                        selectedNetwork === 'Solana'
+                          ? 'bg-gradient-to-r from-[#756BBA] to-[#8B7FD8] text-white'
+                          : 'text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      Solana
+                    </button>
+                  </div>
+                </div>
+
+                {/* Status Filter */}
+                <div>
+                  <label className="text-xs text-gray-400 mb-2 block">Status</label>
+                  <select
+                    value={selectedStatus}
+                    onChange={(e) => setSelectedStatus(e.target.value as StatusType)}
+                    className="w-full px-3 py-2 rounded-[12px] bg-white/5 backdrop-blur-xl border border-[#39AEC4]/20 text-white text-xs font-semibold focus:outline-none focus:border-[#39AEC4]/40 transition-colors cursor-pointer appearance-none"
+                    style={{ backgroundImage: 'none' }}
+                  >
+                    <option value="All" className="bg-black text-white">
+                      All Status
+                    </option>
+                    <option value="Upcoming" className="bg-black text-white">
+                      Upcoming
+                    </option>
+                    <option value="Live" className="bg-black text-white">
+                      Live
+                    </option>
+                    <option value="Ended" className="bg-black text-white">
+                      Ended
+                    </option>
+                  </select>
+                </div>
+
+                {/* Project Type Filter */}
+                <div>
+                  <label className="text-xs text-gray-400 mb-2 block">Project Type</label>
+                  <select
+                    value={selectedType}
+                    onChange={(e) => setSelectedType(e.target.value as ProjectType)}
+                    className="w-full px-3 py-2 rounded-[12px] bg-white/5 backdrop-blur-xl border border-[#39AEC4]/20 text-white text-xs font-semibold focus:outline-none focus:border-[#39AEC4]/40 transition-colors cursor-pointer appearance-none"
+                    style={{ backgroundImage: 'none' }}
+                  >
+                    <option value="All" className="bg-black text-white">
+                      All Types
+                    </option>
+                    <option value="Presale" className="bg-black text-white">
+                      Presale
+                    </option>
+                    <option value="Fairlaunch" className="bg-black text-white">
+                      Fairlaunch
+                    </option>
+                    <option value="Bonding Curve" className="bg-black text-white">
+                      Bonding Curve
+                    </option>
+                  </select>
+                </div>
+
+                {/* Clear Filters */}
+                {hasActiveFilters && (
+                  <div className="flex items-end">
+                    <button
+                      onClick={clearFilters}
+                      className="w-full px-4 py-2 rounded-[12px] bg-gradient-to-r from-[#39AEC4]/20 to-[#756BBA]/20 border border-[#39AEC4]/30 hover:from-[#39AEC4]/30 hover:to-[#756BBA]/30 transition-all text-xs font-semibold flex items-center justify-center gap-2 h-[34px]"
+                    >
+                      <X className="w-4 h-4" />
+                      Clear Filters
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        </header>
 
-        {/* Results */}
-        {loading ? (
-          <div className="space-y-4">
-            {[1, 2, 3].map((i) => (
-              <SkeletonCard key={i} />
-            ))}
-          </div>
-        ) : filteredProjects.length === 0 ? (
-          <Card>
-            <CardContent>
-              <EmptyState
-                icon={<EmptyIcon />}
-                title="Tidak ada project ditemukan"
-                description="Coba ubah filter atau kata kunci pencarian"
-              />
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {filteredProjects.map((project) => {
-              // Route based on project type
-              const detailPath =
-                project.type === 'fairlaunch'
-                  ? `/fairlaunch/${project.id}`
-                  : project.type === 'presale'
-                    ? `/presale/${project.id}`
-                    : `/bonding/${project.id}`;
-
-              return (
-                <Link key={project.id} href={detailPath}>
-                  <Card hover className="h-full border-border-subtle group">
-                    <CardContent className="space-y-4 p-5">
-                      {/* Header: Logo & Status */}
-                      <div className="flex items-start justify-between">
-                        <div className="w-14 h-14 bg-bg-elevated rounded-xl flex items-center justify-center text-xl shadow-inner border border-white/5 group-hover:scale-105 transition-transform">
-                          {project.logo && project.logo !== '/placeholder-logo.png' ? (
-                            <img
-                              src={project.logo}
-                              alt={project.name}
-                              className="w-full h-full object-cover rounded-xl"
-                            />
-                          ) : (
-                            <span className="font-bold text-gray-400">
-                              {project.symbol.slice(0, 2)}
-                            </span>
-                          )}
-                        </div>
-                        <StatusBadge status={project.status} />
-                      </div>
-
-                      {/* Title & Desc */}
-                      <div>
-                        <div className="flex items-center gap-2 mb-1 flex-wrap">
-                          <h3 className="text-lg font-bold text-text-primary line-clamp-1 group-hover:text-primary-main transition-colors">
-                            {project.name}
-                          </h3>
-                          {project.network === 'EVM' ? (
-                            <span className="text-[10px] bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded border border-blue-500/30">
-                              EVM
-                            </span>
-                          ) : (
-                            <span className="text-[10px] bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded border border-purple-500/30">
-                              SOL
-                            </span>
-                          )}
-                          {/* Chain-specific badge */}
-                          {project.network === 'EVM' && project.chain && (
-                            <>
-                              {(project.chain === '97' || project.chain === '56') && (
-                                <span className="text-[10px] bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded border border-yellow-500/30 font-semibold">
-                                  BNB
-                                </span>
-                              )}
-                              {(project.chain === '8453' || project.chain === '84532') && (
-                                <span className="text-[10px] bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded border border-blue-500/30 font-semibold">
-                                  BASE
-                                </span>
-                              )}
-                              {(project.chain === '1' || project.chain === '11155111') && (
-                                <span className="text-[10px] bg-cyan-500/20 text-cyan-400 px-1.5 py-0.5 rounded border border-cyan-500/30 font-semibold">
-                                  ETH
-                                </span>
-                              )}
-                            </>
-                          )}
-                          {/* ✅ SAFU Badges */}
-                          {(() => {
-                            const metadata = (project as any).metadata;
-                            const badges = metadata?.security_badges || [];
-                            const factoryAddress = (project as any).factory_address;
-                            const hasSafu = badges.includes('SAFU') || factoryAddress != null;
-                            const hasScPass = badges.includes('SC_PASS') || factoryAddress != null;
-
-                            return (
-                              <>
-                                {hasSafu && (
-                                  <span className="text-[10px] bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded border border-yellow-500/30 font-semibold">
-                                    SAFU
-                                  </span>
-                                )}
-                                {hasScPass && (
-                                  <span className="text-[10px] bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded border border-green-500/30 font-semibold">
-                                    SC
-                                  </span>
-                                )}
-                              </>
-                            );
-                          })()}
-                        </div>
-                        <p className="text-sm text-text-secondary line-clamp-2 min-h-[40px]">
-                          {project.description}
-                        </p>
-                      </div>
-
-                      {/* Progress */}
-                      <div className="space-y-2 pt-2 border-t border-border-subtle/50">
-                        <div className="flex justify-between text-xs font-medium">
-                          <span className="text-text-secondary">Progress</span>
-                          <span className="text-text-primary">
-                            {((project.raised / project.target) * 100).toFixed(1)}%
-                          </span>
-                        </div>
-                        <ProgressBar
-                          value={project.raised}
-                          max={project.target}
-                          showPercentage={false}
-                          size="sm"
-                        />
-                        <div className="flex justify-between text-xs text-text-tertiary">
-                          <span>
-                            {project.raised}{' '}
-                            {project.network === 'SOL'
-                              ? 'SOL'
-                              : project.chain === '97' || project.chain === '56'
-                                ? 'BNB'
-                                : 'ETH'}
-                          </span>
-                          <span>Soft {project.target}</span>
-                        </div>
-                      </div>
-
-                      {/* Countdown Timer */}
-                      {(project.status === 'upcoming' || project.status === 'live') && (
-                        <div className="flex items-center justify-between py-2 px-3 bg-bg-elevated/50 rounded-lg border border-border-subtle/30">
-                          <span className="text-xs font-medium text-text-tertiary">
-                            {project.status === 'upcoming' ? '🚀 Starts in' : '⏰ Ends in'}
-                          </span>
-                          <Countdown
-                            targetDate={
-                              project.status === 'upcoming' ? project.startDate ?? '' : project.endDate ?? ''
-                            }
-                          />
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                </Link>
-              );
-            })}
-          </div>
-        )}
-      </PageContainer>
+        {/* Main Content */}
+        <main className="container mx-auto px-4 sm:px-6 py-6 sm:py-8 pb-24 md:pb-12">
+          {/* Projects Grid */}
+          {filteredProjects.length > 0 ? (
+            <motion.div layout className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              <AnimatePresence mode="popLayout">
+                {filteredProjects.map((project, index) => (
+                  <motion.div
+                    key={project.id}
+                    layout
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <ExploreProjectCard project={project} index={index} />
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </motion.div>
+          ) : (
+            /* Empty State */
+            <div className="flex flex-col items-center justify-center py-20">
+              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#39AEC4]/20 to-[#756BBA]/20 border border-[#39AEC4]/30 flex items-center justify-center mb-4">
+                <Search className="w-10 h-10 text-[#39AEC4]/50" />
+              </div>
+              <h3 className="text-xl font-bold mb-2">No Projects Found</h3>
+              <p className="text-sm text-gray-400 mb-6 text-center max-w-md">
+                We couldn't find any projects matching your search criteria. Try adjusting your
+                filters.
+              </p>
+              {hasActiveFilters && (
+                <button
+                  onClick={clearFilters}
+                  className="px-6 py-3 rounded-full bg-gradient-to-r from-[#39AEC4] to-[#756BBA] hover:from-[#4EABC8] hover:to-[#756BBA] transition-all shadow-lg shadow-[#756BBA]/30 font-semibold"
+                >
+                  Clear All Filters
+                </button>
+              )}
+            </div>
+          )}
+        </main>
+      </div>
     </div>
   );
 }

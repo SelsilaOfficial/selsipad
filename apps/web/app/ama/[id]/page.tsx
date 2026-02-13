@@ -100,6 +100,25 @@ export default async function AMADetailPage({ params }: { params: { id: string }
               </div>
             </div>
 
+            {/* Host Info */}
+            <div className="flex items-center justify-center gap-2 mb-6">
+              <span className="text-xs text-gray-500">Hosted by</span>
+              <span className="px-2 py-0.5 bg-[#39AEC4]/20 text-[#39AEC4] text-xs font-bold rounded border border-[#39AEC4]/30">
+                🛡️ SELSIPAD Team
+              </span>
+              {ama.type && ama.type !== 'TEXT' && (
+                <span
+                  className={`px-2 py-0.5 text-xs font-bold rounded border ${
+                    ama.type === 'VIDEO'
+                      ? 'bg-purple-500/20 text-purple-300 border-purple-500/30'
+                      : 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30'
+                  }`}
+                >
+                  {ama.type === 'VIDEO' ? '📹' : '🎙️'} {ama.type}
+                </span>
+              )}
+            </div>
+
             {/* Metadata */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
               <div className="text-center">
@@ -205,11 +224,22 @@ export default async function AMADetailPage({ params }: { params: { id: string }
                           <div key={msg.id} className="p-3 bg-white/5 rounded-lg">
                             <div className="flex items-center gap-2 mb-1">
                               <span
-                                className={`font-medium ${msg.is_developer ? 'text-indigo-400' : 'text-white'}`}
+                                className={`font-medium ${
+                                  msg.is_host
+                                    ? 'text-[#39AEC4]'
+                                    : msg.is_developer
+                                      ? 'text-indigo-400'
+                                      : 'text-white'
+                                }`}
                               >
                                 {msg.username}
                               </span>
-                              {msg.is_developer && (
+                              {msg.is_host && (
+                                <span className="text-xs bg-[#39AEC4]/30 text-[#39AEC4] px-1 rounded">
+                                  HOST
+                                </span>
+                              )}
+                              {msg.is_developer && !msg.is_host && (
                                 <span className="text-xs bg-indigo-500/30 text-indigo-300 px-1 rounded">
                                   DEV
                                 </span>

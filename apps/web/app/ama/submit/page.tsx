@@ -2,9 +2,10 @@ import { getServerSession } from '@/lib/auth/session';
 import { createClient } from '@/lib/supabase/server';
 import { hasDevBadge } from '@/lib/auth/devAccess';
 import { AMASubmitForm } from '@/components/ama/AMASubmitForm';
-import { PageHeader, PageContainer } from '@/components/layout';
+import { AnimatedBackground } from '@/components/home/figma/AnimatedBackground';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import { ArrowLeft, ShieldAlert, FolderX, Mic2, Info } from 'lucide-react';
 
 export default async function AMASubmitPage() {
   const session = await getServerSession();
@@ -17,49 +18,67 @@ export default async function AMASubmitPage() {
   // DEVELOPER ACCESS CONTROL
   // ============================================
 
-  // Check if user has DEVELOPER_KYC_VERIFIED badge
   const hasAccess = await hasDevBadge(session.userId);
 
   if (!hasAccess) {
-    // User does not have required badge - show error
     return (
-      <div className="min-h-screen bg-[#0a0a0f] pb-20">
-        <PageHeader title="Submit AMA" />
-        <PageContainer className="py-12">
-          <div className="max-w-2xl mx-auto bg-gradient-to-br from-[#14142b] to-[#0a0a0f] rounded-xl border border-white/10 p-12 text-center">
-            <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
+      <div className="min-h-screen bg-black text-white dark relative overflow-hidden">
+        <AnimatedBackground />
+        <div className="fixed inset-0 bg-black/30 pointer-events-none z-[1]" />
+        <div className="relative z-10">
+          <header className="sticky top-0 z-50 backdrop-blur-xl bg-black/60 border-b border-[#39AEC4]/20">
+            <div className="container mx-auto px-4 sm:px-6 py-3 sm:py-4">
+              <div className="flex items-center gap-3">
+                <Link
+                  href="/ama"
+                  className="p-2 rounded-full hover:bg-[#39AEC4]/10 transition-colors"
+                >
+                  <ArrowLeft className="w-5 h-5 text-[#39AEC4]" />
+                </Link>
+                <div>
+                  <h1 className="text-lg sm:text-xl font-bold">Submit AMA</h1>
+                  <p className="text-xs text-gray-400">Request a session</p>
+                </div>
+              </div>
             </div>
-            
-            <h2 className="text-2xl font-bold text-white mb-2">Developer Verification Required</h2>
-            <p className="text-gray-400 mb-6">
-              Only verified developers can host AMA sessions. Please complete developer KYC verification to continue.
-            </p>
+          </header>
 
-            <div className="bg-indigo-500/10 border border-indigo-500/30 rounded-lg p-4 mb-6">
-              <p className="text-sm text-indigo-300">
-                <strong>Why verification?</strong> This helps protect our community and ensures AMAs are hosted by legitimate project developers.
+          <main className="container mx-auto px-4 sm:px-6 py-8 max-w-2xl">
+            <div className="rounded-[20px] bg-gradient-to-br from-white/5 to-white/[0.02] backdrop-blur-xl border border-red-500/30 p-8 sm:p-12 shadow-xl shadow-red-500/10 text-center">
+              <div className="w-16 h-16 rounded-full bg-red-500/20 border border-red-500/30 flex items-center justify-center mx-auto mb-4">
+                <ShieldAlert className="w-8 h-8 text-red-400" />
+              </div>
+
+              <h2 className="text-2xl font-bold mb-2">Developer Verification Required</h2>
+              <p className="text-gray-400 mb-6">
+                Only verified developers can host AMA sessions. Please complete developer KYC
+                verification to continue.
               </p>
-            </div>
 
-            <div className="flex gap-3 justify-center">
-              <Link
-                href="/profile/kyc/submit"
-                className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
-              >
-                Complete KYC Verification
-              </Link>
-              <Link
-                href="/ama"
-                className="px-6 py-3 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors font-medium"
-              >
-                Back to AMAs
-              </Link>
+              <div className="bg-[#39AEC4]/10 border border-[#39AEC4]/30 rounded-[14px] p-4 mb-6 text-left">
+                <p className="text-sm text-gray-300">
+                  <strong className="text-[#39AEC4]">Why verification?</strong> This helps protect
+                  our community and ensures AMAs are hosted by legitimate project developers.
+                </p>
+              </div>
+
+              <div className="flex gap-3 justify-center flex-wrap">
+                <Link
+                  href="/profile/kyc/submit"
+                  className="px-6 py-3 rounded-full bg-gradient-to-r from-[#39AEC4] to-[#756BBA] hover:from-[#4EABC8] hover:to-[#756BBA] transition-all shadow-lg shadow-[#756BBA]/30 font-semibold text-sm"
+                >
+                  Complete KYC Verification
+                </Link>
+                <Link
+                  href="/ama"
+                  className="px-6 py-3 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 transition-all font-semibold text-sm"
+                >
+                  Back to AMAs
+                </Link>
+              </div>
             </div>
-          </div>
-        </PageContainer>
+          </main>
+        </div>
       </div>
     );
   }
@@ -70,7 +89,6 @@ export default async function AMASubmitPage() {
 
   const supabase = createClient();
 
-  // Get user's projects (owner_user_id is the correct column name)
   const { data: projects } = await supabase
     .from('projects')
     .select('id, name')
@@ -79,45 +97,102 @@ export default async function AMASubmitPage() {
 
   if (!projects || projects.length === 0) {
     return (
-      <div className="min-h-screen bg-[#0a0a0f] pb-20">
-        <PageHeader title="Submit AMA" />
-        <PageContainer className="py-12">
-          <div className="bg-gradient-to-br from-[#14142b] to-[#0a0a0f] rounded-xl border border-white/10 p-12 text-center">
-            <h2 className="text-2xl font-bold text-white mb-4">No Projects Found</h2>
-            <p className="text-gray-400 mb-6">You need to create a project before hosting an AMA</p>
-            <Link
-              href="/explore"
-              className="inline-block px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
-            >
-              Explore Projects
-            </Link>
-          </div>
-        </PageContainer>
+      <div className="min-h-screen bg-black text-white dark relative overflow-hidden">
+        <AnimatedBackground />
+        <div className="fixed inset-0 bg-black/30 pointer-events-none z-[1]" />
+        <div className="relative z-10">
+          <header className="sticky top-0 z-50 backdrop-blur-xl bg-black/60 border-b border-[#39AEC4]/20">
+            <div className="container mx-auto px-4 sm:px-6 py-3 sm:py-4">
+              <div className="flex items-center gap-3">
+                <Link
+                  href="/ama"
+                  className="p-2 rounded-full hover:bg-[#39AEC4]/10 transition-colors"
+                >
+                  <ArrowLeft className="w-5 h-5 text-[#39AEC4]" />
+                </Link>
+                <div>
+                  <h1 className="text-lg sm:text-xl font-bold">Submit AMA</h1>
+                  <p className="text-xs text-gray-400">Request a session</p>
+                </div>
+              </div>
+            </div>
+          </header>
+
+          <main className="container mx-auto px-4 sm:px-6 py-8 max-w-2xl">
+            <div className="rounded-[20px] bg-gradient-to-br from-white/5 to-white/[0.02] backdrop-blur-xl border border-[#39AEC4]/20 p-8 sm:p-12 shadow-xl shadow-[#756BBA]/10 text-center">
+              <div className="w-16 h-16 rounded-full bg-[#756BBA]/20 border border-[#756BBA]/30 flex items-center justify-center mx-auto mb-4">
+                <FolderX className="w-8 h-8 text-[#756BBA]" />
+              </div>
+              <h2 className="text-2xl font-bold mb-2">No Projects Found</h2>
+              <p className="text-gray-400 mb-6">
+                You need to create a project before hosting an AMA
+              </p>
+              <Link
+                href="/create"
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-[#39AEC4] to-[#756BBA] hover:from-[#4EABC8] hover:to-[#756BBA] transition-all shadow-lg shadow-[#756BBA]/30 font-semibold"
+              >
+                Create Project
+              </Link>
+            </div>
+          </main>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] pb-20">
-      <PageHeader title="Request AMA" />
+    <div className="min-h-screen bg-black text-white dark relative overflow-hidden">
+      <AnimatedBackground />
+      <div className="fixed inset-0 bg-black/30 pointer-events-none z-[1]" />
+      <div className="relative z-10">
+        <header className="sticky top-0 z-50 backdrop-blur-xl bg-black/60 border-b border-[#39AEC4]/20">
+          <div className="container mx-auto px-4 sm:px-6 py-3 sm:py-4">
+            <div className="flex items-center gap-3">
+              <Link
+                href="/ama"
+                className="p-2 rounded-full hover:bg-[#39AEC4]/10 transition-colors"
+              >
+                <ArrowLeft className="w-5 h-5 text-[#39AEC4]" />
+              </Link>
+              <div>
+                <h1 className="text-lg sm:text-xl font-bold">Request AMA</h1>
+                <p className="text-xs text-gray-400">Submit your session</p>
+              </div>
+            </div>
+          </div>
+        </header>
 
-      <PageContainer className="py-6">
-        <div className="max-w-2xl mx-auto">
+        <main className="container mx-auto px-4 sm:px-6 py-6 sm:py-8 pb-24 md:pb-12 max-w-2xl">
           {/* Main Form */}
           <AMASubmitForm userProjects={projects} isDevVerified={true} />
 
           {/* Info Card */}
-          <div className="mt-6 bg-indigo-500/10 border border-indigo-500/30 rounded-xl p-6">
-            <h3 className="font-semibold text-indigo-300 mb-2">📌 Important Notes</h3>
-            <ul className="space-y-2 text-sm text-indigo-200">
-              <li>• AMAs require $100 USD payment (paid in BNB)</li>
-              <li>• Price calculated via Chainlink oracle</li>
-              <li>• AMAs require admin approval before going live</li>
-              <li>• Rejected requests get full refund</li>
+          <div className="mt-6 rounded-[20px] bg-gradient-to-br from-[#39AEC4]/10 to-[#756BBA]/10 backdrop-blur-xl border border-[#39AEC4]/30 p-5 sm:p-6 shadow-xl shadow-[#756BBA]/20">
+            <div className="flex items-center gap-2 mb-3">
+              <Info className="w-4 h-4 text-[#39AEC4]" />
+              <h3 className="font-bold text-sm sm:text-base">Important Notes</h3>
+            </div>
+            <ul className="space-y-2 text-sm text-gray-300">
+              <li className="flex items-start gap-2">
+                <span className="text-[#39AEC4] mt-0.5">•</span>
+                AMAs require $100 USD payment (paid in BNB)
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-[#39AEC4] mt-0.5">•</span>
+                Price calculated via Chainlink oracle
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-[#39AEC4] mt-0.5">•</span>
+                AMAs require admin approval before going live
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-[#39AEC4] mt-0.5">•</span>
+                Rejected requests get full refund
+              </li>
             </ul>
           </div>
-        </div>
-      </PageContainer>
+        </main>
+      </div>
     </div>
   );
 }

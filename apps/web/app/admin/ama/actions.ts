@@ -177,12 +177,13 @@ export async function startAMA(requestId: string): Promise<ActionResult> {
       return { success: false, error: 'AMA must be pinned to start' };
     }
 
-    // Update status to LIVE
+    // Update status to LIVE — admin becomes host
     const { error: updateError } = await supabase
       .from('ama_requests')
       .update({
         status: 'LIVE',
         started_at: new Date().toISOString(),
+        host_id: session.userId,
       })
       .eq('id', requestId);
 
@@ -283,7 +284,10 @@ export async function endAMA(requestId: string): Promise<ActionResult> {
  * Get single AMA request with details
  */
 export async function getAMARequest(requestId: string) {
-  const supabase = createClient();
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
 
   const { data, error } = await supabase
     .from('ama_requests')

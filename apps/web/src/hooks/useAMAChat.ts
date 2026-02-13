@@ -14,10 +14,11 @@ export interface AMAMessage {
   ama_id: string;
   user_id: string;
   content: string;
-  message_type: 'USER' | 'DEVELOPER' | 'SYSTEM' | 'PINNED';
+  message_type: 'USER' | 'DEVELOPER' | 'HOST' | 'SYSTEM' | 'PINNED';
   username: string;
   avatar_url?: string;
   is_developer: boolean;
+  is_host: boolean;
   is_verified: boolean;
   is_pinned_message: boolean;
   is_deleted: boolean;

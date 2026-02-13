@@ -9,11 +9,17 @@ export default function AdminLayout({
   children: React.ReactNode;
 }>) {
   // Admin layout with EVM wallet provider for RainbowKit
+  // Font isolation: admin uses system fonts instead of Orbitron/Audiowide
   return (
-    <EVMWalletProvider>
-      <AdminShell>
-        {children}
-      </AdminShell>
-    </EVMWalletProvider>
+    <div
+      style={{
+        fontFamily:
+          '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+      }}
+    >
+      <EVMWalletProvider>
+        <AdminShell>{children}</AdminShell>
+      </EVMWalletProvider>
+    </div>
   );
 }
