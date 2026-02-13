@@ -3,6 +3,21 @@
 import { usePathname, useRouter } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 
+function getParentRoute(pathname: string): string {
+  // Map specific deep routes to their logical parents
+  if (pathname.match(/^\/presales\/[^/]+/)) return '/explore';
+  if (pathname.match(/^\/fairlaunch\/[^/]+/)) return '/explore';
+  if (pathname.match(/^\/bonding-curve\/[^/]+/)) return '/explore';
+  if (pathname.match(/^\/ama\/[^/]+/)) return '/ama';
+  if (pathname.match(/^\/explore\/[^/]+/)) return '/explore';
+  // Default: go to the parent path segment
+  const segments = pathname.split('/').filter(Boolean);
+  if (segments.length > 1) {
+    return '/' + segments.slice(0, -1).join('/');
+  }
+  return '/';
+}
+
 export function GlobalBackButton() {
   const pathname = usePathname();
   const router = useRouter();
@@ -22,7 +37,7 @@ export function GlobalBackButton() {
 
   return (
     <button
-      onClick={() => router.back()}
+      onClick={() => router.push(getParentRoute(pathname))}
       className="fixed bottom-6 left-6 z-50 p-3 bg-gray-900/90 border border-gray-700 rounded-full text-white shadow-lg hover:bg-gray-800 transition-all backdrop-blur-sm lg:hidden"
       aria-label="Go Back"
     >

@@ -41,7 +41,7 @@ export default function CreateHubPage() {
       <div className="sticky top-0 z-30 bg-black/80 backdrop-blur-md border-b border-white/10">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center gap-3">
           <button
-            onClick={() => router.back()}
+            onClick={() => router.push('/')}
             className="text-gray-400 hover:text-white transition-colors"
           >
             <ArrowLeft className="w-6 h-6" />

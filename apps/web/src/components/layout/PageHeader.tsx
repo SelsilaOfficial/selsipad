@@ -25,7 +25,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
     if (onBack) {
       onBack();
     } else {
-      router.back();
+      router.push('/');
     }
   };
 

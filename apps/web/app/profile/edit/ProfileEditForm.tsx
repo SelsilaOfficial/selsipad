@@ -211,7 +211,7 @@ export function ProfileEditForm({ initialNickname, initialAvatarUrl }: ProfileEd
           <div className="flex gap-3">
             <button
               type="button"
-              onClick={() => router.back()}
+              onClick={() => router.push('/profile')}
               className="flex-1 px-4 py-3 bg-white/5 border border-white/10 text-gray-300 rounded-lg hover:bg-white/10 transition-colors font-bold"
             >
               Cancel

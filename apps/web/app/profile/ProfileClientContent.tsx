@@ -15,6 +15,7 @@ import {
   History,
   Edit,
   Rocket,
+  IdCard,
 } from 'lucide-react';
 import type { UserProfile } from '@/lib/data/profile';
 import type { UserStatsMultiChain } from '@/types/multi-chain';
@@ -184,7 +185,9 @@ export function ProfileClientContent({
                       <div
                         className={`w-10 h-10 rounded-full ${colors.bg} flex items-center justify-center border ${colors.border} group-hover:border-opacity-80 transition-colors`}
                       >
-                        {badge.icon_url ? (
+                        {badge.name?.toLowerCase().includes('kyc verified') ? (
+                          <IdCard className={`w-5 h-5 ${colors.text}`} />
+                        ) : badge.icon_url ? (
                           <Image
                             src={badge.icon_url}
                             alt={badge.name}

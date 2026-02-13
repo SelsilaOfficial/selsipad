@@ -57,7 +57,7 @@ export default async function CreatePresalePage() {
       className="min-h-screen bg-gray-950 py-8"
       style={{
         fontFamily:
-          '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+          'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
       }}
     >
       <div className="container mx-auto px-4">

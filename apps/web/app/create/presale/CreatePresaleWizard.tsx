@@ -456,10 +456,7 @@ export function CreatePresaleWizard({
               <ArrowLeft className="w-5 h-5 text-[#39AEC4]" />
             </button>
             <div>
-              <h1
-                className="text-2xl font-bold bg-gradient-to-r from-[#39AEC4] to-[#756BBA] bg-clip-text text-transparent"
-                style={{ fontFamily: 'Audiowide, sans-serif' }}
-              >
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-[#39AEC4] to-[#756BBA] bg-clip-text text-transparent font-sans">
                 Create Presale
               </h1>
               <p className="text-sm text-gray-400">Launch your IDO on SELSIPAD</p>
@@ -489,7 +486,13 @@ export function CreatePresaleWizard({
         </div>
 
         {/* Main Content Card */}
-        <div className="rounded-[24px] bg-gradient-to-br from-[#1A1A20] to-[#0A0A0C] border border-[#39AEC4]/20 p-6 sm:p-8 shadow-2xl shadow-black/50 relative overflow-hidden group">
+        <div
+          className="rounded-[24px] bg-gradient-to-br from-[#1A1A20] to-[#0A0A0C] border border-[#39AEC4]/20 p-6 sm:p-8 shadow-2xl shadow-black/50 relative overflow-hidden group"
+          style={{
+            fontFamily:
+              'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+          }}
+        >
           {/* Glossy overlay effect */}
           <div className="absolute inset-0 bg-gradient-to-b from-white/[0.03] to-transparent pointer-events-none" />
 

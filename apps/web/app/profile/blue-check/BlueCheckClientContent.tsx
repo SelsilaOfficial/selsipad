@@ -478,26 +478,16 @@ function PurchaseContent() {
         </div>
       </div>
 
-      {/* Requirements */}
-      <div className="rounded-[20px] border border-white/10 bg-white/5 backdrop-blur-xl p-6">
-        <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300">
-          <Shield className="w-4 h-4 text-[#39AEC4]" />
-          Requirements
-        </h3>
-        <div className="space-y-2.5">
-          {[
-            { label: 'Account age: Minimum 30 days', icon: Clock },
-            { label: 'At least 3 successful contributions', icon: Zap },
-            { label: '$10 USD one-time payment (BNB)', icon: Award },
-          ].map((req) => (
-            <div key={req.label} className="flex items-center gap-3 text-sm text-gray-400">
-              <div className="p-1.5 rounded-[8px] bg-[#39AEC4]/10">
-                <req.icon className="w-3.5 h-3.5 text-[#39AEC4]" />
-              </div>
-              {req.label}
-            </div>
-          ))}
-        </div>
+      {/* Promo */}
+      <div className="rounded-[20px] border border-white/10 bg-white/5 backdrop-blur-xl p-5 text-center">
+        <p className="text-sm font-bold text-white">
+          Selsi Badge bluecheck – <span className="text-green-400">33% OFF</span>
+        </p>
+        <p className="text-sm text-gray-400 mt-1">
+          Early price: <span className="text-white font-semibold">$10</span>{' '}
+          <span className="line-through text-gray-600">$15</span>
+        </p>
+        <p className="text-xs text-yellow-400/80 font-medium mt-1">⏳ Limited time only</p>
       </div>
     </div>
   );

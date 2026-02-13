@@ -27,7 +27,7 @@ interface WizardData {
   tokenSource: string;
   securityScanStatus: 'PASS' | 'FAIL' | null;
   securityBadges: string[];
-  
+
   // Token metadata (from scan or factory creation)
   tokenName?: string;
   tokenSymbol?: string;
@@ -85,11 +85,10 @@ export function CreateFairlaunchWizard({ walletAddress }: CreateFairlaunchWizard
   const [isDeploying, setIsDeploying] = useState(false);
   const [hasDeployedSuccessfully, setHasDeployedSuccessfully] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  
+
   // 🔒 CRITICAL: useRef for SYNCHRONOUS blocking (state updates are async!)
   const deploymentLock = useRef(false);
 
-  
   // Initialize wizard data with defaults
   const [wizardData, setWizardData] = useState<WizardData>({
     network: '',
@@ -259,14 +258,14 @@ export function CreateFairlaunchWizard({ walletAddress }: CreateFairlaunchWizard
         error: 'Deployment already in progress or completed',
       };
     }
-    
+
     // 🔒 IMMEDIATELY lock (synchronous, blocks concurrent calls!)
     deploymentLock.current = true;
     console.log('🔐 Deployment lock acquired!');
-    
+
     // Set state for UI feedback
     setIsDeploying(true);
-    
+
     console.log('🚀 Starting deployment via backend API...');
     console.log('[Wizard] Using wallet address for auth:', walletAddress);
 
@@ -288,26 +287,27 @@ export function CreateFairlaunchWizard({ walletAddress }: CreateFairlaunchWizard
         // Token configuration
         projectToken: wizardData.tokenAddress,
         tokenDecimals: wizardData.tokenDecimals || 18,
-        
+
         // Sale parameters
         softcap: wizardData.softcap,
         tokensForSale: wizardData.tokensForSale,
         minContribution: wizardData.minContribution,
         maxContribution: wizardData.maxContribution,
-        
+
         // Timing
         startTime: new Date(wizardData.startTime).toISOString(),
         endTime: new Date(wizardData.endTime).toISOString(),
-        
+
         // Liquidity settings
         liquidityPercent: wizardData.liquidityPercent || 70,
         lpLockMonths: wizardData.lpLockMonths || 24,
         listingPremiumBps: wizardData.listingPremiumBps || 0,
         dexPlatform: wizardData.dexPlatform || 'PancakeSwap',
-        
+
         // Team vesting (optional)
-        teamVestingAddress: parseFloat(wizardData.teamAllocation) > 0 ? wizardData.vestingBeneficiary : null,
-        
+        teamVestingAddress:
+          parseFloat(wizardData.teamAllocation) > 0 ? wizardData.vestingBeneficiary : null,
+
         // Creator and network
         creatorWallet: walletAddress,
         chainId: chainId,
@@ -319,19 +319,19 @@ export function CreateFairlaunchWizard({ walletAddress }: CreateFairlaunchWizard
       const getSessionToken = (): string | null => {
         if (typeof document === 'undefined') return null;
         const cookies = document.cookie.split(';');
-        const sessionCookie = cookies.find(c => c.trim().startsWith('session_token='));
+        const sessionCookie = cookies.find((c) => c.trim().startsWith('session_token='));
         if (!sessionCookie) return null;
         const token = sessionCookie.split('=')[1];
         return token || null; // Ensure we return null, not undefined
       };
 
       const sessionToken = getSessionToken();
-      
+
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         'X-Wallet-Address': walletAddress, // Fallback for wallet-only auth
       };
-      
+
       // Add session token if available (preferred)
       if (sessionToken) {
         headers['X-Session-Token'] = sessionToken; // Send as custom header
@@ -369,11 +369,11 @@ export function CreateFairlaunchWizard({ walletAddress }: CreateFairlaunchWizard
       };
     } catch (error: any) {
       console.error('Deployment error:', error);
-      
+
       // 🔓 UNLOCK on error to allow retry!
       deploymentLock.current = false;
       console.log('🔓 Lock released due to error');
-      
+
       return {
         success: false,
         error: error.message || 'Deployment failed',
@@ -382,7 +382,6 @@ export function CreateFairlaunchWizard({ walletAddress }: CreateFairlaunchWizard
       setIsDeploying(false);
     }
   };
-
 
   // Get network symbol
   const getNetworkSymbol = (network: string) => {
@@ -410,12 +409,22 @@ export function CreateFairlaunchWizard({ walletAddress }: CreateFairlaunchWizard
     <div className="min-h-screen bg-gradient-to-b from-gray-900 via-purple-900/10 to-gray-900 py-12">
       <div className="max-w-5xl mx-auto px-4">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">Create Fairlaunch 🚀</h1>
-          <p className="text-gray-400">
-            Launch your token in 7 steps. No KYC, no admin review - instant deployment with auto
-            security checks.
-          </p>
+        <div className="mb-8 flex items-center gap-4">
+          <button
+            onClick={() => router.push('/create')}
+            className="p-3 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5 text-purple-400" />
+          </button>
+          <div>
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent font-sans">
+              Create Fairlaunch 🚀
+            </h1>
+            <p className="text-gray-400">
+              Launch your token in 7 steps. No KYC, no admin review - instant deployment with auto
+              security checks.
+            </p>
+          </div>
         </div>
 
         {/* Progress Stepper */}
@@ -435,8 +444,8 @@ export function CreateFairlaunchWizard({ walletAddress }: CreateFairlaunchWizard
                     step.id === currentStep
                       ? 'opacity-100 scale-110'
                       : completedSteps.includes(step.id)
-                      ? 'opacity-100'
-                      : 'opacity-40'
+                        ? 'opacity-100'
+                        : 'opacity-40'
                   }`}
                 >
                   <div
@@ -444,8 +453,8 @@ export function CreateFairlaunchWizard({ walletAddress }: CreateFairlaunchWizard
                       currentStep === step.id
                         ? 'bg-gradient-to-br from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/50'
                         : completedSteps.includes(step.id)
-                        ? 'bg-green-500 text-white'
-                        : 'bg-gray-700 text-gray-400'
+                          ? 'bg-green-500 text-white'
+                          : 'bg-gray-700 text-gray-400'
                     }`}
                   >
                     {completedSteps.includes(step.id) ? '✓' : step.id}
@@ -467,7 +476,13 @@ export function CreateFairlaunchWizard({ walletAddress }: CreateFairlaunchWizard
         </div>
 
         {/* Main Content Card */}
-        <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-8 mb-6 min-h-[600px]">
+        <div
+          className="bg-gray-800/50 border border-gray-700 rounded-xl p-8 mb-6 min-h-[600px]"
+          style={{
+            fontFamily:
+              'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+          }}
+        >
           {/* Step Title */}
           <div className="mb-6">
             <h2 className="text-2xl font-bold text-white mb-1">
@@ -566,10 +581,7 @@ export function CreateFairlaunchWizard({ walletAddress }: CreateFairlaunchWizard
           )}
 
           {currentStep === 7 && (
-            <SubmitStep
-              formData={wizardData}
-              onBack={() => setCurrentStep(6)}
-            />
+            <SubmitStep formData={wizardData} onBack={() => setCurrentStep(6)} />
           )}
         </div>
 

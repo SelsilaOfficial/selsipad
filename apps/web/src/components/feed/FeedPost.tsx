@@ -256,15 +256,16 @@ export function FeedPost({ post, currentUserId, onDelete }: FeedPostProps) {
                   {post.author.username}
                 </span>
                 {post.author.bluecheck && (
-                  <BadgeDisplay
-                    badge={{
-                      key: 'BLUE_CHECK',
-                      display_name: 'Verified',
-                      category: 'verification',
-                      icon_url: '/bluecheck-badge.png',
-                    }}
-                    size="sm"
-                  />
+                  <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 22 22" fill="none">
+                    <circle cx="11" cy="11" r="11" fill="#39AEC4" />
+                    <path
+                      d="M6.5 11.5L9.5 14.5L15.5 8.5"
+                      stroke="white"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
                 )}
 
                 <span className="text-gray-600">·</span>

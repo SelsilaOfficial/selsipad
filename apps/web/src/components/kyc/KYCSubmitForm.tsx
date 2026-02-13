@@ -171,7 +171,7 @@ export function KYCSubmitForm({ userProjects }: KYCSubmitFormProps) {
         </button>
         <button
           type="button"
-          onClick={() => router.back()}
+          onClick={() => router.push('/profile')}
           className="px-6 py-3.5 bg-white/5 border border-white/10 text-gray-400 font-bold rounded-xl hover:bg-white/10 hover:text-white transition-colors text-sm"
         >
           Cancel

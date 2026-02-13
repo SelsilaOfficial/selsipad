@@ -18,6 +18,14 @@ export default async function CreateFairlaunchPage() {
   const walletAddress = session.address;
 
   return (
-    <CreateFairlaunchWizard walletAddress={walletAddress} />
+    <div
+      className="min-h-screen bg-gray-950"
+      style={{
+        fontFamily:
+          'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+      }}
+    >
+      <CreateFairlaunchWizard walletAddress={walletAddress} />
+    </div>
   );
 }

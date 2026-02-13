@@ -181,7 +181,10 @@ export function ExploreProjectCard({ project, index }: ExploreProjectCardProps) 
           </div>
 
           {/* Description */}
-          <p className="text-xs text-gray-400 line-clamp-2 min-h-[32px] leading-relaxed">
+          <p
+            className="text-xs text-gray-400 line-clamp-2 min-h-[32px] leading-relaxed"
+            style={{ fontFamily: 'Inter, ui-sans-serif, system-ui, -apple-system, sans-serif' }}
+          >
             {project.description || 'No description available for this project.'}
           </p>
           {/* Progress Bar */}

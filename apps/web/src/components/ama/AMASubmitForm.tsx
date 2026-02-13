@@ -64,13 +64,15 @@ export function AMASubmitForm({ userProjects, isDevVerified }: AMASubmitFormProp
 
     // Convert local time to UTC properly
     // Parse date/time components manually to avoid browser timezone issues
-    const [year, month, day] = formData.scheduled_date.split('-').map(Number);
-    const [hour, minute] = formData.scheduled_time.split(':').map(Number);
+    const [year = 0, month = 0, day = 0] = formData.scheduled_date.split('-').map(Number);
+    const [hour = 0, minute = 0] = formData.scheduled_time.split(':').map(Number);
 
     // Create UTC date directly from components
     // Subtract timezone offset because: Local Time = UTC + offset, so UTC = Local Time - offset
     const offset = parseInt(selectedTimezone);
-    const utcDate = new Date(Date.UTC(year, month - 1, day, hour - offset, minute));
+    const utcDate = new Date(
+      Date.UTC(year, (month || 1) - 1, day || 1, (hour || 0) - offset, minute || 0)
+    );
     const scheduledAt = utcDate.toISOString();
 
     const result = await submitAMA({
@@ -374,7 +376,7 @@ export function AMASubmitForm({ userProjects, isDevVerified }: AMASubmitFormProp
 
           {/* Cancel */}
           <button
-            onClick={() => router.back()}
+            onClick={() => router.push('/ama')}
             className="w-full px-6 py-3 text-gray-400 hover:text-white transition-colors"
           >
             Cancel
