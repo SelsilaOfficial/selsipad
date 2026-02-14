@@ -358,7 +358,13 @@ export default async function ProjectDetailPage({ params }: { params: { id: stri
                             <div className="w-1 h-6 bg-[#39AEC4] rounded-full"></div>
                             Project Story
                           </h3>
-                          <div className="prose prose-invert max-w-none text-gray-300 leading-relaxed text-sm md:text-base">
+                          <div
+                            className="prose prose-invert max-w-none text-gray-300 leading-relaxed text-sm md:text-base"
+                            style={{
+                              fontFamily:
+                                'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+                            }}
+                          >
                             {project.description}
                             <p className="mt-4">
                               (Extended description placeholder if needed. This area would contain

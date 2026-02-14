@@ -42,66 +42,65 @@ export function SocialFeedCard() {
           </div>
         ) : posts.length > 0 ? (
           posts.map((post) => (
-            <div
-              key={post.id}
-              className="rounded-[20px] bg-gradient-to-br from-[#39AEC4]/10 to-[#39AEC4]/5 border border-[#39AEC4]/20 p-4 hover:border-[#39AEC4]/40 transition-all"
-            >
-              {/* User Info */}
-              <div className="flex items-center gap-3 mb-2">
-                {post.author.avatar_url ? (
-                  <img
-                    src={post.author.avatar_url}
-                    alt={post.author.username}
-                    className="w-10 h-10 rounded-full object-cover border border-[#39AEC4]/30"
-                  />
-                ) : (
-                  <div className="w-10 h-10 rounded-full bg-[#39AEC4]/20 flex items-center justify-center text-[#39AEC4] font-bold border border-[#39AEC4]/30">
-                    {post.author.username.substring(0, 2).toUpperCase()}
+            <Link key={post.id} href={`/feed/post/${post.id}`} className="block">
+              <div className="rounded-[20px] bg-gradient-to-br from-[#39AEC4]/10 to-[#39AEC4]/5 border border-[#39AEC4]/20 p-4 hover:border-[#39AEC4]/40 hover:bg-[#39AEC4]/10 transition-all cursor-pointer">
+                {/* User Info */}
+                <div className="flex items-center gap-3 mb-2">
+                  {post.author.avatar_url ? (
+                    <img
+                      src={post.author.avatar_url}
+                      alt={post.author.username}
+                      className="w-10 h-10 rounded-full object-cover border border-[#39AEC4]/30"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-[#39AEC4]/20 flex items-center justify-center text-[#39AEC4] font-bold border border-[#39AEC4]/30">
+                      {post.author.username.substring(0, 2).toUpperCase()}
+                    </div>
+                  )}
+
+                  <div className="flex-1">
+                    <div className="flex items-center gap-1">
+                      <p className="text-sm font-bold text-[#39AEC4] font-twitter">
+                        @{post.author.username}
+                      </p>
+                      {post.author.bluecheck && <span className="text-xs text-blue-400">✓</span>}
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      {formatDistance(new Date(post.created_at), new Date(), { addSuffix: true })}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Content */}
+                <p className="text-gray-100 mb-3 whitespace-pre-wrap line-clamp-3 text-[15px] leading-normal font-twitter">
+                  {post.content}
+                </p>
+
+                {/* Project Tag */}
+                {post.project_name && (
+                  <div className="mb-3">
+                    <span className="text-xs bg-[#39AEC4]/10 text-[#39AEC4] px-2 py-1 rounded-full border border-[#39AEC4]/20">
+                      🏷️ {post.project_name}
+                    </span>
                   </div>
                 )}
 
-                <div className="flex-1">
-                  <div className="flex items-center gap-1">
-                    <p className="text-sm font-bold text-[#39AEC4] font-twitter">
-                      @{post.author.username}
-                    </p>
-                    {post.author.bluecheck && <span className="text-xs text-blue-400">✓</span>}
-                  </div>
-                  <p className="text-xs text-gray-500">
-                    {formatDistance(new Date(post.created_at), new Date(), { addSuffix: true })}
-                  </p>
-                </div>
-              </div>
-
-              {/* Content */}
-              <p className="text-gray-100 mb-3 whitespace-pre-wrap line-clamp-3 text-[15px] leading-normal font-twitter">
-                {post.content}
-              </p>
-
-              {/* Project Tag */}
-              {post.project_name && (
-                <div className="mb-3">
-                  <span className="text-xs bg-[#39AEC4]/10 text-[#39AEC4] px-2 py-1 rounded-full border border-[#39AEC4]/20">
-                    🏷️ {post.project_name}
+                {/* Actions */}
+                <div className="flex items-center gap-4 text-xs sm:text-sm text-gray-400">
+                  <span className="flex items-center gap-1">
+                    <Heart className="w-4 h-4" fill={post.is_liked ? 'currentColor' : 'none'} />
+                    <span>{post.likes}</span>
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <MessageCircle className="w-4 h-4" />
+                    <span>{post.replies}</span>
+                  </span>
+                  <span className="flex items-center gap-1 ml-auto">
+                    <Share2 className="w-4 h-4" />
                   </span>
                 </div>
-              )}
-
-              {/* Actions */}
-              <div className="flex items-center gap-4 text-xs sm:text-sm text-gray-400">
-                <button className="flex items-center gap-1 hover:text-[#39AEC4] transition-colors">
-                  <Heart className="w-4 h-4" fill={post.is_liked ? 'currentColor' : 'none'} />
-                  <span>{post.likes}</span>
-                </button>
-                <button className="flex items-center gap-1 hover:text-[#39AEC4] transition-colors">
-                  <MessageCircle className="w-4 h-4" />
-                  <span>{post.replies}</span>
-                </button>
-                <button className="flex items-center gap-1 hover:text-[#39AEC4] transition-colors ml-auto">
-                  <Share2 className="w-4 h-4" />
-                </button>
               </div>
-            </div>
+            </Link>
           ))
         ) : (
           <div className="text-center py-10 text-gray-400">No posts yet. Be the first to post!</div>

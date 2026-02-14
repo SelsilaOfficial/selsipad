@@ -120,7 +120,7 @@ export function LPLockList({ locks }: LPLockListProps) {
             onClick={() => setFilterType(type)}
             className={`px-4 py-2 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
               filterType === type
-                ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/40'
+                ? 'bg-[#39AEC4]/20 text-[#39AEC4] border border-[#39AEC4]/40'
                 : 'bg-white/[0.03] text-gray-400 border border-white/5 hover:bg-white/[0.06]'
             }`}
           >
@@ -152,8 +152,16 @@ function LPLockCard({ lock }: { lock: LPLockItem }) {
   const [verifying, setVerifying] = useState(false);
   const [verified, setVerified] = useState<boolean | null>(null);
 
-  const typeStyle = typeColors[lock.type] || typeColors.FAIRLAUNCH;
-  const lockStyle = lockStatusStyles[lock.lockStatus] || lockStatusStyles.NONE;
+  const typeStyle = typeColors[lock.type] ?? {
+    bg: 'bg-blue-500/10',
+    text: 'text-blue-400',
+    border: 'border-blue-500/30',
+  };
+  const lockStyle = lockStatusStyles[lock.lockStatus] ?? {
+    bg: 'bg-gray-500/10',
+    text: 'text-gray-400',
+    icon: AlertCircle,
+  };
   const LockStatusIcon = lockStyle.icon;
 
   const explorer = chainExplorers[lock.chain] || chainExplorers['97'];

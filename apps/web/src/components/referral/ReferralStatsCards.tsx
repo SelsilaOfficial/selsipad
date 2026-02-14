@@ -1,26 +1,22 @@
 'use client';
 
 import { Users, UserCheck, DollarSign, Clock } from 'lucide-react';
-import type { ReferralStats } from '@/actions/referral/get-stats';
+import type { RewardChain } from './ChainRewardToggle';
 
-interface Props {
-  stats: ReferralStats;
+export interface ChainStats {
+  totalReferrals: number;
+  activeReferrals: number;
+  pendingReferrals: number;
+  totalEarningsUsd: string;
+  pendingEarningsUsd: string;
 }
 
-export function ReferralStatsCards({ stats }: Props) {
-  const formatUSDT = (weiAmount: string): string => {
-    try {
-      const amount = BigInt(weiAmount);
-      const usdt = Number(amount) / 1e18;
-      return usdt.toLocaleString('en-US', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      });
-    } catch {
-      return '0.00';
-    }
-  };
+interface Props {
+  stats: ChainStats;
+  chain: RewardChain;
+}
 
+export function ReferralStatsCards({ stats, chain }: Props) {
   const statsCards = [
     {
       title: 'Total Referrals',
@@ -50,7 +46,7 @@ export function ReferralStatsCards({ stats }: Props) {
     },
     {
       title: 'Total Earnings',
-      value: `$${formatUSDT(stats.totalEarnings)}`,
+      value: `$${stats.totalEarningsUsd}`,
       subtitle: 'USDT equivalent',
       icon: DollarSign,
       gradientFrom: 'from-[#756BBA]/20',
@@ -63,7 +59,7 @@ export function ReferralStatsCards({ stats }: Props) {
     },
     {
       title: 'Pending Rewards',
-      value: `$${formatUSDT(stats.pendingEarnings)}`,
+      value: `$${stats.pendingEarningsUsd}`,
       subtitle: 'Being processed',
       icon: Clock,
       gradientFrom: 'from-amber-500/20',
@@ -88,7 +84,7 @@ export function ReferralStatsCards({ stats }: Props) {
             <div className="flex items-start justify-between mb-3">
               <div>
                 <p className="text-xs sm:text-sm text-gray-400 mb-1">{stat.title}</p>
-                <h3 className="text-2xl sm:text-3xl font-bold">{stat.value}</h3>
+                <h3 className="text-xl sm:text-2xl font-bold truncate">{stat.value}</h3>
               </div>
               <div className={`p-2 sm:p-2.5 rounded-full ${stat.iconBg}`}>
                 <Icon className={`w-4 h-4 sm:w-5 sm:h-5 ${stat.iconColor}`} />

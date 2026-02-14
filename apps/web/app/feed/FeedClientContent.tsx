@@ -70,7 +70,7 @@ export default function FeedClientContent({
                 </svg>
               </Link>
               <div>
-                <h1 className="text-xl font-bold bg-gradient-to-r from-gray-200 to-cyan-400 bg-clip-text text-transparent">
+                <h1 className="text-xl font-bold bg-gradient-to-r from-[#39AEC4] to-[#756BBA] bg-clip-text text-transparent">
                   Selsi Feed
                 </h1>
                 <p className="text-xs text-gray-500 font-medium">Community Updates</p>

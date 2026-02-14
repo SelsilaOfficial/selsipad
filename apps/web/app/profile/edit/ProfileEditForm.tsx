@@ -172,7 +172,7 @@ export function ProfileEditForm({
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-500 transition-colors text-sm font-bold"
+              className="px-4 py-2 bg-gradient-to-r from-[#39AEC4] to-[#756BBA] text-white rounded-lg hover:opacity-90 transition-all text-sm font-bold shadow-lg shadow-[#756BBA]/20"
             >
               {hasAvatar ? 'Change Photo' : 'Upload Photo'}
             </button>
@@ -233,7 +233,7 @@ export function ProfileEditForm({
             <button
               type="button"
               onClick={() => bannerInputRef.current?.click()}
-              className="px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-500 transition-colors text-sm font-bold"
+              className="px-4 py-2 bg-gradient-to-r from-[#39AEC4] to-[#756BBA] text-white rounded-lg hover:opacity-90 transition-all text-sm font-bold shadow-lg shadow-[#756BBA]/20"
             >
               {bannerPreviewUrl || initialBannerUrl ? 'Change Banner' : 'Upload Banner'}
             </button>
@@ -279,6 +279,10 @@ export function ProfileEditForm({
               maxLength={160}
               rows={3}
               className="w-full px-4 py-2 bg-black border border-white/10 rounded-lg text-white placeholder:text-gray-600 focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 transition-all resize-none"
+              style={{
+                fontFamily:
+                  '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+              }}
             />
             <p className="mt-1 text-xs text-gray-500">{bio.length}/160 characters</p>
           </div>
@@ -302,7 +306,7 @@ export function ProfileEditForm({
             <button
               type="submit"
               disabled={isSubmitting || !!nicknameError}
-              className="flex-1 px-4 py-3 bg-gradient-to-r from-cyan-600 to-blue-600 text-white rounded-lg hover:from-cyan-500 hover:to-blue-500 transition-all font-bold disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-cyan-900/20"
+              className="flex-1 px-4 py-3 bg-gradient-to-r from-[#39AEC4] to-[#756BBA] text-white rounded-lg hover:opacity-90 transition-all font-bold disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#756BBA]/20"
             >
               {isSubmitting ? 'Saving...' : 'Save Changes'}
             </button>

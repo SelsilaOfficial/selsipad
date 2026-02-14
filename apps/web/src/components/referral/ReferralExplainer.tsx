@@ -56,7 +56,7 @@ export function ReferralExplainer() {
         <div className="space-y-3">
           <div className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-[#39AEC4]/10">
             <span className="text-sm text-gray-300">Presale/Fairlaunch</span>
-            <span className="text-sm font-bold text-[#39AEC4]">30% of 5% fee</span>
+            <span className="text-sm font-bold text-[#39AEC4]">40% of 5% fee</span>
           </div>
 
           <div className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-[#39AEC4]/10">
@@ -73,8 +73,8 @@ export function ReferralExplainer() {
         <div className="mt-4 p-3 bg-[#39AEC4]/10 border border-[#39AEC4]/30 rounded-lg">
           <p className="text-xs text-gray-300">
             <span className="font-bold text-[#39AEC4]">💡 Example:</span> Your referral contributes
-            $100 to a Fairlaunch. You earn $100 × 5% × 30% ={' '}
-            <span className="font-bold text-white">$1.50</span>
+            $100 to a Fairlaunch. You earn $100 × 5% × 40% ={' '}
+            <span className="font-bold text-white">$2</span>
           </p>
         </div>
       </div>
