@@ -9,6 +9,7 @@ interface ProjectInfoStepProps {
     projectName: string;
     description: string;
     logoUrl?: string;
+    bannerUrl?: string;
     socialLinks: {
       website?: string;
       twitter?: string;
@@ -51,9 +52,7 @@ export function ProjectInfoStep({ data, onChange, errors }: ProjectInfoStepProps
             focus:outline-none focus:ring-2 focus:ring-purple-500/20
           `}
         />
-        {errors?.projectName && (
-          <p className="text-red-400 text-sm mt-2">{errors.projectName}</p>
-        )}
+        {errors?.projectName && <p className="text-red-400 text-sm mt-2">{errors.projectName}</p>}
         <p className="text-gray-400 text-xs mt-1">{data.projectName.length}/100 characters</p>
       </div>
 
@@ -77,9 +76,7 @@ export function ProjectInfoStep({ data, onChange, errors }: ProjectInfoStepProps
             focus:outline-none focus:ring-2 focus:ring-purple-500/20
           `}
         />
-        {errors?.description && (
-          <p className="text-red-400 text-sm mt-2">{errors.description}</p>
-        )}
+        {errors?.description && <p className="text-red-400 text-sm mt-2">{errors.description}</p>}
         <div className="flex items-center justify-between mt-1">
           <p className="text-gray-400 text-xs">{data.description.length}/500 characters</p>
           <p className="text-gray-500 text-xs">Minimum 10 characters</p>
@@ -97,14 +94,14 @@ export function ProjectInfoStep({ data, onChange, errors }: ProjectInfoStepProps
           recommended="Square, 200×200px min, max 2MB"
         />
 
-        {/* Banner Upload - TODO: Add bannerUrl to data type */}
-        {/* <ImageUpload
+        {/* Banner Upload */}
+        <ImageUpload
           label="Project Banner"
           value={data.bannerUrl}
           onChange={(url) => onChange({ bannerUrl: url })}
           type="banner"
           recommended="Wide, 1200×400px min, max 5MB"
-        /> */}
+        />
       </div>
 
       {/* Social Media Links */}

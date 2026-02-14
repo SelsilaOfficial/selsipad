@@ -38,6 +38,7 @@ interface WizardData {
   projectName: string;
   description: string;
   logoUrl?: string;
+  bannerUrl?: string;
   socialLinks: {
     website?: string;
     twitter?: string;
@@ -100,6 +101,7 @@ export function CreateFairlaunchWizard({ walletAddress }: CreateFairlaunchWizard
     projectName: '',
     description: '',
     logoUrl: '',
+    bannerUrl: '',
     socialLinks: {},
     tokensForSale: '',
     softcap: '',
@@ -515,6 +517,7 @@ export function CreateFairlaunchWizard({ walletAddress }: CreateFairlaunchWizard
                 projectName: wizardData.projectName,
                 description: wizardData.description,
                 logoUrl: wizardData.logoUrl,
+                bannerUrl: wizardData.bannerUrl,
                 socialLinks: wizardData.socialLinks,
               }}
               onChange={updateWizardData}

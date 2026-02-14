@@ -306,6 +306,7 @@ export function SubmitStep({ formData, onBack }: SubmitStepProps) {
           symbol: formData.tokenSymbol,
           description: formData.description,
           logoUrl: formData.logoUrl,
+          bannerUrl: formData.bannerUrl,
           projectWebsite: formData.socialLinks?.website,
           telegram: formData.socialLinks?.telegram,
           twitter: formData.socialLinks?.twitter,

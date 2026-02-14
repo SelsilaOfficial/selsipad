@@ -146,6 +146,7 @@ export async function POST(request: NextRequest) {
       symbol: validatedParams.metadata?.symbol,
       description: validatedParams.metadata?.description,
       logo_url: validatedParams.metadata?.logoUrl,
+      banner_url: validatedParams.metadata?.bannerUrl,
       website: validatedParams.metadata?.projectWebsite,
       telegram: validatedParams.metadata?.telegram,
       twitter: validatedParams.metadata?.twitter,
@@ -211,6 +212,12 @@ export async function POST(request: NextRequest) {
         lp_lock_months: validatedParams.lpLockMonths,
         listing_price_premium_bps: validatedParams.listingPremiumBps,
         dex_platform: validatedParams.dexPlatform,
+        // Project display metadata
+        project_name: validatedParams.metadata?.name,
+        token_symbol: validatedParams.metadata?.symbol,
+        project_description: validatedParams.metadata?.description,
+        logo_url: validatedParams.metadata?.logoUrl,
+        banner_url: validatedParams.metadata?.bannerUrl,
       },
       // Escrow tracking fields
       escrow_tx_hash: escrowTxHash,

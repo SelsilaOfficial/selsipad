@@ -169,6 +169,7 @@ export const FairlaunchDeploySchema = z
         symbol: z.string().optional(),
         description: z.string().optional(),
         logoUrl: z.string().optional(),
+        bannerUrl: z.string().optional(),
         projectWebsite: z.string().url().optional(),
         telegram: z.string().optional(),
         twitter: z.string().optional(),

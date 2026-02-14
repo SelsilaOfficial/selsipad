@@ -193,6 +193,9 @@ export async function getProjectById(id: string): Promise<Project | null> {
         projects (
           id, name, symbol, description, logo_url, status,
           kyc_status, sc_scan_status, metadata, factory_address
+        ),
+        vesting_schedules (
+          contract_address
         )
       `
       )
@@ -266,6 +269,12 @@ export async function getProjectById(id: string): Promise<Project | null> {
               : null,
           lp_lock: !!(params.lp_lock || params.lp_lock_months),
           contract_address: roundData.round_address || roundData.contract_address,
+          token_address: roundData.token_address || params.token_address || null,
+          vesting_address:
+            roundData.vesting_vault_address ||
+            params.vesting_address ||
+            (roundData.vesting_schedules?.[0] as any)?.contract_address ||
+            null,
           startDate: roundData.start_at,
           endDate: roundData.end_at,
           // ✅ Add metadata and factory_address for SAFU badges
@@ -284,7 +293,8 @@ export async function getProjectById(id: string): Promise<Project | null> {
         *,
         launch_rounds (
           id, type, status, chain, start_at, end_at,
-          contract_address, round_address, total_raised,
+          contract_address, round_address, token_address,
+          vesting_vault_address, total_raised,
           total_participants, params
         )
       `
@@ -343,8 +353,8 @@ export async function getProjectById(id: string): Promise<Project | null> {
             : null,
         lp_lock: !!(params.lp_lock || params.lp_lock_months),
         contract_address: activeRound.round_address || activeRound.contract_address,
-        token_address: activeRound.token_address || data.token_address,
-        vesting_address: activeRound.vesting_address || params.vesting_address,
+        token_address: activeRound.token_address || params.token_address || null,
+        vesting_address: activeRound.vesting_vault_address || params.vesting_address || null,
         startDate: activeRound.start_at,
         endDate: activeRound.end_at,
         tokenomics: extractTokenomics(params),

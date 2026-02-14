@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { cookies } from 'next/headers';
 import { PublicKey } from '@solana/web3.js';
@@ -64,7 +63,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Signature is valid! Now handle user authentication
-    const supabase = createClient();
+    const supabase = createServiceRoleClient();
 
     // Determine chain based on wallet type
     const chain = walletType === 'solana' ? 'SOLANA' : 'EVM_1';

@@ -2,6 +2,7 @@
 // Pure wallet authentication without email requirement
 
 import { createClient } from '@/lib/supabase/server';
+import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import crypto from 'crypto';
@@ -22,7 +23,7 @@ export interface Session {
  * API route will handle redirect/response
  */
 export async function logout() {
-  const supabase = createClient();
+  const supabase = createServiceRoleClient();
   const cookieStore = cookies();
 
   try {
@@ -65,7 +66,7 @@ export async function getServerSession(): Promise<Session | null> {
     return null;
   }
 
-  const supabase = createClient();
+  const supabase = createServiceRoleClient();
 
   // Query the session from auth_sessions table
   const { data: session, error } = await supabase
@@ -102,7 +103,7 @@ export async function getSessionWithProfile(): Promise<(Session & { profile: any
     return null;
   }
 
-  const supabase = createClient();
+  const supabase = createServiceRoleClient();
 
   const { data: session, error } = await supabase
     .from('auth_sessions')
@@ -168,7 +169,7 @@ export async function createSession(
   const expiresInDays = options?.expiresInDays || 30;
   const expiresAt = new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000);
 
-  const supabase = createClient();
+  const supabase = createServiceRoleClient();
 
   // Step 1: Get wallet_id for this wallet
   const { data: wallet, error: walletError } = await supabase
@@ -225,7 +226,7 @@ export async function deleteSession(sessionToken?: string): Promise<void> {
     return;
   }
 
-  const supabase = createClient();
+  const supabase = createServiceRoleClient();
 
   await supabase.from('auth_sessions').delete().eq('session_token', token);
 }

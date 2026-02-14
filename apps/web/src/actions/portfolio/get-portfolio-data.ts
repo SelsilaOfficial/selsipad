@@ -105,10 +105,10 @@ export async function getPortfolioData(): Promise<PortfolioData> {
 
 async function fetchInvestedProjects(supabase: any, userId: string): Promise<InvestedProject[]> {
   try {
-    // No FK between contributions and projects — fetch separately
+    // contributions has round_id (NOT project_id) — fetch contributions first
     const { data: contributions, error } = await supabase
       .from('contributions')
-      .select('id, amount, chain, created_at, project_id')
+      .select('id, amount, chain, created_at, round_id')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
@@ -119,26 +119,36 @@ async function fetchInvestedProjects(supabase: any, userId: string): Promise<Inv
 
     if (!contributions || contributions.length === 0) return [];
 
-    // Fetch project details separately
-    const projectIds = [
-      ...new Set((contributions as any[]).map((c: any) => c.project_id).filter(Boolean)),
+    // Get unique round_ids and fetch launch_rounds → projects
+    const roundIds = [
+      ...new Set((contributions as any[]).map((c: any) => c.round_id).filter(Boolean)),
     ];
-    const projectLookup = new Map<string, any>();
+    const roundLookup = new Map<string, any>();
 
-    if (projectIds.length > 0) {
-      const { data: projects } = await supabase
-        .from('projects')
-        .select('id, name, symbol, logo_url, status')
-        .in('id', projectIds);
-      (projects || []).forEach((p: any) => projectLookup.set(p.id, p));
+    if (roundIds.length > 0) {
+      const { data: rounds } = await supabase
+        .from('launch_rounds')
+        .select('id, project_id, status, params, projects (id, name, symbol, logo_url, status)')
+        .in('id', roundIds);
+
+      (rounds || []).forEach((r: any) => {
+        const project = r.projects || {};
+        roundLookup.set(r.id, {
+          projectId: r.id, // Use launch_round ID — /project/[id] route expects this
+          name: r.params?.project_name || project.name || 'Unknown Project',
+          symbol: r.params?.token_symbol || project.symbol || '---',
+          logoUrl: r.params?.logo_url || project.logo_url || null,
+          status: project.status || r.status || 'unknown',
+        });
+      });
     }
 
-    // Group contributions by project
+    // Group contributions by project (via round_id → project)
     const grouped = new Map<string, InvestedProject>();
 
     (contributions as any[]).forEach((contrib: any) => {
-      const projectId = contrib.project_id || 'unknown';
-      const project = projectLookup.get(projectId) || {};
+      const roundInfo = roundLookup.get(contrib.round_id) || {};
+      const projectId = roundInfo.projectId || contrib.round_id;
       const amount = parseFloat(contrib.amount || '0');
       const chain = contrib.chain || 'BSC';
 
@@ -152,15 +162,15 @@ async function fetchInvestedProjects(supabase: any, userId: string): Promise<Inv
       } else {
         grouped.set(projectId, {
           projectId,
-          name: project.name || 'Unknown Project',
-          symbol: project.symbol || '---',
-          logoUrl: project.logo_url || null,
+          name: roundInfo.name || 'Unknown Project',
+          symbol: roundInfo.symbol || '---',
+          logoUrl: roundInfo.logoUrl || null,
           chain,
           totalContributed: amount,
           currency: chain === 'SOLANA' ? 'SOL' : 'BNB',
           contributionCount: 1,
           lastContributedAt: contrib.created_at,
-          status: project.status || 'unknown',
+          status: roundInfo.status || 'unknown',
         });
       }
     });
