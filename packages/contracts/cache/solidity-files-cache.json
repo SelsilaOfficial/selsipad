@@ -1285,8 +1285,8 @@
       ]
     },
     "/home/selsipad/final-project/selsipad/packages/contracts/contracts/bluecheck/BlueCheckRegistry.sol": {
-      "lastModificationDate": 1770181941621,
-      "contentHash": "de0f80316b74c90de82f31a5be163742",
+      "lastModificationDate": 1771247882333,
+      "contentHash": "c0d98a6ec00c1e76825747b5bc164190",
       "sourceName": "contracts/bluecheck/BlueCheckRegistry.sol",
       "solcConfig": {
         "version": "0.8.20",

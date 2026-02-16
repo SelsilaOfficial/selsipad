@@ -11,7 +11,7 @@ import { parseEther, formatEther } from 'viem';
 // Contract ABI (simplified)
 const BLUECHECK_ABI = [
   {
-    inputs: [],
+    inputs: [{ internalType: 'address', name: 'referrer', type: 'address' }],
     name: 'purchaseBlueCheck',
     outputs: [],
     stateMutability: 'payable',
@@ -34,7 +34,7 @@ const BLUECHECK_ABI = [
 ] as const;
 
 // BlueCheckRegistry deployed to BSC Testnet (Chain ID: 97)
-const BLUECHECK_CONTRACT_ADDRESS = '0x57d4789062F3f2DbB504d11A98Fc9AeA390Be8E2' as `0x${string}`;
+const BLUECHECK_CONTRACT_ADDRESS = '0xfFaB42EcD7Eb0a85b018516421C9aCc088aC7157' as `0x${string}`;
 const REQUIRED_CHAIN_ID = 97; // BSC Testnet
 
 interface UseBlueCheckPurchaseReturn {
@@ -167,11 +167,15 @@ export function useBlueCheckPurchase(): UseBlueCheckPurchaseReturn {
       setIsPurchasing(true);
       setError(null);
 
-      // Execute transaction
+      // Fetch referrer address from backend
+      const referrerAddress = await fetchReferrerAddress();
+
+      // Execute transaction with referrer parameter
       const hash = await walletClient.writeContract({
         address: BLUECHECK_CONTRACT_ADDRESS,
         abi: BLUECHECK_ABI,
         functionName: 'purchaseBlueCheck',
+        args: [referrerAddress],
         value: requiredBNBRaw,
       });
 
@@ -201,6 +205,24 @@ export function useBlueCheckPurchase(): UseBlueCheckPurchaseReturn {
     } finally {
       setIsPurchasing(false);
     }
+  };
+
+  const fetchReferrerAddress = async (): Promise<`0x${string}`> => {
+    try {
+      const response = await fetch('/api/bluecheck/get-referrer');
+      const data = await response.json();
+
+      if (data.referrer_address) {
+        console.log('Using referrer address:', data.referrer_address);
+        return data.referrer_address as `0x${string}`;
+      }
+    } catch (err) {
+      console.error('Failed to fetch referrer:', err);
+    }
+
+    // Fallback: zero address (contract will use treasury)
+    console.log('No referrer found, using zero address (treasury fallback)');
+    return '0x0000000000000000000000000000000000000000';
   };
 
   const verifyPurchaseOnBackend = async (userAddress: string, txHash: string) => {

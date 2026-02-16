@@ -53,14 +53,16 @@ contract BlueCheckRegistry is Ownable, ReentrancyGuard, Pausable {
      * @param user Address of the purchaser
      * @param amountPaid BNB amount paid
      * @param treasuryAmount BNB sent to treasury
-     * @param referralPoolAmount BNB sent to referral pool
+     * @param referrerReward BNB sent to referrer
+     * @param referrer Address that received the referral reward
      * @param timestamp Purchase timestamp
      */
     event BlueCheckPurchased(
         address indexed user,
         uint256 amountPaid,
         uint256 treasuryAmount,
-        uint256 referralPoolAmount,
+        uint256 referrerReward,
+        address indexed referrer,
         uint256 timestamp
     );
     
@@ -118,9 +120,10 @@ contract BlueCheckRegistry is Ownable, ReentrancyGuard, Pausable {
     
     /**
      * @notice Purchase Blue Check (lifetime access)
-     * @dev Sends 70% to treasury, 30% to referral pool
+     * @dev Sends 70% to treasury, 30% to referrer (or treasury if no referrer)
+     * @param referrer Address of the referrer who should receive 30% reward
      */
-    function purchaseBlueCheck() external payable nonReentrant whenNotPaused {
+    function purchaseBlueCheck(address referrer) external payable nonReentrant whenNotPaused {
         if (hasBlueCheck[msg.sender]) {
             revert AlreadyPurchased();
         }
@@ -132,6 +135,13 @@ contract BlueCheckRegistry is Ownable, ReentrancyGuard, Pausable {
             revert InsufficientPayment();
         }
         
+        // Validate referrer address
+        // If invalid (zero address or self-referral), fallback to treasury
+        address rewardRecipient = referrer;
+        if (referrer == address(0) || referrer == msg.sender) {
+            rewardRecipient = treasury;
+        }
+        
         // Mark as purchased
         hasBlueCheck[msg.sender] = true;
         purchaseTimestamp[msg.sender] = block.timestamp;
@@ -140,7 +150,7 @@ contract BlueCheckRegistry is Ownable, ReentrancyGuard, Pausable {
         
         // Calculate splits
         uint256 treasuryAmount = (requiredBNB * TREASURY_SHARE) / 100;
-        uint256 referralAmount = requiredBNB - treasuryAmount; // Ensures no rounding issues
+        uint256 referralReward = requiredBNB - treasuryAmount; // Ensures no rounding issues
         
         // Transfer to treasury
         (bool treasurySuccess, ) = treasury.call{value: treasuryAmount}("");
@@ -148,9 +158,9 @@ contract BlueCheckRegistry is Ownable, ReentrancyGuard, Pausable {
             revert TransferFailed();
         }
         
-        // Transfer to referral pool
-        (bool poolSuccess, ) = referralPool.call{value: referralAmount}("");
-        if (!poolSuccess) {
+        // Transfer to referrer (or treasury as fallback)
+        (bool referrerSuccess, ) = rewardRecipient.call{value: referralReward}("");
+        if (!referrerSuccess) {
             revert TransferFailed();
         }
         
@@ -159,7 +169,8 @@ contract BlueCheckRegistry is Ownable, ReentrancyGuard, Pausable {
             msg.sender,
             requiredBNB,
             treasuryAmount,
-            referralAmount,
+            referralReward,
+            rewardRecipient,
             block.timestamp
         );
         

@@ -1,0 +1,13 @@
+{
+  "network": "BSC Testnet",
+  "chainId": 97,
+  "contractAddress": "0xfFaB42EcD7Eb0a85b018516421C9aCc088aC7157",
+  "treasury": "0x95D94D86CfC550897d2b80672a3c94c12429a90D",
+  "referralPool": "0x3E78CaC12633B223E23D7D3DB120a87968245842",
+  "initialBNBPrice": "600.0",
+  "blueCheckPrice": "10.0",
+  "requiredBNB": "0.016666666666666666",
+  "deployer": "0x95D94D86CfC550897d2b80672a3c94c12429a90D",
+  "timestamp": "2026-02-16T13:26:13.083Z",
+  "transactionHash": "0x85f04b87afaf93cc8d56f2a478054e2beb7a6c43a0a18c6fb5e1ced99d7e0c1d"
+}
