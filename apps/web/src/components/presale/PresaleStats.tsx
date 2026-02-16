@@ -94,8 +94,8 @@ export function PresaleStats({ roundAddress }: PresaleStatsProps) {
         </div>
 
         <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
-          <span>{totalRaised ? formatEther(totalRaised) : '0'} BNB</span>
-          <span>{hardCap ? formatEther(hardCap) : '0'} BNB</span>
+          <span>{totalRaised ? formatEther(totalRaised as bigint) : '0'} BNB</span>
+          <span>{hardCap ? formatEther(hardCap as bigint) : '0'} BNB</span>
         </div>
       </div>
 
@@ -104,14 +104,14 @@ export function PresaleStats({ roundAddress }: PresaleStatsProps) {
         <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
           <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Softcap</p>
           <p className="text-lg font-semibold text-gray-900 dark:text-white">
-            {softCap ? formatEther(softCap) : '0'} BNB
+            {softCap ? formatEther(softCap as bigint) : '0'} BNB
           </p>
         </div>
 
         <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
           <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Hardcap</p>
           <p className="text-lg font-semibold text-gray-900 dark:text-white">
-            {hardCap ? formatEther(hardCap) : '0'} BNB
+            {hardCap ? formatEther(hardCap as bigint) : '0'} BNB
           </p>
         </div>
       </div>

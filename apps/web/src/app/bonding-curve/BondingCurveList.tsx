@@ -176,7 +176,7 @@ function PoolCard({ pool }: { pool: BondingPool }) {
             <span className="text-sm font-mono text-gray-400">
               {pool.token_symbol || 'UNKNOWN'}
             </span>
-            <StatusPill status={pool.status} />
+            <StatusPill status={pool.status as any} />
           </div>
           <div className="text-xs text-gray-500 font-mono truncate">
             {pool.token_mint?.slice(0, 8)}...{pool.token_mint?.slice(-8)}

@@ -2,8 +2,8 @@
 
 import * as React from 'react';
 import { ethers } from 'ethers';
-import { useAccount, useBalance } from 'wagmi';
-import { Button } from '@/components/ui/button';
+import { useAccount } from 'wagmi';
+import { Button } from '@/components/ui/Button';
 import {
   Dialog,
   DialogContent,
@@ -12,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Copy, ExternalLink, CheckCircle2, AlertCircle } from 'lucide-react';
@@ -51,18 +51,15 @@ export function TokenFundingModal({
     message: string;
   } | null>(null);
 
-  // Get user's token balance
-  const { data: tokenBalance } = useBalance({
-    address: userAddress,
-    token: tokenAddress as `0x${string}`,
-  });
+  // Token balance tracking via manual check
+  const [tokenBalanceValue, setTokenBalanceValue] = React.useState<bigint | null>(null);
 
   // Check if user has sufficient balance
   const hasSufficientBalance = React.useMemo(() => {
-    if (!tokenBalance) return false;
+    if (tokenBalanceValue === null) return false;
     const required = ethers.parseUnits(requiredTokens, tokenDecimals);
-    return tokenBalance.value >= required;
-  }, [tokenBalance, requiredTokens, tokenDecimals]);
+    return tokenBalanceValue >= required;
+  }, [tokenBalanceValue, requiredTokens, tokenDecimals]);
 
   // Copy contract address to clipboard
   const handleCopyAddress = async () => {
@@ -88,7 +85,7 @@ export function TokenFundingModal({
         provider
       );
 
-      const balance = await tokenContract.balanceOf(contractAddress);
+      const balance = await (tokenContract as any).balanceOf(contractAddress);
       const required = ethers.parseUnits(requiredTokens, tokenDecimals);
 
       if (balance >= required) {
@@ -117,7 +114,7 @@ export function TokenFundingModal({
   const handleMarkAsFunded = async () => {
     // Optionally verify one more time
     await handleCheckFunding();
-    
+
     if (checkResult?.success) {
       onFundingComplete?.();
       onOpenChange(false);
@@ -141,14 +138,10 @@ export function TokenFundingModal({
           <div className="space-y-2">
             <Label>Contract Address</Label>
             <div className="flex gap-2">
-              <Input
-                value={contractAddress}
-                readOnly
-                className="font-mono text-sm"
-              />
+              <Input value={contractAddress} readOnly className="font-mono text-sm" />
               <Button
-                variant="outline"
-                size="icon"
+                variant="secondary"
+                size="sm"
                 onClick={handleCopyAddress}
                 title="Copy address"
               >
@@ -156,8 +149,8 @@ export function TokenFundingModal({
               </Button>
               {explorerUrl && (
                 <Button
-                  variant="outline"
-                  size="icon"
+                  variant="secondary"
+                  size="sm"
                   onClick={() => window.open(explorerUrl, '_blank')}
                   title="View on explorer"
                 >
@@ -180,11 +173,12 @@ export function TokenFundingModal({
             <div className="space-y-2">
               <Label>Your Balance</Label>
               <div className="rounded-md border px-3 py-2 bg-muted">
-                <p className={`font-semibold ${hasSufficientBalance ? 'text-green-600' : 'text-red-600'}`}>
-                  {tokenBalance 
-                    ? `${ethers.formatUnits(tokenBalance.value, tokenDecimals)} ${tokenSymbol}`
-                    : 'Loading...'
-                  }
+                <p
+                  className={`font-semibold ${hasSufficientBalance ? 'text-green-600' : 'text-red-600'}`}
+                >
+                  {tokenBalanceValue !== null
+                    ? `${ethers.formatUnits(tokenBalanceValue, tokenDecimals)} ${tokenSymbol}`
+                    : 'Click Check Balance'}
                   {hasSufficientBalance && ' ✅'}
                 </p>
               </div>
@@ -195,18 +189,22 @@ export function TokenFundingModal({
           <Alert>
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              <strong>Important:</strong> Send exactly <strong>{requiredTokens} {tokenSymbol}</strong> to the contract address above.
-              This is required for your Fairlaunch to function properly.
+              <strong>Important:</strong> Send exactly{' '}
+              <strong>
+                {requiredTokens} {tokenSymbol}
+              </strong>{' '}
+              to the contract address above. This is required for your Fairlaunch to function
+              properly.
             </AlertDescription>
           </Alert>
 
           {/* Insufficient Balance Warning */}
-          {!hasSufficientBalance && tokenBalance && (
+          {!hasSufficientBalance && tokenBalanceValue !== null && (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
-                You don't have enough {tokenSymbol} tokens in your wallet. 
-                Please acquire more tokens before proceeding.
+                You don't have enough {tokenSymbol} tokens in your wallet. Please acquire more
+                tokens before proceeding.
               </AlertDescription>
             </Alert>
           )}
@@ -240,17 +238,10 @@ export function TokenFundingModal({
         </div>
 
         <DialogFooter className="gap-2">
-          <Button
-            variant="outline"
-            onClick={handleCheckFunding}
-            disabled={isChecking}
-          >
+          <Button variant="secondary" onClick={handleCheckFunding} disabled={isChecking}>
             {isChecking ? 'Checking...' : 'Check Balance'}
           </Button>
-          <Button
-            onClick={handleMarkAsFunded}
-            disabled={!checkResult?.success}
-          >
+          <Button onClick={handleMarkAsFunded} disabled={!checkResult?.success}>
             Continue
           </Button>
         </DialogFooter>

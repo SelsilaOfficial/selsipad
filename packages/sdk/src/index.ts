@@ -1,3 +1,3 @@
-export * from './chain-adapter';
-export * from './tx-manager';
-export * from './types';
+export * from './chain-adapter.js';
+export * from './tx-manager.js';
+export * from './types.js';

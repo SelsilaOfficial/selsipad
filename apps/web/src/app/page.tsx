@@ -21,6 +21,7 @@ import { MultiChainConnectWallet } from '@/components/wallet/MultiChainConnectWa
 import { getTrendingStats } from '@/actions/feed/get-trending-stats';
 import Link from 'next/link';
 
+export const dynamic = 'force-dynamic';
 export default async function HomePage() {
   const trendingStats = await getTrendingStats();
   return (

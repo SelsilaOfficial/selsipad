@@ -9,11 +9,18 @@ import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from 
 import { PRESALE_ROUND_ABI, MERKLE_VESTING_ABI } from './presale-contracts';
 import type { Address } from 'viem';
 
+// Common return type for write hooks
+interface WriteHookResult<TFn extends (...args: any[]) => any> {
+  hash: `0x${string}` | undefined;
+  isPending: boolean;
+  error: Error | null;
+}
+
 // ============================================================================
 // PresaleRound Read Hooks
 // ============================================================================
 
-export function usePresaleStatus(address: Address | undefined) {
+export function usePresaleStatus(address: Address | undefined): ReturnType<typeof useReadContract> {
   return useReadContract({
     address,
     abi: PRESALE_ROUND_ABI,
@@ -25,7 +32,9 @@ export function usePresaleStatus(address: Address | undefined) {
   });
 }
 
-export function usePresaleTotalRaised(address: Address | undefined) {
+export function usePresaleTotalRaised(
+  address: Address | undefined
+): ReturnType<typeof useReadContract> {
   return useReadContract({
     address,
     abi: PRESALE_ROUND_ABI,
@@ -37,7 +46,15 @@ export function usePresaleTotalRaised(address: Address | undefined) {
   });
 }
 
-export function usePresaleConfig(address: Address | undefined) {
+export function usePresaleConfig(address: Address | undefined): {
+  softCap: any;
+  hardCap: any;
+  startTime: any;
+  endTime: any;
+  minContribution: any;
+  maxContribution: any;
+  isLoading: boolean;
+} {
   const softCap = useReadContract({
     address,
     abi: PRESALE_ROUND_ABI,
@@ -88,7 +105,7 @@ export function usePresaleConfig(address: Address | undefined) {
 export function useUserContribution(
   roundAddress: Address | undefined,
   userAddress: Address | undefined
-) {
+): ReturnType<typeof useReadContract> {
   return useReadContract({
     address: roundAddress,
     abi: PRESALE_ROUND_ABI,
@@ -101,7 +118,9 @@ export function useUserContribution(
   });
 }
 
-export function usePresaleVestingVault(address: Address | undefined) {
+export function usePresaleVestingVault(
+  address: Address | undefined
+): ReturnType<typeof useReadContract> {
   return useReadContract({
     address,
     abi: PRESALE_ROUND_ABI,
@@ -109,7 +128,9 @@ export function usePresaleVestingVault(address: Address | undefined) {
   });
 }
 
-export function usePresaleTgeTimestamp(address: Address | undefined) {
+export function usePresaleTgeTimestamp(
+  address: Address | undefined
+): ReturnType<typeof useReadContract> {
   return useReadContract({
     address,
     abi: PRESALE_ROUND_ABI,
@@ -121,7 +142,13 @@ export function usePresaleTgeTimestamp(address: Address | undefined) {
 // MerkleVesting Read Hooks
 // ============================================================================
 
-export function useVestingSchedule(address: Address | undefined) {
+export function useVestingSchedule(address: Address | undefined): {
+  tgeUnlockBps: any;
+  cliffDuration: any;
+  vestingDuration: any;
+  tgeTimestamp: any;
+  isLoading: boolean;
+} {
   const tgeUnlockBps = useReadContract({
     address,
     abi: MERKLE_VESTING_ABI,
@@ -159,7 +186,7 @@ export function useClaimableAmount(
   vestingAddress: Address | undefined,
   userAddress: Address | undefined,
   totalAllocation: bigint | undefined
-) {
+): ReturnType<typeof useReadContract> {
   return useReadContract({
     address: vestingAddress,
     abi: MERKLE_VESTING_ABI,
@@ -175,7 +202,7 @@ export function useClaimableAmount(
 export function useClaimedAmount(
   vestingAddress: Address | undefined,
   userAddress: Address | undefined
-) {
+): ReturnType<typeof useReadContract> {
   return useReadContract({
     address: vestingAddress,
     abi: MERKLE_VESTING_ABI,
@@ -197,7 +224,16 @@ export function useClaimedAmount(
  *   const { contribute, hash, isPending } = useContribute();
  *   const txHash = await contribute({ roundAddress, amount, referrer });
  */
-export function useContribute() {
+export function useContribute(): {
+  contribute: (params: {
+    roundAddress: Address;
+    amount: bigint;
+    referrer?: Address;
+  }) => Promise<`0x${string}`>;
+  hash: `0x${string}` | undefined;
+  isPending: boolean;
+  error: Error | null;
+} {
   const { writeContractAsync, data: hash, isPending, error } = useWriteContract();
 
   const contribute = async ({
@@ -232,7 +268,12 @@ export function useContribute() {
  * Hook for claiming refund from failed presale
  * @param roundAddress - PresaleRound contract address (optional; can pass to claimRefund instead)
  */
-export function useClaimRefund(roundAddress?: Address) {
+export function useClaimRefund(roundAddress?: Address): {
+  claimRefund: (address?: Address) => Promise<void>;
+  hash: `0x${string}` | undefined;
+  isPending: boolean;
+  error: Error | null;
+} {
   const { writeContract, data: hash, isPending, error } = useWriteContract();
 
   const claimRefund = async (address?: Address) => {
@@ -257,7 +298,16 @@ export function useClaimRefund(roundAddress?: Address) {
  * Hook for claiming vested tokens
  * IMPORTANT: totalAllocation and proof must come from backend API, never client
  */
-export function useClaimVesting() {
+export function useClaimVesting(): {
+  claim: (params: {
+    vestingAddress: Address;
+    totalAllocation: bigint;
+    proof: `0x${string}`[];
+  }) => Promise<void>;
+  hash: `0x${string}` | undefined;
+  isPending: boolean;
+  error: Error | null;
+} {
   const { writeContract, data: hash, isPending, error } = useWriteContract();
 
   const claim = async ({
@@ -289,7 +339,16 @@ export function useClaimVesting() {
  * Hook for admin finalization (success)
  * Only use when ENABLE_DIRECT_FINALIZE=true in testnet
  */
-export function useFinalizeSuccess() {
+export function useFinalizeSuccess(): {
+  finalize: (params: {
+    roundAddress: Address;
+    merkleRoot: `0x${string}`;
+    totalAllocation: bigint;
+  }) => Promise<void>;
+  hash: `0x${string}` | undefined;
+  isPending: boolean;
+  error: Error | null;
+} {
   const { writeContract, data: hash, isPending, error } = useWriteContract();
 
   const finalize = async ({
@@ -322,7 +381,20 @@ export function useFinalizeSuccess() {
  * V2.4: Calls finalizeSuccessEscrow(merkleRoot, totalAllocation, unsoldToBurn, tokensForLP, tokenMinLP, bnbMinLP)
  * Use this for presales deployed via Factory v2.4+
  */
-export function useFinalizeSuccessEscrow() {
+export function useFinalizeSuccessEscrow(): {
+  finalize: (params: {
+    roundAddress: Address;
+    merkleRoot: `0x${string}`;
+    totalAllocation: bigint;
+    unsoldToBurn?: bigint;
+    tokensForLP?: bigint;
+    tokenMinLP?: bigint;
+    bnbMinLP?: bigint;
+  }) => Promise<void>;
+  hash: `0x${string}` | undefined;
+  isPending: boolean;
+  error: Error | null;
+} {
   const { writeContract, data: hash, isPending, error } = useWriteContract();
 
   const finalize = async ({
@@ -361,7 +433,9 @@ export function useFinalizeSuccessEscrow() {
 /**
  * Hook for waiting for transaction confirmation
  */
-export function useTransactionConfirmation(hash: `0x${string}` | undefined) {
+export function useTransactionConfirmation(
+  hash: `0x${string}` | undefined
+): ReturnType<typeof useWaitForTransactionReceipt> {
   return useWaitForTransactionReceipt({
     hash,
     query: {

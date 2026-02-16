@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Heart, MessageCircle, Share2, Loader2 } from 'lucide-react';
+import { Heart, MessageCircle, Share2, Loader2, BadgeCheck } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { getFeedPosts, type Post } from '@/lib/data/feed';
@@ -63,7 +63,9 @@ export function SocialFeedCard() {
                       <p className="text-sm font-bold text-[#39AEC4] font-twitter">
                         @{post.author.username}
                       </p>
-                      {post.author.bluecheck && <span className="text-xs text-blue-400">✓</span>}
+                      {post.author.bluecheck && (
+                        <BadgeCheck className="w-4 h-4 text-[#39AEC4] fill-[#39AEC4]/20 flex-shrink-0" />
+                      )}
                     </div>
                     <p className="text-xs text-gray-500">
                       {formatDistance(new Date(post.created_at), new Date(), { addSuffix: true })}

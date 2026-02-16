@@ -126,16 +126,15 @@ async function processSingleScan(
           .single();
 
         if (badge) {
-          await supabase
-            .from('project_badges')
-            .insert({
+          await supabase.from('project_badges').upsert(
+            {
               project_id: scan.project_id,
               badge_id: badge.id,
               awarded_by: null, // Auto-award (system)
               reason: 'External contract passed security scan',
-            })
-            .onConflict('project_id,badge_id')
-            .merge();
+            },
+            { onConflict: 'project_id,badge_id' }
+          );
         }
       }
     }

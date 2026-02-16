@@ -7,9 +7,9 @@ import type { FullPresaleConfig } from '@/../../packages/shared/src/validators/p
 import { validateComplianceGates } from '@/../../packages/shared/src/validators/presale-wizard';
 import { validateContractSecurity, issueProjectAuditedBadge } from '@/lib/security/contract-gates';
 
-interface ActionResult {
+interface ActionResult<T = any> {
   success: boolean;
-  data?: any;
+  data?: T;
   error?: string;
 }
 
@@ -163,7 +163,7 @@ export async function submitPresale(
       contractMode,
       contractAddress,
       templateVersion,
-      config.basics.network,
+      config.basics.network || 'ethereum',
       {
         name: config.basics.name,
         description: config.basics.description || '',
@@ -196,9 +196,10 @@ export async function submitPresale(
       kyc_status: (kycData?.status || 'PENDING') as any,
       sc_scan_status: 'NOT_REQUESTED' as any, // TODO: Fetch real SC scan status
       investor_vesting_valid:
-        config.investor_vesting.schedule.reduce((sum, s) => sum + s.percentage, 0) === 100,
+        config.investor_vesting.schedule.reduce((sum: number, s: any) => sum + s.percentage, 0) ===
+        100,
       team_vesting_valid:
-        config.team_vesting.schedule.reduce((sum, s) => sum + s.percentage, 0) === 100,
+        config.team_vesting.schedule.reduce((sum: number, s: any) => sum + s.percentage, 0) === 100,
       lp_lock_valid: config.lp_lock.duration_months >= 12,
     };
 

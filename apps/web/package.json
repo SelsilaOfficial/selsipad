@@ -71,6 +71,7 @@
     "framer-motion": "^12.29.2",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.562.0",
+    "merkletreejs": "^0.6.0",
     "motion": "^12.34.0",
     "next": "14.1.0",
     "next-themes": "^0.4.6",

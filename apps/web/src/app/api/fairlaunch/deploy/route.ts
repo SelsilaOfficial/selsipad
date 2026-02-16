@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
       endTime: validatedParams.endTime,
       liquidityPercent: validatedParams.liquidityPercent,
       lpLockMonths: validatedParams.lpLockMonths,
-      dexPlatform: validatedParams.dexPlatform,
+      dexPlatform: validatedParams.dexPlatform as any,
       listingPremiumBps: validatedParams.listingPremiumBps,
       teamVestingAddress: validatedParams.teamVestingAddress,
       creatorWallet: validatedParams.creatorWallet,

@@ -57,13 +57,13 @@ export function CreateBondingCurveWizard({ walletAddress }: CreateBondingCurveWi
   const [errors, setErrors] = useState<any>({});
 
   const [wizardData, setWizardData] = useState({
-    basics: {},
+    basics: {} as { name?: string; symbol?: string; description?: string; logo_url?: string },
     curve_params: {
       initial_virtual_sol_reserves: '30',
       initial_virtual_token_reserves: '1073000000',
       graduation_threshold_sol: '85',
     },
-    team_vesting: { team_allocation: '0', schedule: [] },
+    team_vesting: { team_allocation: '0', schedule: [] as { month: number; percentage: number }[] },
     fees: {
       deploy_fee_sol: '0.5',
       swap_fee_bps: 150,

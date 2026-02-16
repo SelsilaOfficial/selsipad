@@ -163,7 +163,7 @@ export default async function ProjectBadgesPage() {
       <div>
         <h2 className="text-xl font-semibold text-white mb-4">Project Badge Definitions</h2>
 
-        {Object.entries(badgesByType).map(([type, typeBadges]) => {
+        {(Object.entries(badgesByType) as [string, any[]][]).map(([type, typeBadges]) => {
           const Icon = getBadgeTypeIcon(type);
           const colorClass = getBadgeTypeColor(type);
 

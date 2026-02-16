@@ -57,7 +57,7 @@ export default function BlueCheckClientContent({ bluecheckStatus }: BlueCheckCli
                 <h1 className="text-lg sm:text-xl font-bold">Blue Check</h1>
                 <p className="text-xs text-gray-400">Premium verification badge</p>
               </div>
-              <StatusPill status={bluecheckStatus} />
+              <StatusPill status={bluecheckStatus as any} />
             </div>
           </div>
         </header>

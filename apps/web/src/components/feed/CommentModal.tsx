@@ -65,6 +65,8 @@ export function CommentModal({ postId, isOpen, onClose }: CommentModalProps) {
       if (data.comment) {
         setComments([data.comment, ...comments]);
         setNewComment('');
+        // Auto-close modal after successful comment
+        setTimeout(() => onClose(), 500);
       }
     } catch (error) {
       console.error('Failed to post comment:', error);
@@ -129,7 +131,7 @@ export function CommentModal({ postId, isOpen, onClose }: CommentModalProps) {
                   disabled={!newComment.trim() || submitting}
                   className="px-4 py-1.5 bg-cyan-600 text-white text-sm font-bold rounded-full hover:bg-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  {submitting ? 'Posting...' : 'Comment'}
+                  {submitting ? 'Commenting...' : 'Comment'}
                 </button>
               </div>
             </div>

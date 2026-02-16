@@ -95,7 +95,7 @@ export function generateMerkleTree(
   const proofsByWallet: Record<string, string[]> = {};
 
   allocations.forEach((a, index) => {
-    const proof = tree.getHexProof(leaves[index]);
+    const proof = tree.getHexProof(leaves[index]!);
     proofsByWallet[a.address.toLowerCase()] = proof;
   });
 

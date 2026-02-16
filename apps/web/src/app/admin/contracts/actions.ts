@@ -100,16 +100,15 @@ export async function overrideScanResult(
         .single();
 
       if (badge) {
-        await supabase
-          .from('project_badges')
-          .insert({
+        await supabase.from('project_badges').upsert(
+          {
             project_id: projectId,
             badge_id: badge.id,
             awarded_by: session.userId,
             reason: `Security scan overridden to PASS by admin: ${reason.trim()}`,
-          })
-          .onConflict('project_id,badge_id')
-          .merge();
+          },
+          { onConflict: 'project_id,badge_id' }
+        );
       }
     }
 
@@ -204,16 +203,15 @@ export async function verifyAuditProof(
         .single();
 
       if (badge) {
-        await supabase
-          .from('project_badges')
-          .insert({
+        await supabase.from('project_badges').upsert(
+          {
             project_id: proof.project_id,
             badge_id: badge.id,
             awarded_by: session.userId,
             reason: `Professional audit verified by ${proof.auditor_name}`,
-          })
-          .onConflict('project_id,badge_id')
-          .merge();
+          },
+          { onConflict: 'project_id,badge_id' }
+        );
       }
     }
 

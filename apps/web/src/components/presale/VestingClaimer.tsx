@@ -191,14 +191,14 @@ export default function VestingClaimer({ presaleId, userAddress }: VestingClaime
           <div>
             <span className="text-sm text-gray-500">Claimed</span>
             <p className="mt-1 text-2xl font-bold text-blue-600">
-              {claimedAmount ? (Number(claimedAmount) / 1e18).toLocaleString() : '0'}
+              {claimedAmount ? (Number(claimedAmount as bigint) / 1e18).toLocaleString() : '0'}
             </p>
           </div>
 
           <div>
             <span className="text-sm text-gray-500">Claimable Now</span>
             <p className="mt-1 text-2xl font-bold text-green-600">
-              {claimableAmount ? (Number(claimableAmount) / 1e18).toLocaleString() : '0'}
+              {claimableAmount ? (Number(claimableAmount as bigint) / 1e18).toLocaleString() : '0'}
             </p>
           </div>
         </div>
@@ -306,7 +306,7 @@ export default function VestingClaimer({ presaleId, userAddress }: VestingClaime
           </div>
         )}
 
-        {claimableAmount && claimableAmount > 0n ? (
+        {claimableAmount && (claimableAmount as bigint) > 0n ? (
           <button
             onClick={handleClaim}
             disabled={isClaiming || isClaimed}
@@ -316,7 +316,7 @@ export default function VestingClaimer({ presaleId, userAddress }: VestingClaime
               ? 'Claiming...'
               : isClaimed
                 ? '✅ Claimed!'
-                : `Claim ${(Number(claimableAmount) / 1e18).toLocaleString()} Tokens`}
+                : `Claim ${(Number(claimableAmount as bigint) / 1e18).toLocaleString()} Tokens`}
           </button>
         ) : (
           <div className="bg-gray-100 rounded-lg p-4">
@@ -340,11 +340,15 @@ export default function VestingClaimer({ presaleId, userAddress }: VestingClaime
         )}
 
         {/* Error */}
-        {(error || claimError) && (
+        {error ? (
           <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-4">
-            <p className="text-red-800 text-sm">{error || claimError?.message || 'Claim failed'}</p>
+            <p className="text-red-800 text-sm">{error}</p>
           </div>
-        )}
+        ) : claimError ? (
+          <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-4">
+            <p className="text-red-800 text-sm">{claimError.message || 'Claim failed'}</p>
+          </div>
+        ) : null}
       </div>
     </div>
   );

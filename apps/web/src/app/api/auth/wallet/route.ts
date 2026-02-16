@@ -6,6 +6,7 @@ import nacl from 'tweetnacl';
 import { decodeUTF8 } from 'tweetnacl-util';
 import { verifyMessage } from 'viem';
 import crypto from 'crypto';
+import { headers } from 'next/headers';
 
 interface WalletAuthRequest {
   walletType: 'solana' | 'evm';
@@ -92,9 +93,10 @@ export async function POST(request: NextRequest) {
       const sessionToken = await createSession(normalizedAddress, chain, existingWallet.user_id);
 
       // Set session cookie
+      const isHttps = headers().get('x-forwarded-proto') === 'https';
       cookies().set('session_token', sessionToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
+        secure: isHttps,
         sameSite: 'lax',
         maxAge: 30 * 24 * 60 * 60, // 30 days
         path: '/',
@@ -173,9 +175,10 @@ export async function POST(request: NextRequest) {
     console.log('[Auth] Step 4: Session created successfully');
 
     // Step 5: Set session cookie
+    const isHttps = headers().get('x-forwarded-proto') === 'https';
     cookies().set('session_token', sessionToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: isHttps,
       sameSite: 'lax',
       maxAge: 30 * 24 * 60 * 60, // 30 days
       path: '/',

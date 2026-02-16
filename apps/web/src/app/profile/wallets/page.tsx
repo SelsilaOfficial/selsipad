@@ -12,5 +12,5 @@ export default async function WalletManagementPage() {
 
   const wallets = await getUserWallets();
 
-  return <WalletManagementClient initialWallets={wallets} />;
+  return <WalletManagementClient initialWallets={wallets as any} />;
 }

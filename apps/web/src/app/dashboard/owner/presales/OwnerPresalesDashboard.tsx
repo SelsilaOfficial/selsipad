@@ -275,7 +275,7 @@ function PresaleCard({
               <h3 className="text-xl font-bold text-white">{projectName}</h3>
               <div className="flex items-center gap-2 mt-1">
                 <NetworkBadge network={presale.network} />
-                <StatusPill status={presale.status} />
+                <StatusPill status={presale.status as any} />
               </div>
             </div>
           </div>

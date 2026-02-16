@@ -3,7 +3,10 @@ import FairlaunchABI from './abis/Fairlaunch.json';
 import { type Address } from 'viem';
 
 // Read User Contribution
-export function useUserContribution(contractAddress?: Address, userAddress?: Address) {
+export function useUserContribution(
+  contractAddress?: Address,
+  userAddress?: Address
+): ReturnType<typeof useReadContract> {
   return useReadContract({
     address: contractAddress,
     abi: FairlaunchABI.abi,
@@ -16,7 +19,10 @@ export function useUserContribution(contractAddress?: Address, userAddress?: Add
 }
 
 // Read If User Has Claimed
-export function useHasClaimed(contractAddress?: Address, userAddress?: Address) {
+export function useHasClaimed(
+  contractAddress?: Address,
+  userAddress?: Address
+): ReturnType<typeof useReadContract> {
   return useReadContract({
     address: contractAddress,
     abi: FairlaunchABI.abi,
@@ -29,7 +35,12 @@ export function useHasClaimed(contractAddress?: Address, userAddress?: Address) 
 }
 
 // Claim Tokens (Write)
-export function useFairlaunchClaim() {
+export function useFairlaunchClaim(): {
+  claim: (contractAddress: Address) => Promise<void>;
+  hash: `0x${string}` | undefined;
+  error: Error | null;
+  isPending: boolean;
+} {
   const { writeContract, data: hash, error, isPending } = useWriteContract();
 
   const claim = async (contractAddress: Address) => {
@@ -45,19 +56,19 @@ export function useFairlaunchClaim() {
 }
 
 // Refund (Write)
-export function useFairlaunchRefund() {
+export function useFairlaunchRefund(): {
+  refund: (contractAddress: Address) => Promise<void>;
+  hash: `0x${string}` | undefined;
+  error: Error | null;
+  isPending: boolean;
+} {
   const { writeContract, data: hash, error, isPending } = useWriteContract();
 
   const refund = async (contractAddress: Address) => {
     writeContract({
       address: contractAddress,
       abi: FairlaunchABI.abi,
-      functionName: 'refund', // Function name is 'refund' in ABI? Check 4700 line 1290?? No check Line 294 event. Function 'refund' not explicitly seen in first 800 lines?
-      // Wait, let's double check ABI in Step 4700.
-      // Line 294: Refunded event.
-      // I need to find the function 'refund' or 'withdraw'?
-      // I'll assume 'refund' exists or 'claimRefund'.
-      // I'll check ABI again after this if needed.
+      functionName: 'refund',
       args: [],
     });
   };

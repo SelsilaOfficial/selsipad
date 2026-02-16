@@ -72,7 +72,7 @@ export function NetworkSelector({
   compact = false,
 }: NetworkSelectorProps) {
   const [selectedNetwork, setSelectedNetwork] = useState<NetworkConfig>(
-    ALL_NETWORKS.find((n) => n.id === defaultNetwork) || EVM_NETWORKS[0]
+    ALL_NETWORKS.find((n) => n.id === defaultNetwork) || EVM_NETWORKS[0]!
   );
   const [isOpen, setIsOpen] = useState(false);
 
@@ -290,7 +290,7 @@ export function NetworkSelector({
  * Hook to get current selected network
  */
 export function useSelectedNetwork(): NetworkConfig {
-  const [selectedNetwork, setSelectedNetwork] = useState<NetworkConfig>(EVM_NETWORKS[0]);
+  const [selectedNetwork, setSelectedNetwork] = useState<NetworkConfig>(EVM_NETWORKS[0]!);
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);

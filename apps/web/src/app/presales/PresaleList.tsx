@@ -187,7 +187,7 @@ export function PresaleList({ initialRounds }: PresaleListProps) {
                 {/* Badges */}
                 <div className="flex items-center gap-2 mb-4">
                   <NetworkBadge network={round.chain} />
-                  <StatusPill status={round.status} />
+                  <StatusPill status={round.status as any} />
                   <span className="px-2 py-1 text-xs rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
                     {round.type}
                   </span>

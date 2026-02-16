@@ -2,6 +2,7 @@
 import { getServerSession } from '@/lib/auth/session';
 
 import { createClient } from '@/lib/supabase/server';
+import { createServiceRoleClient } from '@/lib/supabase/service-role';
 
 /**
  * Toggle Like on Post
@@ -14,7 +15,7 @@ export async function toggleLike(postId: string): Promise<{ liked: boolean; like
       throw new Error('User not authenticated');
     }
 
-    const supabase = createClient();
+    const supabase = createServiceRoleClient();
 
     // Check if already liked
     const { data: existingLike } = await supabase
@@ -71,7 +72,7 @@ export async function addComment(
       throw new Error('User not authenticated');
     }
 
-    const supabase = createClient();
+    const supabase = createServiceRoleClient();
 
     const { data: comment, error } = await supabase
       .from('post_comments')
@@ -123,7 +124,7 @@ export async function reactToPost(
       throw new Error('User not authenticated');
     }
 
-    const supabase = createClient();
+    const supabase = createServiceRoleClient();
 
     // Upsert reaction (replace if exists)
     await supabase.from('post_reactions').upsert(
@@ -149,7 +150,7 @@ export async function trackView(postId: string, sessionId?: string): Promise<voi
   try {
     const session = await getServerSession();
 
-    const supabase = createClient();
+    const supabase = createServiceRoleClient();
 
     // Insert view (unique constraint prevents duplicates)
     await supabase
@@ -177,7 +178,7 @@ export async function editPost(postId: string, content: string): Promise<void> {
       throw new Error('User not authenticated');
     }
 
-    const supabase = createClient();
+    const supabase = createServiceRoleClient();
 
     // Verify ownership
     const { data: post } = await supabase
@@ -216,7 +217,7 @@ export async function deletePost(postId: string): Promise<void> {
       throw new Error('User not authenticated');
     }
 
-    const supabase = createClient();
+    const supabase = createServiceRoleClient();
 
     // Verify ownership
     const { data: post } = await supabase
@@ -257,7 +258,7 @@ export async function sharePost(
       throw new Error('User not authenticated');
     }
 
-    const supabase = createClient();
+    const supabase = createServiceRoleClient();
 
     await supabase.from('post_shares').insert({
       post_id: postId,

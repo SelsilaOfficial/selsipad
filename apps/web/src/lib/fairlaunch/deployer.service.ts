@@ -1,6 +1,6 @@
 /**
  * Fairlaunch Deployer Service
- * 
+ *
  * Handles direct deployment of Fairlaunch contracts with automatic verification
  */
 
@@ -73,7 +73,7 @@ export class FairlaunchDeployerService {
         const balance = await this.deployerWallet.getBalance();
         throw new Error(
           `Insufficient deployer balance. Has: ${ethers.formatEther(balance)} ETH, ` +
-            `Needs: ${ethers.formatEther(gasEstimate * BigInt(120) / BigInt(100))}`
+            `Needs: ${ethers.formatEther((gasEstimate * BigInt(120)) / BigInt(100))}`
         );
       }
 
@@ -131,7 +131,7 @@ export class FairlaunchDeployerService {
         blockNumber: 0,
         deployedAt: new Date(),
         gasUsed: '0',
-        constructorArgs: this.lastConstructorArgs || [],
+        constructorArgs: this.lastConstructorArgs || ([] as any),
         error: error.message || 'Unknown deployment error',
       };
     }
@@ -236,10 +236,6 @@ export class FairlaunchDeployerService {
    * Get contract instance for deployed Fairlaunch
    */
   getContractInstance(address: string): ethers.Contract {
-    return new ethers.Contract(
-      address,
-      FairlaunchArtifact.abi,
-      this.deployerWallet.getProvider()
-    );
+    return new ethers.Contract(address, FairlaunchArtifact.abi, this.deployerWallet.getProvider());
   }
 }

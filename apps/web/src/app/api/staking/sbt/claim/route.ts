@@ -121,12 +121,20 @@ export async function POST(request: NextRequest) {
       .single();
 
     // Update reward pool (deduct claimed amount)
-    await supabase
+    const { data: pool } = await supabase
       .from('staking_rewards_pool')
-      .update({
-        total_claimed: supabase.sql`total_claimed + ${claimAmount}`,
-      })
-      .eq('pool_name', 'SBT_STAKING');
+      .select('total_claimed')
+      .eq('pool_name', 'SBT_STAKING')
+      .single();
+
+    if (pool) {
+      await supabase
+        .from('staking_rewards_pool')
+        .update({
+          total_claimed: (pool.total_claimed || 0) + claimAmount,
+        })
+        .eq('pool_name', 'SBT_STAKING');
+    }
 
     return NextResponse.json({
       success: true,

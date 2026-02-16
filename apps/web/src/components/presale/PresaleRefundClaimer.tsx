@@ -127,11 +127,15 @@ export default function PresaleRefundClaimer({
       )}
 
       {/* Error */}
-      {(error || refundError) && (
+      {error ? (
         <div className="p-3 bg-red-900/20 border border-red-500/30 rounded-lg">
-          <p className="text-red-400 text-xs">{error || refundError?.message || 'Refund failed'}</p>
+          <p className="text-red-400 text-xs">{error}</p>
         </div>
-      )}
+      ) : refundError ? (
+        <div className="p-3 bg-red-900/20 border border-red-500/30 rounded-lg">
+          <p className="text-red-400 text-xs">{refundError.message || 'Refund failed'}</p>
+        </div>
+      ) : null}
     </div>
   );
 }

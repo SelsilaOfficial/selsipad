@@ -83,7 +83,7 @@ export function BondingCurveDetail({ pool, userAddress }: BondingCurveDetailProp
               <span className="text-lg font-mono text-gray-400">
                 {pool.token_symbol || 'UNKNOWN'}
               </span>
-              <StatusPill status={pool.status} />
+              <StatusPill status={pool.status as any} />
             </div>
             <div className="text-sm font-mono text-gray-500">
               Mint: {pool.token_mint?.slice(0, 12)}...{pool.token_mint?.slice(-12)}

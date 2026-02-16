@@ -80,7 +80,7 @@ export class TokenApprovalChecker {
       }
 
       // Create token contract instance
-      const token = new ethers.Contract(tokenAddress, ERC20_ABI, this.provider);
+      const token = new ethers.Contract(tokenAddress, ERC20_ABI, this.provider) as any;
 
       // Fetch token metadata
       const [decimals, symbol, name] = await Promise.all([
@@ -90,9 +90,10 @@ export class TokenApprovalChecker {
       ]);
 
       // Convert required amount to BigInt
-      const required = typeof requiredAmount === 'string' 
-        ? ethers.parseUnits(requiredAmount, decimals) 
-        : BigInt(requiredAmount);
+      const required =
+        typeof requiredAmount === 'string'
+          ? ethers.parseUnits(requiredAmount, decimals)
+          : BigInt(requiredAmount);
 
       // Check balance
       const balance = await token.balanceOf(ownerAddress);
@@ -134,7 +135,7 @@ export class TokenApprovalChecker {
       };
     } catch (error: any) {
       errors.push(`Token check failed: ${error.message}`);
-      
+
       return {
         isValid: false,
         tokenAddress,
@@ -165,11 +166,7 @@ export class TokenApprovalChecker {
     const requiredTokens = ethers.parseUnits(tokensForSale, tokenDecimals);
 
     // Check creator's balance (no approval needed yet, just balance check)
-    return this.checkTokenApproval(
-      tokenAddress,
-      creatorAddress,
-      requiredTokens
-    );
+    return this.checkTokenApproval(tokenAddress, creatorAddress, requiredTokens);
   }
 
   /**
@@ -202,7 +199,7 @@ export class TokenApprovalChecker {
         };
       }
 
-      const token = new ethers.Contract(tokenAddress, ERC20_ABI, this.provider);
+      const token = new ethers.Contract(tokenAddress, ERC20_ABI, this.provider) as any;
 
       const [decimals, symbol, name] = await Promise.all([
         token.decimals(),

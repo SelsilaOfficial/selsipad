@@ -69,12 +69,12 @@ export default async function AdminLiquidityLocksPage() {
 
         {/* Queue Section */}
         <div className="mb-8">
-          <LockQueueList queue={readyLocks || []} />
+          <LockQueueList queue={(readyLocks as any) || []} />
         </div>
 
         {/* Active Locks Section */}
         <div>
-          <ActiveLocksList locks={activeLocks || []} />
+          <ActiveLocksList locks={(activeLocks as any) || []} />
         </div>
       </div>
     </div>

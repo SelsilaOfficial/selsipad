@@ -1,7 +1,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
-import { getSession } from '@/lib/auth/session';
+import { getServerSession } from '@/lib/auth/session';
 
 interface SecurityGateResult {
   success: boolean;
@@ -194,16 +194,15 @@ export async function issueProjectAuditedBadge(
   }
 
   // Issue badge
-  const { error } = await supabase
-    .from('project_badges')
-    .insert({
+  const { error } = await supabase.from('project_badges').upsert(
+    {
       project_id: projectId,
       badge_id: badge.id,
       awarded_by: null, // Auto-award (system)
       reason,
-    })
-    .onConflict('project_id,badge_id')
-    .merge();
+    },
+    { onConflict: 'project_id,badge_id' }
+  );
 
   if (error) {
     return { success: false, error: error.message };

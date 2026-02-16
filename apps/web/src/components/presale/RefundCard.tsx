@@ -33,7 +33,7 @@ export default function RefundCard({ roundAddress, presaleStatus }: RefundCardPr
   const isRefundable = presaleStatus === 5 || presaleStatus === 6; // V2.4: FINALIZED_FAILED=5, CANCELLED=6
 
   // Check if user has contribution to refund
-  const hasContribution = contribution && contribution > 0n;
+  const hasContribution = !!(contribution && (contribution as bigint) > 0n);
 
   if (!isRefundable || !address) {
     return null;
@@ -90,7 +90,7 @@ export default function RefundCard({ roundAddress, presaleStatus }: RefundCardPr
               <div className="flex justify-between items-center mb-3">
                 <span className="text-sm text-gray-600">Your Contribution</span>
                 <span className="text-lg font-bold text-gray-900">
-                  {formatEther(contribution)} BNB
+                  {formatEther(contribution as bigint)} BNB
                 </span>
               </div>
 
@@ -143,13 +143,15 @@ export default function RefundCard({ roundAddress, presaleStatus }: RefundCardPr
           )}
 
           {/* Error Display */}
-          {(error || txError) && (
+          {error ? (
             <div className="mt-4 bg-red-100 border border-red-300 rounded-lg p-3">
-              <p className="text-sm text-red-800">
-                {error || txError?.message || 'Transaction failed'}
-              </p>
+              <p className="text-sm text-red-800">{error}</p>
             </div>
-          )}
+          ) : txError ? (
+            <div className="mt-4 bg-red-100 border border-red-300 rounded-lg p-3">
+              <p className="text-sm text-red-800">{txError.message || 'Transaction failed'}</p>
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

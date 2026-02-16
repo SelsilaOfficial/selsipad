@@ -10,7 +10,11 @@ import {
   usePresaleTotalRaised,
   useFinalizeSuccessEscrow,
 } from '@/lib/web3/presale-hooks';
-import { PresaleStatusLabel, PresaleStatusColor } from '@/lib/web3/presale-contracts';
+import {
+  PresaleStatusLabel,
+  PresaleStatusColor,
+  type PresaleStatus,
+} from '@/lib/web3/presale-contracts';
 
 interface FinalizationPreview {
   merkleRoot: string;
@@ -168,9 +172,9 @@ export default function AdminFinalizePage() {
                 <span className="text-sm text-gray-500">Current Status</span>
                 <div className="mt-1">
                   <span
-                    className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${PresaleStatusColor[status || 0]}`}
+                    className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${PresaleStatusColor[(status || 0) as PresaleStatus]}`}
                   >
-                    {PresaleStatusLabel[status || 0]}
+                    {PresaleStatusLabel[(status || 0) as PresaleStatus]}
                   </span>
                 </div>
               </div>

@@ -97,7 +97,7 @@ export async function submitBondingCurve(
     if (
       !config.team_vesting?.schedule ||
       config.team_vesting.schedule.length === 0 ||
-      config.team_vesting.schedule.reduce((sum, s) => sum + s.percentage, 0) !== 100
+      config.team_vesting.schedule.reduce((sum: number, s: any) => sum + s.percentage, 0) !== 100
     ) {
       return {
         success: false,

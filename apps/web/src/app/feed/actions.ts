@@ -2,6 +2,7 @@
 import { getServerSession } from '@/lib/auth/session';
 
 import { createClient } from '@/lib/supabase/server';
+import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { type Post } from '@/lib/data/feed';
 
 /**
@@ -90,8 +91,9 @@ export async function createPost(
 
     console.log('[createPost] Extracted hashtags:', { count: hashtags.length, hashtags });
 
-    // Insert new post
-    const { data: newPost, error } = await supabase
+    // Use service role client for INSERT to bypass RLS
+    const serviceSupabase = createServiceRoleClient();
+    const { data: newPost, error } = await serviceSupabase
       .from('posts')
       .insert({
         author_id: session.userId,

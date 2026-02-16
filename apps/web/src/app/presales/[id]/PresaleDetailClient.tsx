@@ -252,7 +252,7 @@ export function PresaleDetailClient({
                     Token: <span className="text-white font-semibold">{projectSymbol}</span>
                   </span>
                 )}
-                {round.status !== 'DEPLOYED' && <StatusPill status={round.status} />}
+                {round.status !== 'DEPLOYED' && <StatusPill status={round.status as any} />}
                 <NetworkBadge network={chainKey} chainId={chainId?.toString()} />
                 <span className="px-3 py-1 text-xs rounded-full bg-purple-500/10 border border-purple-500/30 text-purple-400 font-semibold">
                   PRESALE
@@ -916,7 +916,7 @@ export function PresaleDetailClient({
                         <p className="font-semibold text-white">
                           {contrib.amount} {round.raise_asset || nativeCurrency}
                         </p>
-                        <StatusPill status={contrib.status} />
+                        <StatusPill status={contrib.status as any} />
                       </div>
                     </div>
                     {contrib.tx_hash && (

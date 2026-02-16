@@ -264,6 +264,9 @@ importers:
       lucide-react:
         specifier: ^0.562.0
         version: 0.562.0(react@18.3.1)
+      merkletreejs:
+        specifier: ^0.6.0
+        version: 0.6.0
       motion:
         specifier: ^12.34.0
         version: 12.34.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)

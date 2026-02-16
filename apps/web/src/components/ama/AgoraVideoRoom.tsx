@@ -6,6 +6,7 @@ import AgoraRTC, {
   IAgoraRTCRemoteUser,
   ICameraVideoTrack,
   IMicrophoneAudioTrack,
+  UID,
 } from 'agora-rtc-sdk-ng';
 import { Mic, MicOff, Video, VideoOff, PhoneOff, Users } from 'lucide-react';
 
@@ -32,7 +33,7 @@ export function AgoraVideoRoom({
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [participants, setParticipants] = useState<number>(1);
-  const [remoteUsers, setRemoteUsers] = useState<Map<number, IAgoraRTCRemoteUser>>(new Map());
+  const [remoteUsers, setRemoteUsers] = useState<Map<UID, IAgoraRTCRemoteUser>>(new Map());
   const [isConnecting, setIsConnecting] = useState(true);
 
   const clientRef = useRef<IAgoraRTCClient | null>(null);

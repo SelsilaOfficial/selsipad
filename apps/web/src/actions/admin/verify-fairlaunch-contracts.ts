@@ -9,7 +9,7 @@
  * - TeamVesting contract (if team allocation exists)
  */
 
-import { createServerClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase/server';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import path from 'path';
@@ -41,7 +41,7 @@ interface VerifyContractsResult {
  */
 export async function verifyFairlaunchContracts(roundId: string): Promise<VerifyContractsResult> {
   try {
-    const supabase = await createServerClient();
+    const supabase = await createClient();
 
     // 1. Get round data with contract addresses
     const { data: round, error: fetchError } = await supabase
@@ -158,7 +158,7 @@ export async function verifyFairlaunchContracts(roundId: string): Promise<Verify
  */
 export async function getVerificationStatus(roundId: string) {
   try {
-    const supabase = await createServerClient();
+    const supabase = await createClient();
 
     const { data, error } = await supabase
       .from('launch_rounds')

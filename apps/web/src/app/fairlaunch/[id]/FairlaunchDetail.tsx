@@ -338,7 +338,7 @@ export function FairlaunchDetail({ fairlaunch, userAddress }: FairlaunchDetailPr
                   // ✅ Option 1: Read from project.metadata.security_badges
                   const badges = fairlaunch.project?.metadata?.security_badges || [];
                   // ✅ Fallback: Auto-grant if factory_address exists
-                  const hasFactoryAddress = fairlaunch.project?.factory_address != null;
+                  const hasFactoryAddress = (fairlaunch.project as any)?.factory_address != null;
                   const hasSafu = badges.includes('SAFU') || hasFactoryAddress;
                   const hasScPass = badges.includes('SC_PASS') || hasFactoryAddress;
 

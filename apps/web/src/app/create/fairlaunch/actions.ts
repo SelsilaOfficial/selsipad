@@ -118,7 +118,8 @@ export async function submitFairlaunch(
       sc_scan_status: 'NOT_REQUESTED' as any,
       investor_vesting_valid: true, // Not required for fairlaunch
       team_vesting_valid:
-        config.team_vesting?.schedule?.reduce((sum, s) => sum + s.percentage, 0) === 100,
+        config.team_vesting?.schedule?.reduce((sum: number, s: any) => sum + s.percentage, 0) ===
+        100,
       lp_lock_valid:
         (config.lp_lock?.duration_months || 0) >= 12 && (config.lp_lock?.percentage || 0) >= 70, // Fairlaunch minimum 70%
     };

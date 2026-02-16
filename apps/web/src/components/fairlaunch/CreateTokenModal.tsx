@@ -10,7 +10,20 @@ import {
   useWaitForTransactionReceipt,
 } from 'wagmi';
 import { parseEther, parseUnits } from 'viem';
-import { getExplorerUrl } from '@/lib/contracts/addresses';
+
+// Inline explorer URL helper
+function getExplorerUrl(chainId: number, hash: string): string {
+  const explorers: Record<number, string> = {
+    97: 'https://testnet.bscscan.com',
+    56: 'https://bscscan.com',
+    11155111: 'https://sepolia.etherscan.io',
+    1: 'https://etherscan.io',
+    84532: 'https://sepolia.basescan.org',
+    8453: 'https://basescan.org',
+  };
+  const base = explorers[chainId] || 'https://etherscan.io';
+  return `${base}/tx/${hash}`;
+}
 
 interface CreateTokenModalProps {
   isOpen: boolean;
@@ -24,6 +37,7 @@ interface CreateTokenModalProps {
   selectedChain: 'bnb' | 'ethereum' | 'base';
   defaultName?: string;
   defaultSymbol?: string;
+  mode?: string;
 }
 
 // Token Factory ABI (minimal for createToken)
@@ -117,7 +131,7 @@ export function CreateTokenModal({
       console.log('🔍 ===== TOKEN CREATION SUCCESS =====');
       console.log('📦 Full Receipt:', receipt);
       console.log('📋 Total Logs:', receipt.logs.length);
-      
+
       // Method 1: Try to get from contractCreated event or contractAddress
       if (receipt.contractAddress) {
         console.log('✅ Method 1: Found contractAddress in receipt:', receipt.contractAddress);
@@ -133,31 +147,34 @@ export function CreateTokenModal({
       // Method 2: Parse TokenCreated event
       if (receipt.logs && receipt.logs.length > 0) {
         console.log('🔎 Searching through logs...');
-        
+
         // Find TokenCreated event (should have indexed token and owner)
         for (let i = 0; i < receipt.logs.length; i++) {
           const log = receipt.logs[i];
+          if (!log) continue;
           console.log(`📝 Log ${i}:`, {
             address: log.address,
             topics: log.topics,
             topicsLength: log.topics?.length,
           });
-          
+
           // TokenCreated has 3 topics: [eventHash, token, owner]
           if (log.topics && log.topics.length >= 2) {
             const topic1 = log.topics[1]; // token address
             console.log(`   Topic[1] (token):`, topic1);
-            
+
             if (topic1) {
               // Remove 0x prefix if exists, take last 40 chars, add 0x back
               const cleanHex = topic1.startsWith('0x') ? topic1.slice(2) : topic1;
               const tokenAddress = ('0x' + cleanHex.slice(-40)) as `0x${string}`;
-              
+
               console.log('✅ Extracted Token Address:', tokenAddress);
-              
+
               // Validate it's not zero address
-              if (tokenAddress !== '0x0000000000000000000000000000000000000000' && 
-                  !tokenAddress.match(/^0x0+$/)) {
+              if (
+                tokenAddress !== '0x0000000000000000000000000000000000000000' &&
+                !tokenAddress.match(/^0x0+$/)
+              ) {
                 console.log('✅ Valid non-zero address found!');
                 onSuccess({
                   address: tokenAddress,
@@ -172,7 +189,7 @@ export function CreateTokenModal({
             }
           }
         }
-        
+
         // Method 3: Fallback to first log's address
         console.log('⚠️ Fallback: Using first log address');
         if (receipt.logs[0]?.address) {
@@ -186,7 +203,7 @@ export function CreateTokenModal({
           return;
         }
       }
-      
+
       console.error('❌ Failed to extract token address from receipt');
     }
   }, [isSuccess, receipt, onSuccess, name, symbol, decimals]);
@@ -221,7 +238,7 @@ export function CreateTokenModal({
       return;
     }
 
-    const creationFee = CREATION_FEES[selectedChain]?.[mode] || '0';
+    const creationFee = CREATION_FEES[selectedChain] || '0';
 
     // Anti-bot config: [maxTxPercent * 100, maxWalletPercent * 100, cooldownSeconds]
     const antiBotConfig: readonly [bigint, bigint, bigint] = enableAntiBot
@@ -243,7 +260,7 @@ export function CreateTokenModal({
 
   if (!isOpen) return null;
 
-  const fee = CREATION_FEES[selectedChain]?.[mode];
+  const fee = CREATION_FEES[selectedChain];
   const feeSymbol = selectedChain === 'bnb' ? 'BNB' : 'ETH';
 
   return (

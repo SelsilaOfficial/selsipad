@@ -31,7 +31,7 @@ export function ContributionForm({
   const { data: userContribution, refetch: refetchContribution } = useUserContribution(
     roundAddress,
     address
-  );
+  ) as { data: bigint | undefined; refetch: () => void; [key: string]: any };
 
   const [amount, setAmount] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
@@ -288,11 +288,17 @@ export function ContributionForm({
       </div>
 
       {/* Error Message */}
-      {(error || txError) && (
+      {error ? (
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-          <p className="text-sm text-red-800 dark:text-red-300">{error || txError?.message}</p>
+          <p className="text-sm text-red-800 dark:text-red-300">{error}</p>
         </div>
-      )}
+      ) : txError ? (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+          <p className="text-sm text-red-800 dark:text-red-300">
+            {txError.message || 'Transaction failed'}
+          </p>
+        </div>
+      ) : null}
 
       {/* Transaction Status */}
       {hash && (
@@ -328,11 +334,11 @@ export function ContributionForm({
       </button>
 
       {/* Your Contribution */}
-      {userContribution && userContribution > 0n && (
+      {userContribution && (userContribution as any) > 0n && (
         <div className="bg-gray-50 dark:bg-gray-750 rounded-lg p-4">
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Your Total Contribution</p>
           <p className="text-2xl font-bold text-gray-900 dark:text-white">
-            {formatEther(userContribution)} {paymentToken}
+            {formatEther(userContribution as any)} {paymentToken}
           </p>
         </div>
       )}

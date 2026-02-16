@@ -1,7 +1,6 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
-import { cookies } from 'next/headers';
 
 /**
  * Follow a user
@@ -9,8 +8,7 @@ import { cookies } from 'next/headers';
  */
 export async function followUser(targetUserId: string) {
   try {
-    const cookieStore = await cookies();
-    const supabase = createClient(cookieStore);
+    const supabase = createClient();
 
     // Get current user
     const {
@@ -70,8 +68,7 @@ export async function followUser(targetUserId: string) {
  */
 export async function unfollowUser(targetUserId: string) {
   try {
-    const cookieStore = await cookies();
-    const supabase = createClient(cookieStore);
+    const supabase = createClient();
 
     // Get current user
     const {
@@ -107,8 +104,7 @@ export async function unfollowUser(targetUserId: string) {
  */
 export async function checkIfFollowing(targetUserId: string) {
   try {
-    const cookieStore = await cookies();
-    const supabase = createClient(cookieStore);
+    const supabase = createClient();
 
     // Get current user
     const {
@@ -146,8 +142,7 @@ export async function checkIfFollowing(targetUserId: string) {
  */
 export async function checkUserFollowable(targetUserId: string) {
   try {
-    const cookieStore = await cookies();
-    const supabase = createClient(cookieStore);
+    const supabase = createClient();
 
     const { data, error } = await supabase.rpc('is_user_followable', {
       target_user_id: targetUserId,
@@ -170,8 +165,7 @@ export async function checkUserFollowable(targetUserId: string) {
  */
 export async function getFollowers(userId: string, limit = 50, offset = 0) {
   try {
-    const cookieStore = await cookies();
-    const supabase = createClient(cookieStore);
+    const supabase = createClient();
 
     const { data, error } = await supabase.rpc('get_user_followers', {
       target_user_id: userId,
@@ -196,8 +190,7 @@ export async function getFollowers(userId: string, limit = 50, offset = 0) {
  */
 export async function getFollowing(userId: string, limit = 50, offset = 0) {
   try {
-    const cookieStore = await cookies();
-    const supabase = createClient(cookieStore);
+    const supabase = createClient();
 
     const { data, error } = await supabase.rpc('get_user_following', {
       target_user_id: userId,

@@ -20,7 +20,7 @@ interface AdminReviewQueueProps {
 export function AdminReviewQueue({ presales: initialPresales }: AdminReviewQueueProps) {
   const [presales, setPresales] = useState(initialPresales);
   const [selectedPresale, setSelectedPresale] = useState<Presale | null>(
-    initialPresales.length > 0 ? initialPresales[0] : null
+    initialPresales.length > 0 ? (initialPresales[0] ?? null) : null
   );
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
@@ -30,7 +30,7 @@ export function AdminReviewQueue({ presales: initialPresales }: AdminReviewQueue
     // Remove from queue
     const updatedPresales = presales.filter((p) => p.id !== selectedPresale?.id);
     setPresales(updatedPresales);
-    setSelectedPresale(updatedPresales.length > 0 ? updatedPresales[0] : null);
+    setSelectedPresale(updatedPresales.length > 0 ? (updatedPresales[0] ?? null) : null);
     setShowApproveModal(false);
   };
 
@@ -38,7 +38,7 @@ export function AdminReviewQueue({ presales: initialPresales }: AdminReviewQueue
     // Remove from queue
     const updatedPresales = presales.filter((p) => p.id !== selectedPresale?.id);
     setPresales(updatedPresales);
-    setSelectedPresale(updatedPresales.length > 0 ? updatedPresales[0] : null);
+    setSelectedPresale(updatedPresales.length > 0 ? (updatedPresales[0] ?? null) : null);
     setShowRejectModal(false);
   };
 

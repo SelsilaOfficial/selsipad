@@ -209,7 +209,7 @@ function ProjectCard({ project }: { project: Project }) {
             </span>
           </div>
         </div>
-        <StatusPill status={dynamicStatus} />
+        <StatusPill status={dynamicStatus as any} />
       </div>
 
       {/* Description */}

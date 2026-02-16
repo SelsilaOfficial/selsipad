@@ -123,7 +123,7 @@ export async function uploadKYCDocuments(files: { name: string; data: string }[]
     const fileName = `${session.userId}/${timestamp}/${file.name}`;
 
     // Decode base64 to buffer
-    const base64Data = file.data.split(',')[1];
+    const base64Data = file.data.split(',')[1] || file.data;
     const buffer = Buffer.from(base64Data, 'base64');
 
     const { data, error } = await supabase.storage.from('kyc-documents').upload(fileName, buffer, {

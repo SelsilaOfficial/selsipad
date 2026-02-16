@@ -57,7 +57,7 @@ export default async function AuditProofsPage() {
       {/* Audit Proofs List */}
       {proofs && proofs.length > 0 ? (
         <div className="space-y-4">
-          {proofs.map((proof) => (
+          {proofs.map((proof: any) => (
             <AuditProofCard key={proof.id} proof={proof} />
           ))}
         </div>
