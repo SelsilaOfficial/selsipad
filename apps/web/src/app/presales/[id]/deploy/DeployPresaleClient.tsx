@@ -76,7 +76,8 @@ export function DeployPresaleClient({ round }: { round: any }) {
                 Deploy {round.projects?.name || 'Presale'}
               </h1>
               <p className="text-sm text-gray-400">
-                Deploy your presale smart contracts to BSC Testnet
+                Deploy your presale smart contracts to{' '}
+                {round.chain === '56' ? 'BSC Mainnet' : 'BSC Testnet'}
               </p>
             </div>
           </div>
@@ -144,7 +145,7 @@ export function DeployPresaleClient({ round }: { round: any }) {
 
             <div className="flex gap-3 mt-6">
               <a
-                href={`https://testnet.bscscan.com/tx/${result.tx_hash}`}
+                href={`${round.chain === '56' ? 'https://bscscan.com' : 'https://testnet.bscscan.com'}/tx/${result.tx_hash}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm transition-colors"
@@ -172,7 +173,7 @@ export function DeployPresaleClient({ round }: { round: any }) {
             {isDeploying ? (
               <>
                 <Loader2 size={22} className="animate-spin" />
-                <span>Deploying to BSC Testnet...</span>
+                <span>Deploying to {round.chain === '56' ? 'BSC Mainnet' : 'BSC Testnet'}...</span>
               </>
             ) : (
               <>

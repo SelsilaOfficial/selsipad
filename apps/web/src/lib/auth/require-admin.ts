@@ -10,12 +10,33 @@ const supabase = createClient(
 export type RequireAdminResult = { userId: string } | NextResponse;
 
 /**
- * Resolve authenticated user from request: Authorization Bearer (Supabase JWT) or session_token cookie.
+ * Resolve authenticated user from request.
+ * Priority:
+ *   1. admin_session cookie (set by admin login — always maps to admin wallet)
+ *   2. Authorization Bearer header (Supabase JWT)
+ *   3. session_token cookie (regular user session — may not be admin)
  * Returns userId or null.
  */
 export async function getAuthUserId(request: NextRequest): Promise<string | null> {
   let userId: string | null = null;
 
+  // 1. Try admin_session cookie first (set by /api/auth/admin-login)
+  const cookieStore = await cookies();
+  const adminCookie = cookieStore.get('admin_session')?.value;
+  if (adminCookie) {
+    try {
+      const adminSession = JSON.parse(adminCookie);
+      if (adminSession.userId) {
+        userId = adminSession.userId;
+        console.log('[requireAdmin] Using admin_session cookie, userId:', userId);
+        return userId;
+      }
+    } catch {
+      // Invalid JSON, fall through
+    }
+  }
+
+  // 2. Try Authorization Bearer header
   const authHeader = request.headers.get('authorization');
   if (authHeader?.startsWith('Bearer ')) {
     const token = authHeader.replace('Bearer ', '');
@@ -26,8 +47,8 @@ export async function getAuthUserId(request: NextRequest): Promise<string | null
     if (!error && user) userId = user.id;
   }
 
+  // 3. Fallback: session_token cookie
   if (!userId) {
-    const cookieStore = await cookies();
     const sessionToken = cookieStore.get('session_token')?.value;
     if (sessionToken) {
       const { data: session } = await supabase
@@ -60,6 +81,7 @@ export async function requireAdmin(request: NextRequest): Promise<RequireAdminRe
     .single();
 
   if (!profile?.is_admin) {
+    console.log('[requireAdmin] User is not admin:', userId, 'is_admin:', profile?.is_admin);
     return NextResponse.json({ error: 'Forbidden: admin only' }, { status: 403 });
   }
 

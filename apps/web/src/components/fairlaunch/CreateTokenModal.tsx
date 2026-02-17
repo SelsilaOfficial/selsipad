@@ -75,9 +75,9 @@ const CREATION_FEES: Record<string, string> = {
 };
 
 const CHAIN_IDS: Record<string, number> = {
-  bnb: 97, // BSC Testnet
-  ethereum: 11155111, // Sepolia
-  base: 84532, // Base Sepolia
+  bnb: 56, // BSC Mainnet
+  ethereum: 1, // Ethereum Mainnet
+  base: 8453, // Base Mainnet
 };
 
 const TOKEN_FACTORY_ADDRESSES: Record<string, `0x${string}`> = {

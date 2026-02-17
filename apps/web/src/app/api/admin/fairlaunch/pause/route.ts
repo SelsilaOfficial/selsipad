@@ -1,6 +1,6 @@
 /**
  * POST /api/admin/fairlaunch/pause
- * 
+ *
  * Admin-only endpoint to pause a live fairlaunch project
  */
 
@@ -12,29 +12,38 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-const ADMIN_WALLETS = (process.env.ADMIN_WALLET_ADDRESSES || '').split(',').map(a => a.toLowerCase());
+const ADMIN_WALLETS = (process.env.ADMIN_WALLET_ADDRESSES || '')
+  .split(',')
+  .map((a) => a.toLowerCase());
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   try {
-    // 1. Verify admin authentication
-    const { getServerSession } = await import('@/lib/auth/session');
-    const session = await getServerSession();
+    // 1. Verify admin authentication via admin_session cookie
+    const { cookies } = await import('next/headers');
+    const cookieStore = cookies();
+    const adminCookie = cookieStore.get('admin_session')?.value;
 
-    if (!session || !session.address) {
+    let adminUserId: string | null = null;
+    if (adminCookie) {
+      try {
+        const adminSession = JSON.parse(adminCookie);
+        adminUserId = adminSession.userId;
+      } catch {}
+    }
+
+    if (!adminUserId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const adminWallet = session.address.toLowerCase();
-    
     const { data: profile } = await supabase
       .from('profiles')
       .select('is_admin')
-      .eq('id', session.userId)
+      .eq('user_id', adminUserId)
       .single();
 
-    if (!profile?.is_admin && !ADMIN_WALLETS.includes(adminWallet)) {
+    if (!profile?.is_admin) {
       return NextResponse.json({ error: 'Forbidden: Admin only' }, { status: 403 });
     }
 
@@ -42,10 +51,7 @@ export async function POST(request: NextRequest) {
     const { projectId, reason } = await request.json();
 
     if (!projectId || !reason) {
-      return NextResponse.json(
-        { error: 'Project ID and reason required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Project ID and reason required' }, { status: 400 });
     }
 
     // 3. Verify project is LIVE
@@ -92,7 +98,7 @@ export async function POST(request: NextRequest) {
       projectId,
       projectName: project.name,
       reason,
-      admin: session.userId,
+      admin: adminUserId,
     });
 
     return NextResponse.json({
@@ -101,7 +107,6 @@ export async function POST(request: NextRequest) {
       status: 'PAUSED',
       message: 'Project paused successfully',
     });
-
   } catch (error: any) {
     console.error('[Admin Pause] Error:', error);
     return NextResponse.json(

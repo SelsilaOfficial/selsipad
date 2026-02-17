@@ -105,6 +105,10 @@ async function getCoinPricesUsd(): Promise<{ bnb: number; sol: number }> {
 /**
  * Get comprehensive referral statistics for the current user
  * Supports multi-chain (EVM + Solana) with USD conversion via oracle
+ *
+ * Referral counts are derived from BOTH:
+ * - referral_relationships (explicit sign-up via ref link)
+ * - referral_ledger (unique referee_ids who generated earnings)
  */
 export async function getReferralStats(): Promise<{
   success: boolean;
@@ -123,7 +127,7 @@ export async function getReferralStats(): Promise<{
     // Fetch coin prices for USD conversion
     const prices = await getCoinPricesUsd();
 
-    // 1. Get all referral relationships
+    // 1. Get referral_relationships (explicit sign-ups via ref link)
     const { data: relationships, error: relError } = await supabase
       .from('referral_relationships')
       .select('id, referee_id, activated_at, created_at')
@@ -135,28 +139,37 @@ export async function getReferralStats(): Promise<{
       return { success: false, error: relError.message };
     }
 
-    // 2. Get profiles for all referees
-    const refereeIds = relationships?.map((r) => r.referee_id) || [];
-    const { data: profiles } =
-      refereeIds.length > 0
-        ? await supabase
-            .from('profiles')
-            .select('user_id, username, avatar_url')
-            .in('user_id', refereeIds)
-        : { data: [] };
-
-    const profileMap = new Map((profiles || []).map((p) => [p.user_id, p]));
-
-    const totalReferrals = relationships?.length || 0;
-    const activeReferrals = relationships?.filter((r) => r.activated_at).length || 0;
-    const pendingReferrals = totalReferrals - activeReferrals;
-
-    // 3. Get earnings from referral_ledger (amounts in wei)
+    // 2. Get earnings from referral_ledger (amounts in wei)
     const { data: ledgerEntries } = await supabase
       .from('referral_ledger')
-      .select('amount, source_type, status, chain')
+      .select('amount, source_type, status, chain, referee_id, created_at')
       .eq('referrer_id', session.userId);
 
+    // 3. Build a MERGED set of unique referees from both sources
+    //    referral_relationships tracks sign-ups, referral_ledger tracks earnings
+    const refereeMap = new Map<
+      string,
+      {
+        fromRelationship: boolean;
+        activated_at: string | null;
+        created_at: string;
+        totalEarningsWei: number;
+        contributionCount: number;
+      }
+    >();
+
+    // Add from referral_relationships
+    (relationships || []).forEach((rel: any) => {
+      refereeMap.set(rel.referee_id, {
+        fromRelationship: true,
+        activated_at: rel.activated_at,
+        created_at: rel.created_at,
+        totalEarningsWei: 0,
+        contributionCount: 0,
+      });
+    });
+
+    // Add from referral_ledger (may add new referees not in relationships)
     let totalEarningsNative = { evm: 0, solana: 0 };
     let claimedEarningsNative = { evm: 0, solana: 0 };
     let pendingNative = { evm: 0, solana: 0 };
@@ -176,7 +189,6 @@ export async function getReferralStats(): Promise<{
       if (entry.status === 'CLAIMED') {
         claimedEarningsNative[chainType] += nativeAmount;
       } else {
-        // CLAIMABLE or PENDING = pending rewards
         pendingNative[chainType] += nativeAmount;
       }
 
@@ -184,7 +196,35 @@ export async function getReferralStats(): Promise<{
       if (src in earningsBySource) {
         earningsBySource[src] = (earningsBySource[src] ?? 0) + nativeAmount;
       }
+
+      // Track per-referee earnings
+      if (entry.referee_id) {
+        const existing = refereeMap.get(entry.referee_id);
+        if (existing) {
+          existing.totalEarningsWei += Number(entry.amount || 0);
+          existing.contributionCount += 1;
+        } else {
+          // New referee not in referral_relationships — they contributed with the ref code
+          refereeMap.set(entry.referee_id, {
+            fromRelationship: false,
+            activated_at: entry.created_at, // They're active since they contributed
+            created_at: entry.created_at,
+            totalEarningsWei: Number(entry.amount || 0),
+            contributionCount: 1,
+          });
+        }
+      }
     });
+
+    // 4. Compute counts from merged refereeMap
+    const totalReferrals = refereeMap.size;
+    let activeReferrals = 0;
+    refereeMap.forEach((info) => {
+      if (info.activated_at || info.contributionCount > 0) {
+        activeReferrals++;
+      }
+    });
+    const pendingReferrals = totalReferrals - activeReferrals;
 
     // 5. Convert to USD
     const evmTotalUsd = totalEarningsNative.evm * prices.bnb;
@@ -210,58 +250,65 @@ export async function getReferralStats(): Promise<{
     const hasBlueCheck = !!blueCheck;
     const hasActiveReferral = activeReferrals > 0;
 
-    // 7. Get contribution stats for each referred user
-    //    Includes both project contributions AND Blue Check purchases
+    // 7. Get profiles for all referees (from merged map)
+    const allRefereeIds = Array.from(refereeMap.keys());
+    const { data: profiles } =
+      allRefereeIds.length > 0
+        ? await supabase
+            .from('profiles')
+            .select('user_id, username, avatar_url')
+            .in('user_id', allRefereeIds)
+        : { data: [] };
+
+    const profileMap = new Map((profiles || []).map((p) => [p.user_id, p]));
+
+    // 8. Build referred users list from merged refereeMap
     const referredUsers = await Promise.all(
-      (relationships || []).map(async (rel: any) => {
-        // Get project contributions (presale/fairlaunch)
+      allRefereeIds.map(async (refereeId) => {
+        const info = refereeMap.get(refereeId)!;
+        const profile = profileMap.get(refereeId);
+
+        // Get contribution count from DB
         const { data: contributions } = await supabase
           .from('contributions')
           .select('amount')
-          .eq('user_id', rel.referee_id);
+          .eq('user_id', refereeId);
 
         let totalContributions = contributions?.length || 0;
-        let contributionAmount = 0;
+        let contributionAmountNative = 0;
 
         contributions?.forEach((c) => {
-          contributionAmount += weiToNative(c.amount || '0');
+          contributionAmountNative += weiToNative(c.amount || '0');
         });
 
-        // Also check for Blue Check purchase by this referee
+        // Also check for Blue Check purchase
         const { data: bcProfile } = await supabase
           .from('profiles')
           .select('bluecheck_status')
-          .eq('user_id', rel.referee_id)
+          .eq('user_id', refereeId)
           .single();
 
         if (bcProfile?.bluecheck_status === 'ACTIVE') {
-          totalContributions += 1; // Count Blue Check as a contribution
+          totalContributions += 1;
         }
 
-        // Check referral_ledger for reward amounts from this referee
-        const { data: ledgerFromReferee } = await supabase
-          .from('referral_ledger')
-          .select('amount, source_type')
-          .eq('referrer_id', session.userId);
+        // Calculate reward amount from ledger entries for this referee
+        const refereeEarnings = weiToNative(String(info.totalEarningsWei));
 
-        // Sum BLUECHECK rewards that came from this referee's activity
-        ledgerFromReferee?.forEach((entry) => {
-          if (entry.source_type === 'BLUECHECK') {
-            contributionAmount += weiToNative(entry.amount || '0');
-          }
-        });
-
-        const profile = profileMap.get(rel.referee_id);
+        const isActive = !!(info.activated_at || info.contributionCount > 0);
 
         return {
-          userId: rel.referee_id,
-          username: profile?.username || `user_${rel.referee_id.substring(0, 6)}`,
+          userId: refereeId,
+          username: profile?.username || `user_${refereeId.substring(0, 6)}`,
           avatarUrl: profile?.avatar_url || undefined,
-          status: (rel.activated_at ? 'ACTIVE' : 'PENDING') as 'ACTIVE' | 'PENDING',
-          joinedAt: rel.created_at,
-          activatedAt: rel.activated_at,
+          status: (isActive ? 'ACTIVE' : 'PENDING') as 'ACTIVE' | 'PENDING',
+          joinedAt: info.created_at,
+          activatedAt: info.activated_at || undefined,
           totalContributions,
-          contributionAmount: contributionAmount.toFixed(4),
+          contributionAmount: (contributionAmountNative > 0
+            ? contributionAmountNative
+            : refereeEarnings
+          ).toFixed(4),
         };
       })
     );

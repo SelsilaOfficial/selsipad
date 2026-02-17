@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { getAdminSession } from '@/lib/auth/admin-session';
 import { ethers } from 'ethers';
+import { getDeployerPrivateKey } from '@/lib/web3/deployer-wallet';
 
 /**
  * Admin action to cancel a fairlaunch on-chain (emergency rescue).
@@ -49,10 +50,8 @@ export async function cancelFairlaunch(roundId: string) {
 
     // ===== On-chain cancel() =====
     try {
-      const adminPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
-      if (!adminPrivateKey) {
-        return { success: false, error: 'DEPLOYER_PRIVATE_KEY not configured in environment' };
-      }
+      const chainId = parseInt(round.chain) || 97;
+      const adminPrivateKey = getDeployerPrivateKey(chainId);
 
       const rpcUrls: Record<string, string> = {
         '97': process.env.BSC_TESTNET_RPC_URL || 'https://data-seed-prebsc-1-s1.bnbchain.org:8545',

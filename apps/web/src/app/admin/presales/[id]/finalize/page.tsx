@@ -2,7 +2,7 @@
 
 import { useParams } from 'next/navigation';
 import { useState } from 'react';
-import { useAccount } from 'wagmi';
+import { useAccount, useChainId } from 'wagmi';
 import { parseAbi, parseEther } from 'viem';
 import {
   usePresaleStatus,
@@ -41,6 +41,7 @@ interface FinalizationPreview {
 export default function AdminFinalizePage() {
   const params = useParams();
   const { address: adminAddress } = useAccount();
+  const chainId = useChainId();
 
   const [preview, setPreview] = useState<FinalizationPreview | null>(null);
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
@@ -61,7 +62,7 @@ export default function AdminFinalizePage() {
     (preview?.calldata.target || undefined) as `0x${string}` | undefined
   );
 
-  // Write hook for direct execution (testnet only) — escrow flow
+  // Write hook for direct execution — escrow flow
   const {
     finalize: executeFinalize,
     isPending: isExecuting,
@@ -101,7 +102,7 @@ export default function AdminFinalizePage() {
     }
   };
 
-  // Direct execution (testnet only) — escrow-based finalization
+  // Direct execution — escrow-based finalization
   const handleDirectExecute = async () => {
     if (!preview) return;
 
@@ -321,12 +322,12 @@ export default function AdminFinalizePage() {
                 </button>
               </div>
 
-              {/* Direct Execute (Testnet Only) */}
+              {/* Direct Execute */}
               {enableDirectFinalize && (
                 <div className="border border-yellow-300 bg-yellow-50 rounded-lg p-4">
-                  <h3 className="font-medium mb-2">2. Direct Execute (Testnet Only)</h3>
+                  <h3 className="font-medium mb-2">2. Direct Execute</h3>
                   <p className="text-sm text-yellow-700 mb-3">
-                    ⚠️ Execute finalizeSuccessEscrow directly. Only enabled in testnet.
+                    ⚠️ Execute finalizeSuccessEscrow directly via connected wallet.
                   </p>
 
                   <div className="grid grid-cols-2 gap-3 mb-3">
@@ -399,7 +400,7 @@ export default function AdminFinalizePage() {
                     <p className="mt-2 text-sm">
                       TX:{' '}
                       <a
-                        href={`https://testnet.bscscan.com/tx/${txHash}`}
+                        href={`${chainId === 56 ? 'https://bscscan.com' : 'https://testnet.bscscan.com'}/tx/${txHash}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-blue-600 underline"

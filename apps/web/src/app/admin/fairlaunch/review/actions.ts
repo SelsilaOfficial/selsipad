@@ -1,7 +1,7 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
-import { getServerSession } from '@/lib/auth/session';
+import { createServiceRoleClient } from '@/lib/supabase/service-role';
+import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 
 interface ActionResult {
@@ -11,27 +11,59 @@ interface ActionResult {
 }
 
 /**
+ * Get admin identity from admin_session cookie
+ * (Admin login sets this cookie, separate from the regular user session_token)
+ */
+function getAdminSession(): { userId: string; wallet: string; roles: string[] } | null {
+  const cookieStore = cookies();
+  const adminCookie = cookieStore.get('admin_session')?.value;
+
+  if (!adminCookie) {
+    console.log('[Admin Action] No admin_session cookie found');
+    return null;
+  }
+
+  try {
+    const session = JSON.parse(adminCookie);
+    if (!session.userId || !session.wallet) {
+      return null;
+    }
+    return session;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Approve Fairlaunch submission
  */
-// Approve Fairlaunch submission
 export async function approveFairlaunch(roundId: string): Promise<ActionResult> {
   try {
-    const session = await getServerSession();
-    if (!session) {
-      return { success: false, error: 'Not authenticated' };
+    const adminSession = getAdminSession();
+    console.log(
+      '[Approve Action] Admin session:',
+      adminSession
+        ? { userId: adminSession.userId, wallet: adminSession.wallet, roles: adminSession.roles }
+        : 'NULL'
+    );
+
+    if (!adminSession) {
+      return { success: false, error: 'Not authenticated as admin' };
     }
 
-    const supabase = createClient();
+    const supabase = createServiceRoleClient();
 
-    // Verify admin status and get user_id
-    const { data: profile } = await supabase
+    // Verify admin status from profiles table
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('is_admin, user_id')
-      .eq('user_id', session.userId)
+      .eq('user_id', adminSession.userId)
       .single();
 
+    console.log('[Approve Action] Profile:', { profile, profileError });
+
     if (!profile?.is_admin || !profile.user_id) {
-      return { success: false, error: 'Unauthorized' };
+      return { success: false, error: 'Unauthorized — not an admin user' };
     }
 
     // Get fairlaunch round
@@ -39,7 +71,6 @@ export async function approveFairlaunch(roundId: string): Promise<ActionResult> 
       .from('launch_rounds')
       .select('*')
       .eq('id', roundId)
-      .eq('sale_type', 'fairlaunch')
       .single();
 
     if (fetchError || !round) {
@@ -77,7 +108,7 @@ export async function approveFairlaunch(roundId: string): Promise<ActionResult> 
       .from('launch_rounds')
       .update({
         status: 'APPROVED',
-        reviewed_by: profile.user_id, // Use UUID
+        reviewed_by: profile.user_id,
         reviewed_at: new Date().toISOString(),
       })
       .eq('id', roundId);
@@ -86,10 +117,8 @@ export async function approveFairlaunch(roundId: string): Promise<ActionResult> 
       return { success: false, error: updateError.message };
     }
 
-    // TODO: Log admin action
-    // await logAdminAction('FAIRLAUNCH_APPROVE', session.address, { roundId });
-
     revalidatePath('/admin/fairlaunch/review');
+    revalidatePath(`/admin/fairlaunch/review/${roundId}`);
     return { success: true };
   } catch (error: any) {
     console.error('Fairlaunch approval error:', error);
@@ -100,22 +129,22 @@ export async function approveFairlaunch(roundId: string): Promise<ActionResult> 
 // Reject Fairlaunch submission
 export async function rejectFairlaunch(roundId: string, reason: string): Promise<ActionResult> {
   try {
-    const session = await getServerSession();
-    if (!session) {
-      return { success: false, error: 'Not authenticated' };
+    const adminSession = getAdminSession();
+    if (!adminSession) {
+      return { success: false, error: 'Not authenticated as admin' };
     }
 
     if (!reason || reason.trim().length < 10) {
       return { success: false, error: 'Rejection reason required (min 10 chars)' };
     }
 
-    const supabase = createClient();
+    const supabase = createServiceRoleClient();
 
-    // Verify admin status and get user_id
+    // Verify admin status
     const { data: profile } = await supabase
       .from('profiles')
       .select('is_admin, user_id')
-      .eq('user_id', session.userId)
+      .eq('user_id', adminSession.userId)
       .single();
 
     if (!profile?.is_admin || !profile.user_id) {
@@ -147,11 +176,10 @@ export async function rejectFairlaunch(roundId: string, reason: string): Promise
       .update({
         status: 'REJECTED',
         rejection_reason: reason.trim(),
-        reviewed_by: profile.user_id, // Use UUID
+        reviewed_by: profile.user_id,
         reviewed_at: new Date().toISOString(),
       })
       .eq('id', roundId)
-      .eq('sale_type', 'fairlaunch')
       .eq('status', 'SUBMITTED');
 
     if (updateError) {

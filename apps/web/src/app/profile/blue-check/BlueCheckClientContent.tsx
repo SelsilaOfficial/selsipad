@@ -455,14 +455,14 @@ function PurchaseContent() {
                 <div className="flex-1">
                   <p className="text-sm font-bold text-amber-400 mb-1">Wrong Network</p>
                   <p className="text-xs text-gray-400 mb-3">
-                    Blue Check contract is deployed on BSC Testnet. Please switch your wallet to
-                    continue.
+                    Blue Check contract is deployed on BSC. Please switch your wallet to BSC Mainnet
+                    or BSC Testnet to continue.
                   </p>
                   <button
                     onClick={switchToBSCTestnet}
                     className="px-4 py-2 rounded-[12px] bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 text-xs font-bold transition-colors"
                   >
-                    Switch to BSC Testnet
+                    Switch to BSC
                   </button>
                 </div>
               </div>

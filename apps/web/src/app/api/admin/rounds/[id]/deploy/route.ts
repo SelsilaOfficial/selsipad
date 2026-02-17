@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { requireAdmin } from '@/lib/auth/require-admin';
 import { CONTRACTS } from '@/lib/web3/presale-contracts';
 import { ethers } from 'ethers';
+import { getDeployerPrivateKey } from '@/lib/web3/deployer-wallet';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -120,10 +121,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       : ethers.id('PANCAKESWAP');
     const liquidityPercent = Math.min(10000, lpLock.liquidityPercent ?? lpLock.percentage ?? 7000);
 
-    const deployerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
-    if (!deployerPrivateKey) {
-      return NextResponse.json({ error: 'DEPLOYER_PRIVATE_KEY not configured' }, { status: 500 });
-    }
+    const deployerPrivateKey = getDeployerPrivateKey(97); // This route is currently testnet-only
 
     const rpcUrl =
       process.env.BSC_TESTNET_RPC_URL || 'https://data-seed-prebsc-1-s1.bnbchain.org:8545';

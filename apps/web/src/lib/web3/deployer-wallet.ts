@@ -1,7 +1,12 @@
 /**
  * Deployer Wallet Configuration
  *
- * Manages the hot wallet used for deploying Fairlaunch contracts.
+ * Manages the hot wallet used for deploying contracts on-chain.
+ * Supports multi-network key resolution:
+ *   - DEPLOYER_PRIVATE_KEY_MAINNET → used for mainnets (BSC 56, ETH 1, Base 8453)
+ *   - DEPLOYER_PRIVATE_KEY_TESTNET → used for testnets (BSC 97, Sepolia, Base Sepolia)
+ *   - DEPLOYER_PRIVATE_KEY         → legacy fallback (used if per-network keys not set)
+ *
  * This wallet:
  * - Has minimal funds (for gas only)
  * - Only deploys contracts
@@ -11,10 +16,45 @@
 
 import { ethers } from 'ethers';
 
+/** Mainnet chain IDs */
+const MAINNET_CHAINS = [56, 1, 8453]; // BSC, ETH, Base
+
 export interface DeployerWalletConfig {
   privateKey: string;
   address: string;
   chainId: number;
+}
+
+/**
+ * Resolve the correct deployer private key for a given chain.
+ * Priority:
+ *   1. DEPLOYER_PRIVATE_KEY_MAINNET / DEPLOYER_PRIVATE_KEY_TESTNET (per-network)
+ *   2. DEPLOYER_PRIVATE_KEY (legacy fallback)
+ *
+ * @param chainId - The target chain ID
+ * @returns The private key string
+ * @throws Error if no valid key is found
+ */
+export function getDeployerPrivateKey(chainId: number): string {
+  const isMainnet = MAINNET_CHAINS.includes(chainId);
+
+  // Try per-network key first
+  const networkKey = isMainnet
+    ? process.env.DEPLOYER_PRIVATE_KEY_MAINNET
+    : process.env.DEPLOYER_PRIVATE_KEY_TESTNET;
+
+  // Fallback to legacy single key
+  const privateKey = networkKey || process.env.DEPLOYER_PRIVATE_KEY;
+
+  if (!privateKey || privateKey.length < 64) {
+    const envName = isMainnet ? 'DEPLOYER_PRIVATE_KEY_MAINNET' : 'DEPLOYER_PRIVATE_KEY_TESTNET';
+    throw new Error(
+      `No valid deployer private key found for chain ${chainId}. ` +
+        `Set ${envName} or DEPLOYER_PRIVATE_KEY in environment.`
+    );
+  }
+
+  return privateKey.startsWith('0x') ? privateKey : `0x${privateKey}`;
 }
 
 export class DeployerWallet {
@@ -25,11 +65,8 @@ export class DeployerWallet {
   constructor(chainId: number) {
     this.chainId = chainId;
 
-    // Get private key from environment
-    const privateKey = process.env.DEPLOYER_PRIVATE_KEY;
-    if (!privateKey || privateKey.length !== 66) {
-      throw new Error('Invalid DEPLOYER_PRIVATE_KEY in environment');
-    }
+    // Get private key for this specific chain (mainnet vs testnet)
+    const privateKey = getDeployerPrivateKey(chainId);
 
     // Get RPC URL for chain
     const rpcUrl = this.getRpcUrl(chainId);

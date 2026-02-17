@@ -3,6 +3,7 @@
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { ethers } from 'ethers';
 import { revalidatePath } from 'next/cache';
+import { getDeployerPrivateKey } from '@/lib/web3/deployer-wallet';
 import { recordLPLock } from './record-lp-lock';
 import { getAdminSession } from '@/lib/auth/admin-session';
 
@@ -108,10 +109,8 @@ export async function finalizePresale(
       return { success: false, error: `Cannot finalize: current status is ${round.status}` };
     }
 
-    const adminPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
-    if (!adminPrivateKey) {
-      return { success: false, error: 'DEPLOYER_PRIVATE_KEY not configured' };
-    }
+    const chainId = parseInt(round.chain) || 97;
+    const adminPrivateKey = getDeployerPrivateKey(chainId);
 
     const rpcUrl = RPC_URLS[round.chain];
     if (!rpcUrl) {

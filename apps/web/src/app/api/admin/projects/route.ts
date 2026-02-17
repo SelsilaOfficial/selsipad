@@ -1,6 +1,6 @@
 /**
  * GET /api/admin/projects
- * 
+ *
  * Get all projects for admin dashboard
  * Includes pending deploy and live projects
  */
@@ -13,36 +13,46 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-const ADMIN_WALLETS = (process.env.ADMIN_WALLET_ADDRESSES || '').split(',').map(a => a.toLowerCase());
+const ADMIN_WALLETS = (process.env.ADMIN_WALLET_ADDRESSES || '')
+  .split(',')
+  .map((a) => a.toLowerCase());
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   try {
-    // 1. Verify admin authentication
-    const { getServerSession } = await import('@/lib/auth/session');
-    const session = await getServerSession();
+    // 1. Verify admin authentication via admin_session cookie
+    const { cookies } = await import('next/headers');
+    const cookieStore = cookies();
+    const adminCookie = cookieStore.get('admin_session')?.value;
 
-    if (!session || !session.address) {
+    let adminUserId: string | null = null;
+    if (adminCookie) {
+      try {
+        const adminSession = JSON.parse(adminCookie);
+        adminUserId = adminSession.userId;
+      } catch {}
+    }
+
+    if (!adminUserId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const adminWallet = session.address.toLowerCase();
-    
     const { data: profile } = await supabase
       .from('profiles')
       .select('is_admin')
-      .eq('id', session.userId)
+      .eq('user_id', adminUserId)
       .single();
 
-    if (!profile?.is_admin && !ADMIN_WALLETS.includes(adminWallet)) {
+    if (!profile?.is_admin) {
       return NextResponse.json({ error: 'Forbidden: Admin only' }, { status: 403 });
     }
 
     // 2. Fetch all projects with launch rounds
     const { data: projects, error } = await supabase
       .from('projects')
-      .select(`
+      .select(
+        `
         *,
         launch_rounds (
           id,
@@ -62,7 +72,8 @@ export async function GET(request: Request) {
           total_raised,
           contributor_count
         )
-      `)
+      `
+      )
       .in('status', ['PENDING_DEPLOY', 'LIVE', 'PAUSED', 'ENDED'])
       .order('created_at', { ascending: false });
 
@@ -75,7 +86,6 @@ export async function GET(request: Request) {
       success: true,
       projects: projects || [],
     });
-
   } catch (error: any) {
     console.error('[Admin Projects] Error:', error);
     return NextResponse.json(

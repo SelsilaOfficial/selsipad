@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Rocket, Loader2, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
+import { Rocket, Loader2, CheckCircle2, XCircle, AlertTriangle, TrendingUp } from 'lucide-react';
 import { AdminDeployCard } from '@/components/admin/AdminDeployCard';
 import { AdminPauseModal } from '@/components/admin/AdminPauseModal';
 import { AdminFinalizeCard } from '@/components/admin/AdminFinalizeCard';
+import Link from 'next/link';
 
 interface PendingProject {
   id: string;
@@ -263,7 +264,7 @@ export default function AdminFairlaunchPage() {
             <Rocket className="w-10 h-10 text-purple-400" />
             Admin: Fairlaunch Management
           </h1>
-          <p className="text-gray-400">Deploy pending projects and manage live fairlaunches</p>
+          <p className="text-gray-400">Review and manage fairlaunch submissions</p>
         </div>
 
         {/* Tabs */}
@@ -372,25 +373,12 @@ export default function AdminFairlaunchPage() {
                         </div>
                       </div>
                       <div className="flex flex-col gap-2">
-                        <button
-                          onClick={() => {
-                            if (window.confirm('Deploy this fairlaunch to chain?')) {
-                              handleDeploy(project.launch_rounds?.[0]?.id || '');
-                            }
-                          }}
+                        <Link
+                          href={`/admin/fairlaunch/review/${project.launch_rounds?.[0]?.id}`}
                           className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition font-semibold flex items-center justify-center gap-1"
                         >
-                          <Rocket size={16} /> Deploy
-                        </button>
-                        <button
-                          onClick={() => {
-                            // TODO: Add reject functionality
-                            alert('Reject functionality coming soon!');
-                          }}
-                          className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition font-semibold"
-                        >
-                          ✗ Reject
-                        </button>
+                          <TrendingUp size={16} /> Review
+                        </Link>
                       </div>
                     </div>
                   </div>

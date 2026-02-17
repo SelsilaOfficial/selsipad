@@ -1,22 +1,32 @@
-import { createClient } from '@/lib/supabase/server';
+import { createServiceRoleClient as createClient } from '@/lib/supabase/service-role';
 import { notFound, redirect } from 'next/navigation';
 import { FairlaunchReviewClient } from './FairlaunchReviewClient';
 
 async function getRound(id: string) {
   const supabase = createClient();
 
+  console.log('[Review Detail] Fetching round with id:', id);
+
   // 1. Fetch Round
   const { data: round, error } = await supabase
     .from('launch_rounds')
     .select('*')
     .eq('id', id)
-    .eq('sale_type', 'fairlaunch')
     .single();
 
   if (error || !round) {
-    console.error('Error fetching round:', error);
+    console.error('[Review Detail] Error fetching round:', error, 'ID:', id);
     return null;
   }
+
+  console.log(
+    '[Review Detail] Found round:',
+    round.id,
+    'status:',
+    round.status,
+    'type:',
+    round.type
+  );
 
   // 2. Fetch Project (if project_id exists)
   if (round.project_id) {
@@ -36,27 +46,7 @@ async function getRound(id: string) {
 }
 
 export default async function FairlaunchReviewDetailPage({ params }: { params: { id: string } }) {
-  // 1. Check admin authentication
-  const { getServerSession } = await import('@/lib/auth/session');
-  const session = await getServerSession();
-
-  if (!session?.userId) {
-    redirect('/');
-  }
-
-  // Check if user is admin from profiles table
-  const supabase = createClient();
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('is_admin')
-    .eq('user_id', session.userId)
-    .single();
-
-  if (!profile?.is_admin) {
-    redirect('/');
-  }
-
-  // 2. Fetch round
+  // Fetch round — admin auth is handled by the AdminShell layout
   const round = await getRound(params.id);
 
   if (!round) {

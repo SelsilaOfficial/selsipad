@@ -233,7 +233,7 @@ export default async function AMAManagementPage() {
                         {Number(ama.payment_amount_bnb).toFixed(4)} BNB
                       </p>
                       <a
-                        href={`https://testnet.bscscan.com/tx/${ama.payment_tx_hash}`}
+                        href={`${ama.chain === '97' ? 'https://testnet.bscscan.com' : 'https://bscscan.com'}/tx/${ama.payment_tx_hash}`}
                         target="_blank"
                         className="text-xs text-gray-500 hover:text-indigo-400"
                       >

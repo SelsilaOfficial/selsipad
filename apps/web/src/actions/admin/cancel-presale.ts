@@ -4,6 +4,7 @@ import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { getAdminSession } from '@/lib/auth/admin-session';
 import { ethers } from 'ethers';
 import { revalidatePath } from 'next/cache';
+import { getDeployerPrivateKey } from '@/lib/web3/deployer-wallet';
 
 const RPC_URLS: Record<string, string> = {
   '97': process.env.BSC_TESTNET_RPC_URL || 'https://bsc-testnet-rpc.publicnode.com',
@@ -60,10 +61,8 @@ export async function cancelPresale(roundId: string, reason: string = 'Cancelled
     }
 
     // On-chain cancel
-    const adminPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
-    if (!adminPrivateKey) {
-      return { success: false, error: 'DEPLOYER_PRIVATE_KEY not configured' };
-    }
+    const chainId = parseInt(round.chain) || 97;
+    const adminPrivateKey = getDeployerPrivateKey(chainId);
 
     const rpcUrl = RPC_URLS[round.chain];
     if (!rpcUrl) {

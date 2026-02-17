@@ -2,17 +2,35 @@
  * Backend API: Verify Blue Check Purchase
  *
  * Verifies on-chain purchase and updates database.
+ * Supports BSC Testnet (97) and BSC Mainnet (56).
  * Uses getServerSession for auth (wallet-based) and service role client for DB writes.
  */
 
 import { getServerSession } from '@/lib/auth/session';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { NextResponse } from 'next/server';
-import { createPublicClient, http, decodeEventLog } from 'viem';
-import { bscTestnet } from 'viem/chains';
+import { createPublicClient, http, decodeEventLog, type Chain } from 'viem';
+import { bscTestnet, bsc } from 'viem/chains';
 
-// BlueCheckRegistry deployed to BSC Testnet
-const BLUECHECK_CONTRACT_ADDRESS = '0xfFaB42EcD7Eb0a85b018516421C9aCc088aC7157';
+// Per-network BlueCheck contract addresses
+const BLUECHECK_ADDRESSES: Record<number, string> = {
+  97: '0xfFaB42EcD7Eb0a85b018516421C9aCc088aC7157', // BSC Testnet
+  56: '0x7d33B957D8B27133Fa9e7765A18306A7BA60D275', // BSC Mainnet
+};
+
+// Per-network chain configs
+const CHAIN_CONFIGS: Record<number, { chain: Chain; rpcEnv: string; rpcFallback: string }> = {
+  97: {
+    chain: bscTestnet,
+    rpcEnv: 'BSC_TESTNET_RPC_URL',
+    rpcFallback: 'https://bsc-testnet-rpc.publicnode.com',
+  },
+  56: {
+    chain: bsc,
+    rpcEnv: 'BSC_MAINNET_RPC_URL',
+    rpcFallback: 'https://bsc-dataseed1.binance.org',
+  },
+};
 
 const BLUECHECK_ABI = [
   {
@@ -39,7 +57,7 @@ export async function POST(request: Request) {
     console.log('[BlueCheck Verify] Session userId:', session.userId);
 
     // Parse request body
-    const { wallet_address, tx_hash } = await request.json();
+    const { wallet_address, tx_hash, chain_id } = await request.json();
 
     if (!wallet_address || !tx_hash) {
       return NextResponse.json(
@@ -48,13 +66,25 @@ export async function POST(request: Request) {
       );
     }
 
-    console.log('[BlueCheck Verify] Wallet:', wallet_address, 'TX:', tx_hash);
+    // Resolve chain — default to 97 for backward compatibility
+    const chainId = chain_id ? Number(chain_id) : 97;
+    const chainConfig = CHAIN_CONFIGS[chainId];
+    const contractAddress = BLUECHECK_ADDRESSES[chainId];
 
-    // Verify purchase on-chain using configured RPC (default is unreachable from server)
-    const rpcUrl = process.env.BSC_TESTNET_RPC_URL || 'https://bsc-testnet-rpc.publicnode.com';
+    if (!chainConfig || !contractAddress) {
+      return NextResponse.json(
+        { error: `Unsupported chain: ${chainId}. Use BSC Testnet (97) or BSC Mainnet (56).` },
+        { status: 400 }
+      );
+    }
+
+    console.log('[BlueCheck Verify] Chain:', chainId, 'Wallet:', wallet_address, 'TX:', tx_hash);
+
+    // Verify purchase on-chain using configured RPC
+    const rpcUrl = process.env[chainConfig.rpcEnv] || chainConfig.rpcFallback;
     console.log('[BlueCheck Verify] Using RPC:', rpcUrl);
     const publicClient = createPublicClient({
-      chain: bscTestnet,
+      chain: chainConfig.chain,
       transport: http(rpcUrl),
     });
 
@@ -62,7 +92,7 @@ export async function POST(request: Request) {
     let hasPurchased = false;
     try {
       hasPurchased = await publicClient.readContract({
-        address: BLUECHECK_CONTRACT_ADDRESS as `0x${string}`,
+        address: contractAddress as `0x${string}`,
         abi: BLUECHECK_ABI,
         functionName: 'hasBlueCheck',
         args: [wallet_address as `0x${string}`],
@@ -86,7 +116,7 @@ export async function POST(request: Request) {
 
         if (txSender.toLowerCase() !== wallet_address.toLowerCase()) {
           const senderHasPurchased = await publicClient.readContract({
-            address: BLUECHECK_CONTRACT_ADDRESS as `0x${string}`,
+            address: contractAddress as `0x${string}`,
             abi: BLUECHECK_ABI,
             functionName: 'hasBlueCheck',
             args: [txSender as `0x${string}`],
@@ -130,6 +160,7 @@ export async function POST(request: Request) {
     console.log('[BlueCheck Verify] Profile updated:', updateData);
 
     // Parse transaction receipt to get referrer info
+    const chainStr = String(chainId);
     try {
       const receipt = await publicClient.getTransactionReceipt({ hash: tx_hash as `0x${string}` });
 
@@ -196,15 +227,15 @@ export async function POST(request: Request) {
             const amountPaid = (decoded.args as any)?.amountPaid as bigint;
             const treasuryAmt = (decoded.args as any)?.treasuryAmount as bigint;
 
-            // 1. Create fee_splits record (matches actual DB schema)
+            // 1. Create fee_splits record
             const { error: splitError } = await supabase.from('fee_splits').insert({
               source_type: 'BLUECHECK',
-              source_id: crypto.randomUUID(), // unique source ID for this purchase
+              source_id: crypto.randomUUID(),
               total_amount: amountPaid.toString(),
               treasury_amount: treasuryAmt.toString(),
               referral_pool_amount: referrerReward.toString(),
               asset: '0x0000000000000000000000000000000000000000', // native BNB
-              chain: '97', // BSC Testnet
+              chain: chainStr,
               processed: true,
               processed_at: new Date().toISOString(),
             });
@@ -213,7 +244,7 @@ export async function POST(request: Request) {
               console.error('[BlueCheck Verify] Fee split insert error:', splitError);
             } else {
               console.log(
-                `[BlueCheck Verify] Created fee_split: total=${amountPaid.toString()}, referral=${referrerReward.toString()}`
+                `[BlueCheck Verify] Created fee_split: chain=${chainStr}, total=${amountPaid.toString()}, referral=${referrerReward.toString()}`
               );
             }
 
@@ -221,11 +252,11 @@ export async function POST(request: Request) {
             const { error: ledgerError } = await supabase.from('referral_ledger').insert({
               referrer_id: referrerWallet.user_id,
               source_type: 'BLUECHECK',
-              source_id: crypto.randomUUID(), // unique source ID
+              source_id: crypto.randomUUID(),
               amount: referrerReward.toString(),
               asset: '0x0000000000000000000000000000000000000000', // native BNB
-              chain: '97', // BSC Testnet
-              status: 'CLAIMED', // Auto-paid on-chain, no manual claim needed
+              chain: chainStr,
+              status: 'CLAIMED',
               claimed_at: new Date().toISOString(),
             });
 
@@ -233,17 +264,17 @@ export async function POST(request: Request) {
               console.error('[BlueCheck Verify] Referral ledger insert error:', ledgerError);
             } else {
               console.log(
-                `[BlueCheck Verify] Created referral_ledger: ${referrerReward.toString()} to referrer ${referrerWallet.user_id}`
+                `[BlueCheck Verify] Created referral_ledger: chain=${chainStr}, ${referrerReward.toString()} to referrer ${referrerWallet.user_id}`
               );
             }
 
-            // 3. Activate the referral relationship (Blue Check purchase is a qualifying event)
+            // 3. Activate the referral relationship
             const { error: activateError } = await supabase
               .from('referral_relationships')
               .update({ activated_at: new Date().toISOString() })
               .eq('referrer_id', referrerWallet.user_id)
               .eq('referee_id', session.userId)
-              .is('activated_at', null); // Only activate if not already activated
+              .is('activated_at', null);
 
             if (activateError) {
               console.error('[BlueCheck Verify] Referral activation error:', activateError);

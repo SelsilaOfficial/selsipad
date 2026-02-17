@@ -40,7 +40,7 @@ export async function GET() {
       return NextResponse.json({ referrer_address: null });
     }
 
-    // Get referrer's wallet address - check ALL chains, prefer BSC Testnet
+    // Get referrer's wallet address - prefer EVM wallet (BSC uses EVM addresses)
     const { data: wallets, error: walletError } = await supabase
       .from('wallets')
       .select('address, chain')
@@ -59,15 +59,15 @@ export async function GET() {
       return NextResponse.json({ referrer_address: null });
     }
 
-    // Prefer BSC Testnet (chain 97), fallback to any wallet
-    const bscWallet = wallets.find((w) => w.chain === '97');
-    const walletAddress = bscWallet?.address || wallets[0]?.address;
+    // Prefer EVM wallet (chain = 'EVM_1') since BlueCheck is a BSC contract
+    const evmWallet = wallets.find((w) => w.chain === 'EVM_1');
+    const walletAddress = evmWallet?.address || wallets[0]?.address;
 
     console.log(
       '[BlueCheck GetReferrer] Using wallet:',
       walletAddress,
       '(chain:',
-      bscWallet ? '97' : wallets[0]?.chain,
+      evmWallet ? 'EVM_1' : wallets[0]?.chain,
       ')'
     );
 

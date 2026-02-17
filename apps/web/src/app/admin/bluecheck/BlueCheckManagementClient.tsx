@@ -209,7 +209,7 @@ export function BlueCheckManagementClient({ recentPurchases }: BlueCheckManageme
 
                   {purchase.tx_hash && (
                     <a
-                      href={`https://testnet.bscscan.com/tx/${purchase.tx_hash}`}
+                      href={`${purchase.chain === '97' ? 'https://testnet.bscscan.com' : 'https://bscscan.com'}/tx/${purchase.tx_hash}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-caption text-primary-main hover:underline"

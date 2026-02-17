@@ -49,13 +49,15 @@ export function DeployStep({ wizardData, onDeploy, explorerUrl }: DeployStepProp
   const [transactionHash, setTransactionHash] = useState<string | undefined>();
   const [fairlaunchAddress, setFairlaunchAddress] = useState<string | undefined>();
   const [launchRoundId, setLaunchRoundId] = useState<string | undefined>();
-  const [tokenInfo, setTokenInfo] = useState<{ symbol: string; balance: string; required: string } | undefined>();
+  const [tokenInfo, setTokenInfo] = useState<
+    { symbol: string; balance: string; required: string } | undefined
+  >();
   const [isDeploying, setIsDeploying] = useState(false);
   const [hasDeployed, setHasDeployed] = useState(false); // ✅ Prevent multiple calls
   const [deploymentComplete, setDeploymentComplete] = useState(false);
   const [error, setError] = useState<string | undefined>();
   const [showFundingModal, setShowFundingModal] = useState(false);
-  
+
   // 🔒 Synchronous lock for preventing double calls at DeployStep level
   const deploymentLock = useRef(false);
 
@@ -86,17 +88,17 @@ export function DeployStep({ wizardData, onDeploy, explorerUrl }: DeployStepProp
       console.warn('⚠️ DeployStep: Deployment already triggered, ignoring duplicate call');
       return;
     }
-    
+
     // 🔒 Lock immediately
     deploymentLock.current = true;
     console.log('🔐 DeployStep: Lock acquired');
-    
+
     // ✅ Prevent calling again if already successfully deployed
     if (deploymentComplete || hasDeployed) {
       console.warn('⚠️ Deployment already completed, ignoring duplicate call');
       return;
     }
-    
+
     setIsDeploying(true);
     setError(undefined);
 
@@ -132,12 +134,15 @@ export function DeployStep({ wizardData, onDeploy, explorerUrl }: DeployStepProp
       updateStep('database', 'success', 'Fairlaunch metadata saved');
 
       // Step 5: Complete
-      updateStep('complete', 'success', result.nextStep === 'FUND_CONTRACT' 
-        ? 'Now fund your contract with tokens!' 
-        : 'Your fairlaunch is now live!'
+      updateStep(
+        'complete',
+        'success',
+        result.nextStep === 'FUND_CONTRACT'
+          ? 'Now fund your contract with tokens!'
+          : 'Your fairlaunch is now live!'
       );
       setDeploymentComplete(true);
-      
+
       // ❌ Auto-redirect REMOVED to allow funding!
       // setTimeout(() => {
       //   if (result.fairlaunchAddress) {
@@ -154,7 +159,7 @@ export function DeployStep({ wizardData, onDeploy, explorerUrl }: DeployStepProp
       if (currentStep) {
         updateStep(currentStep.id, 'error', err.message);
       }
-      
+
       // 🔓 Allow retry - error is handled
     } finally {
       setIsDeploying(false);
@@ -206,11 +211,15 @@ export function DeployStep({ wizardData, onDeploy, explorerUrl }: DeployStepProp
           <div className="mb-4 p-4 bg-gray-900/40 border border-gray-700/40 rounded-lg">
             <p className="text-gray-300 font-medium text-sm mb-3">📊 Deployment Status:</p>
             <div className="flex flex-wrap gap-3">
-              <DeploymentStatusBadge status={(deploymentStatus?.deployment_status as DeploymentStatus) || 'DEPLOYED'} />
-              <VerificationStatusBadge 
+              <DeploymentStatusBadge
+                status={(deploymentStatus?.deployment_status as DeploymentStatus) || 'DEPLOYED'}
+              />
+              <VerificationStatusBadge
                 status={(deploymentStatus?.verification_status as VerificationStatus) || 'VERIFIED'}
                 contractAddress={fairlaunchAddress}
-                chainId={97} // TODO: Get from wizardData.network
+                chainId={
+                  wizardData.network === 'bnb' ? 56 : wizardData.network === 'bsc_testnet' ? 97 : 56
+                }
                 showLink={true}
               />
             </div>
@@ -308,8 +317,12 @@ export function DeployStep({ wizardData, onDeploy, explorerUrl }: DeployStepProp
           tokenAddress={wizardData.tokenAddress}
           tokenSymbol={tokenInfo.symbol || wizardData.tokenSymbol || 'TOKEN'}
           tokenDecimals={wizardData.tokenDecimals || 18}
-          requiredTokens={tokenInfo.required ? formatUnits(BigInt(tokenInfo.required), wizardData.tokenDecimals || 18) : '0'}
-          explorerUrl={explorerUrl || 'https://testnet.bscscan.com'}
+          requiredTokens={
+            tokenInfo.required
+              ? formatUnits(BigInt(tokenInfo.required), wizardData.tokenDecimals || 18)
+              : '0'
+          }
+          explorerUrl={explorerUrl || 'https://bscscan.com'}
           onFundingComplete={async () => {
             // Call API to confirm funding and update DB status to LIVE
             try {
@@ -325,7 +338,7 @@ export function DeployStep({ wizardData, onDeploy, explorerUrl }: DeployStepProp
             } catch (err) {
               console.error('[DeployStep] Failed to update funding status:', err);
             }
-            
+
             setShowFundingModal(false);
             refreshStatus(); // Refresh status after funding
           }}

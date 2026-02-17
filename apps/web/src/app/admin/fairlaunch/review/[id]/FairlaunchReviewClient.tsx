@@ -59,8 +59,8 @@ export function FairlaunchReviewClient({ round }: FairlaunchReviewClientProps) {
     const result = await approveFairlaunch(round.id);
 
     if (result.success) {
-      alert('Fairlaunch approved successfully!');
-      router.push('/admin/fairlaunch/review');
+      alert('Fairlaunch approved successfully! You can now deploy.');
+      router.refresh();
     } else {
       setError(result.error || 'Failed to approve');
       setIsProcessing(false);

@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { ethers } from 'ethers';
+import { getDeployerPrivateKey } from '@/lib/web3/deployer-wallet';
 import FairlaunchFactoryABI from '@/../../packages/contracts/artifacts/contracts/fairlaunch/FairlaunchFactory.sol/FairlaunchFactory.json';
 import FairlaunchABI from '@/../../packages/contracts/artifacts/contracts/fairlaunch/Fairlaunch.sol/Fairlaunch.json';
 import EscrowVaultABI from '@/../../packages/contracts/artifacts/contracts/escrow/EscrowVault.sol/EscrowVault.json';
@@ -46,29 +47,40 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   try {
-    // 1. Check admin authentication
-    const { getServerSession } = await import('@/lib/auth/session');
-    const session = await getServerSession();
+    // 1. Check admin authentication via admin_session cookie
+    const { cookies } = await import('next/headers');
+    const cookieStore = cookies();
+    const adminCookie = cookieStore.get('admin_session')?.value;
 
-    console.log('[Admin Deploy] Session check:', {
-      hasSession: !!session,
-      userId: session?.userId,
-      address: session?.address,
-    });
+    let adminUserId: string | null = null;
 
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (adminCookie) {
+      try {
+        const adminSession = JSON.parse(adminCookie);
+        adminUserId = adminSession.userId;
+        console.log('[Admin Deploy] Admin session found:', {
+          userId: adminSession.userId,
+          wallet: adminSession.wallet,
+          roles: adminSession.roles,
+        });
+      } catch {
+        console.log('[Admin Deploy] Failed to parse admin_session cookie');
+      }
+    }
+
+    if (!adminUserId) {
+      return NextResponse.json({ error: 'Unauthorized — no admin session' }, { status: 401 });
     }
 
     // 2. Check if user is admin
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('is_admin')
-      .eq('user_id', session.userId)
+      .eq('user_id', adminUserId)
       .single();
 
     console.log('[Admin Deploy] Profile check:', {
-      userId: session.userId,
+      userId: adminUserId,
       found: !!profile,
       isAdmin: profile?.is_admin,
       error: profileError,
@@ -78,7 +90,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden: Admin only' }, { status: 403 });
     }
 
-    console.log('[Admin Deploy] ✅ Admin authenticated:', session.userId);
+    console.log('[Admin Deploy] ✅ Admin authenticated:', adminUserId);
 
     // 3. Get launch round ID from request
     const body = await request.json();
@@ -116,11 +128,11 @@ export async function POST(request: NextRequest) {
       projectId: project.id,
     });
 
-    // 5. Validate status (should be APPROVED after admin approval)
-    if (!['APPROVED', 'SUBMITTED'].includes(launchRound.status)) {
+    // 5. Validate status — must be APPROVED before deployment
+    if (launchRound.status !== 'APPROVED') {
       return NextResponse.json(
         {
-          error: `Invalid status: ${launchRound.status}. Must be APPROVED or SUBMITTED.`,
+          error: `Invalid status: ${launchRound.status}. Fairlaunch must be APPROVED before deployment.`,
         },
         { status: 400 }
       );
@@ -138,13 +150,9 @@ export async function POST(request: NextRequest) {
     }
 
     const provider = new ethers.JsonRpcProvider(rpcUrl);
-    // CRITICAL: Use DEPLOYER_PRIVATE_KEY which is factory's adminExecutor
+    // CRITICAL: Use per-network deployer key which is factory's adminExecutor
     // Factory grants ADMIN_ROLE to adminExecutor, required for setLPLocker() and finalize()
-    const deployerKey = process.env.DEPLOYER_PRIVATE_KEY;
-
-    if (!deployerKey) {
-      throw new Error('DEPLOYER_PRIVATE_KEY not configured');
-    }
+    const deployerKey = getDeployerPrivateKey(chainId);
 
     const signer = new ethers.Wallet(deployerKey, provider);
     console.log('[Admin Deploy] Deployer wallet (adminExecutor):', signer.address);

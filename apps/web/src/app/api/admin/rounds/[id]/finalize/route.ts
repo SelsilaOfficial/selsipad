@@ -4,6 +4,7 @@ import { type PresaleParams, type FairlaunchParams } from '@selsipad/shared';
 import { requireAdmin } from '@/lib/auth/require-admin';
 import { generateMerkleTree } from '@/lib/server/merkle/generate-tree';
 import { ethers } from 'ethers';
+import { getDeployerPrivateKey } from '@/lib/web3/deployer-wallet';
 import { PRESALE_ROUND_ABI } from '@/lib/web3/presale-contracts';
 
 const supabase = createClient(
@@ -75,10 +76,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     const chainId = parseInt(chain, 10) || 97;
 
     if (round.type === 'PRESALE' && roundAddress && vestingVaultAddress) {
-      const adminPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
-      if (!adminPrivateKey) {
-        return NextResponse.json({ error: 'DEPLOYER_PRIVATE_KEY not configured' }, { status: 500 });
-      }
+      const adminPrivateKey = getDeployerPrivateKey(chainId);
 
       const rpcUrl = RPC_BY_CHAIN[chain];
       if (!rpcUrl) {

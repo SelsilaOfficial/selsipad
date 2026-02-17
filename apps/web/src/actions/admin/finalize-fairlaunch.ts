@@ -4,6 +4,7 @@ import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { getAdminSession } from '@/lib/auth/admin-session';
 import { ethers } from 'ethers';
 import { recordLPLock } from './record-lp-lock';
+import { getDeployerPrivateKey } from '@/lib/web3/deployer-wallet';
 
 export type FairlaunchAction =
   | 'finalize'
@@ -115,11 +116,9 @@ export async function finalizeFairlaunch(roundId: string, action: FairlaunchActi
     const totalRaised = parseFloat(round.total_raised || '0');
     const softcapReached = totalRaised >= softcap;
 
-    // Use DEPLOYER_PRIVATE_KEY
-    const adminPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
-    if (!adminPrivateKey) {
-      return { success: false, error: 'DEPLOYER_PRIVATE_KEY not configured' };
-    }
+    // Use per-network deployer key
+    const chainId = parseInt(round.chain) || 97;
+    const adminPrivateKey = getDeployerPrivateKey(chainId);
 
     // Setup provider
     const rpcUrls: Record<string, string> = {

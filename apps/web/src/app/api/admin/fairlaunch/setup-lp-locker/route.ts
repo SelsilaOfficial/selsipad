@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ethers } from 'ethers';
 import { createClient } from '@/lib/supabase/server';
+import { getDeployerPrivateKey } from '@/lib/web3/deployer-wallet';
 
 const FairlaunchABI = {
   abi: [
@@ -90,13 +91,9 @@ export async function POST(req: NextRequest) {
     const rpcUrl = getRpcUrl(chain);
     const provider = new ethers.JsonRpcProvider(rpcUrl);
 
-    // CRITICAL: DEPLOYER_PRIVATE_KEY must be the factory's adminExecutor (that wallet gets ADMIN_ROLE on each Fairlaunch)
-    const adminPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
-
-    if (!adminPrivateKey) {
-      console.error('[Setup LP Locker] DEPLOYER_PRIVATE_KEY not configured');
-      return NextResponse.json({ error: 'Admin wallet not configured' }, { status: 500 });
-    }
+    // CRITICAL: Per-network deployer key must be the factory's adminExecutor
+    const chainId = parseInt(chain) || 97;
+    const adminPrivateKey = getDeployerPrivateKey(chainId);
 
     const signer = new ethers.Wallet(adminPrivateKey, provider);
     console.log('[Setup LP Locker] Admin wallet:', signer.address);

@@ -3,7 +3,18 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { pinAMA, rejectAMA, startAMA, endAMA } from '../../actions';
-import { ArrowLeft, CheckCircle2, XCircle, Calendar, User, Clock, Pin, Play, Square, DollarSign } from 'lucide-react';
+import {
+  ArrowLeft,
+  CheckCircle2,
+  XCircle,
+  Calendar,
+  User,
+  Clock,
+  Pin,
+  Play,
+  Square,
+  DollarSign,
+} from 'lucide-react';
 import Link from 'next/link';
 
 interface AMAReviewClientProps {
@@ -103,7 +114,8 @@ export function AMAReviewClient({ ama }: AMAReviewClientProps) {
         </div>
         <p className="text-gray-400">
           {ama.status === 'PENDING' && 'Review and approve or reject this AMA request'}
-          {ama.status === 'PINNED' && 'This AMA is approved and visible. You can start it when ready.'}
+          {ama.status === 'PINNED' &&
+            'This AMA is approved and visible. You can start it when ready.'}
           {ama.status === 'LIVE' && 'This AMA is currently live!'}
           {ama.status === 'ENDED' && 'This AMA has ended.'}
           {ama.status === 'REJECTED' && 'This AMA was rejected.'}
@@ -149,7 +161,9 @@ export function AMAReviewClient({ ama }: AMAReviewClientProps) {
               <Calendar className="w-5 h-5 text-green-400 mt-1" />
               <div>
                 <p className="text-gray-400 text-sm">Scheduled Time</p>
-                <p className="text-white" suppressHydrationWarning>{new Date(ama.scheduled_at).toLocaleString()}</p>
+                <p className="text-white" suppressHydrationWarning>
+                  {new Date(ama.scheduled_at).toLocaleString()}
+                </p>
               </div>
             </div>
 
@@ -157,9 +171,11 @@ export function AMAReviewClient({ ama }: AMAReviewClientProps) {
               <DollarSign className="w-5 h-5 text-yellow-400 mt-1" />
               <div>
                 <p className="text-gray-400 text-sm">Payment</p>
-                <p className="text-indigo-400 font-medium">{Number(ama.payment_amount_bnb).toFixed(4)} BNB</p>
+                <p className="text-indigo-400 font-medium">
+                  {Number(ama.payment_amount_bnb).toFixed(4)} BNB
+                </p>
                 <a
-                  href={`https://testnet.bscscan.com/tx/${ama.payment_tx_hash}`}
+                  href={`${ama.chain === '97' ? 'https://testnet.bscscan.com' : 'https://bscscan.com'}/tx/${ama.payment_tx_hash}`}
                   target="_blank"
                   className="text-xs text-gray-500 hover:text-indigo-400"
                 >
@@ -172,7 +188,9 @@ export function AMAReviewClient({ ama }: AMAReviewClientProps) {
               <Clock className="w-5 h-5 text-gray-400 mt-1" />
               <div>
                 <p className="text-gray-400 text-sm">Submitted</p>
-                <p className="text-white" suppressHydrationWarning>{new Date(ama.created_at).toLocaleString()}</p>
+                <p className="text-white" suppressHydrationWarning>
+                  {new Date(ama.created_at).toLocaleString()}
+                </p>
               </div>
             </div>
 

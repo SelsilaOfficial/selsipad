@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useWeb3Modal } from '@web3modal/wagmi/react';
 import { useAccount, useSignMessage } from 'wagmi';
 import { signMessageEVM, verifyAndCreateSession } from '@/lib/wallet/signMessage';
@@ -19,6 +19,7 @@ export function MultiChainConnectWallet() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [referralCode, setReferralCode] = useState<string | null>(null);
+  const prevConnectedRef = useRef(false);
 
   // EVM
   const { open } = useWeb3Modal();
@@ -42,6 +43,34 @@ export function MultiChainConnectWallet() {
       if (storedRef) setReferralCode(storedRef);
     }
   }, [searchParams]);
+
+  // Detect wallet disconnect and clear server-side session
+  useEffect(() => {
+    if (!mounted) return;
+
+    // Detect transition from connected → disconnected
+    if (prevConnectedRef.current && !isConnected) {
+      console.log('[Wallet] Disconnect detected — clearing server session');
+      setIsAuthenticated(false);
+
+      // Clear server-side session (cookies + DB)
+      fetch('/api/auth/logout', { method: 'POST' })
+        .then(() => {
+          console.log('[Wallet] Server session cleared');
+          // Clear any local wallet storage
+          localStorage.removeItem('wallet_address');
+          // Force page refresh to re-evaluate server-side session guards
+          router.refresh();
+        })
+        .catch((err) => {
+          console.error('[Wallet] Failed to clear server session:', err);
+          // Still refresh to ensure UI reflects disconnected state
+          router.refresh();
+        });
+    }
+
+    prevConnectedRef.current = isConnected;
+  }, [mounted, isConnected, router]);
 
   // Check session status on mount and when address changes
   useEffect(() => {

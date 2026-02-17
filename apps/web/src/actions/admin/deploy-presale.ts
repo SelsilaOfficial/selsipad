@@ -4,6 +4,7 @@ import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { getAdminSession } from '@/lib/auth/admin-session';
 import { ethers } from 'ethers';
 import { revalidatePath } from 'next/cache';
+import { getDeployerPrivateKey } from '@/lib/web3/deployer-wallet';
 
 // PresaleFactory ABI — only createPresale function
 const FACTORY_ABI = [
@@ -57,6 +58,7 @@ const FACTORY_ABI = [
 // Factory addresses per chain (V2.4 — deployed 2026-02-12)
 const FACTORY_ADDRESSES: Record<string, string> = {
   '97': '0x67c3DAE448B55C3B056C39B173118d69b7891866', // BSC Testnet V2.4
+  '56': '0xdD7B81C73b94F3dc4bE5fBd1feEc675E43F29F65', // BSC Mainnet
 };
 
 const RPC_URLS: Record<string, string> = {
@@ -101,13 +103,11 @@ export async function deployPresale(roundId: string) {
       return { success: false, error: `Cannot deploy: current status is ${round.status}` };
     }
 
-    // Get admin private key
-    const adminPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
-    if (!adminPrivateKey) {
-      return { success: false, error: 'DEPLOYER_PRIVATE_KEY not configured' };
-    }
-
     const chain = round.chain;
+
+    // Get admin private key (per-network)
+    const chainId = parseInt(chain) || 97;
+    const adminPrivateKey = getDeployerPrivateKey(chainId);
     const rpcUrl = RPC_URLS[chain];
     const factoryAddress = FACTORY_ADDRESSES[chain];
 
