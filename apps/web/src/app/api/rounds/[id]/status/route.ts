@@ -10,6 +10,8 @@ const supabase = createClient(
  * GET /api/rounds/[id]/status
  * Get current pool status and statistics (public endpoint)
  */
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     // Get round

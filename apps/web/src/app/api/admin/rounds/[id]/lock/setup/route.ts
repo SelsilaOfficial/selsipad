@@ -16,6 +16,8 @@ const supabase = createClient(
  * Initialize liquidity lock for finalized round
  * CRITICAL: Enforces 12-month minimum at database level
  */
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     // Get authenticated admin user

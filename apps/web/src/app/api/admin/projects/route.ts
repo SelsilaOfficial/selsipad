@@ -15,6 +15,8 @@ const supabase = createClient(
 
 const ADMIN_WALLETS = (process.env.ADMIN_WALLET_ADDRESSES || '').split(',').map(a => a.toLowerCase());
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: Request) {
   try {
     // 1. Verify admin authentication

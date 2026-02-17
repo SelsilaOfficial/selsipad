@@ -10,6 +10,8 @@ const supabase = createClient(
  * POST /api/admin/rounds/[id]/lock/confirm
  * Confirm liquidity lock with transaction hash
  */
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     // Get authenticated admin user

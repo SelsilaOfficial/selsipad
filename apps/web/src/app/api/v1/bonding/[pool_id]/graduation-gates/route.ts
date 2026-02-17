@@ -8,6 +8,8 @@ import { createClient } from '@/lib/supabase/server';
 import { checkGraduationThreshold, validateLPLockDuration } from '@selsipad/shared';
 import type { GraduationGatesResponse } from '@selsipad/shared';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { pool_id: string } }

@@ -16,6 +16,8 @@ export const maxDuration = 120; // 2 minutes for verification
  * Internal API route for contract verification
  * This route is called after contract deployment to trigger auto-verification
  */
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();

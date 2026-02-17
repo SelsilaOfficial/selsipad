@@ -57,6 +57,8 @@ function normalizeToUTC(value: string | undefined | null, fallback: string): str
  * the round is created with status SUBMITTED.
  * Otherwise, status is DRAFT (for auto-draft during wizard editing).
  */
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   try {
     const userId = await getAuthUserId(request);

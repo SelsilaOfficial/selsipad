@@ -13,6 +13,8 @@ const MIGRATION_FEE_SOL = 2500000000n; // 2.5 SOL
 const TREASURY_ADDRESS = process.env.TREASURY_ADDRESS || 'TREASURY_PLACEHOLDER';
 const MIN_LP_LOCK_MONTHS = 12;
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(
   request: NextRequest,
   { params }: { params: { pool_id: string } }

@@ -21,6 +21,8 @@ const RPC_BY_CHAIN: Record<string, string> = {
  * Finalize an ended round. For PRESALE with on-chain deployment: generates merkle tree,
  * writes presale_merkle_proofs, calls PresaleRound.finalizeSuccess or finalizeFailed.
  */
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const adminResult = await requireAdmin(request);

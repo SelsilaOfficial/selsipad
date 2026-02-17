@@ -8,6 +8,8 @@ import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { getServerSession } from '@/lib/auth/session';
 import { calculateReferralStatistics, checkClaimEligibility } from '@selsipad/shared';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession();

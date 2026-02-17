@@ -9,6 +9,8 @@ import { createClient } from '@/lib/supabase/server';
  * Query params:
  * - limit: number (default 10, max 50)
  */
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest, { params }: { params: { userId: string } }) {
   try {
     const { userId } = params;

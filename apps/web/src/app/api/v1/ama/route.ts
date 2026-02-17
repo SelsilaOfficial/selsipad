@@ -7,6 +7,8 @@ import { createClient } from '@/lib/supabase/server';
 import { validateCreateAMA } from '@selsipad/shared';
 import type { CreateAMARequest } from '@selsipad/shared';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();

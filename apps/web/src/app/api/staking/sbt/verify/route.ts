@@ -14,6 +14,8 @@ import { getServerSession } from '@/lib/auth/session';
  *   chain: string;
  * }
  */
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession();

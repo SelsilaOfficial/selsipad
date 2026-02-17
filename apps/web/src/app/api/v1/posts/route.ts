@@ -10,6 +10,8 @@ import { createClient } from '@/lib/supabase/server';
 import { validateCreatePost } from '@selsipad/shared';
 import type { CreatePostRequest, PostWithAuthor } from '@selsipad/shared';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();

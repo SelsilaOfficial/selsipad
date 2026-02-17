@@ -10,6 +10,8 @@ const supabase = createClient(
  * GET /api/kyc/status
  * Check own KYC submission status
  */
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     // Get user from auth header

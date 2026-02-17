@@ -5,6 +5,8 @@ import { NextResponse } from 'next/server';
  * API Route: POST /api/auth/logout
  * Calls server action to delete session from database
  */
+export const dynamic = 'force-dynamic';
+
 export async function POST() {
   try {
     // Call server action to delete session & redirect

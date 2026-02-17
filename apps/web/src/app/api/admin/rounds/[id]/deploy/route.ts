@@ -18,6 +18,8 @@ const PRESALE_FACTORY_ABI = [
  * POST /api/admin/rounds/[id]/deploy
  * Deploy presale on-chain via PresaleFactory (BSC Testnet) and persist round/vesting addresses.
  */
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const adminResult = await requireAdmin(request);

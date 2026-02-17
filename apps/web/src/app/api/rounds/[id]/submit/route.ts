@@ -12,6 +12,8 @@ const supabase = createClient(
  * POST /api/rounds/[id]/submit
  * Submit round for admin review with compliance validation
  */
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     let userId: string | null = null;

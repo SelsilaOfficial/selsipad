@@ -9,6 +9,8 @@ import { createClient } from '@/lib/supabase/server';
 import { verifySbtOwnership } from '@selsipad/shared/dist/utils/sbt-verification';
 import type { StakeSbtRequest, StakeSbtResponse, SbtRule } from '@selsipad/shared';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(
   request: NextRequest
 ): Promise<NextResponse<StakeSbtResponse | { error: string }>> {

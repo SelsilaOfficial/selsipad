@@ -7,6 +7,8 @@ import { logAdminAction, getClientIP, getUserAgent } from '@/lib/admin/audit-log
  * Approve a pending two-man rule action
  * Constraint: approver cannot be the requester
  */
+export const dynamic = 'force-dynamic';
+
 export async function POST(
   request: NextRequest,
   { params }: { params: { action_id: string } }

@@ -6,6 +6,8 @@ import { getServiceClient, hasPermission } from '@/lib/admin/rbac';
  * Get audit logs with filtering
  * Requires: audit:view permission
  */
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     // Get admin session

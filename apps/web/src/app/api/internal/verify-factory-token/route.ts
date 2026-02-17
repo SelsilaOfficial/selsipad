@@ -26,6 +26,8 @@ const NETWORK_NAMES: Record<number, string> = {
   56: 'bsc',
 };
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   try {
     const {

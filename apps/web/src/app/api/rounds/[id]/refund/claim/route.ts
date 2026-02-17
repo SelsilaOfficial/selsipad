@@ -11,6 +11,8 @@ const supabase = createClient(
  * POST /api/rounds/[id]/refund/claim
  * Claim refund for failed or canceled round
  */
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     // Get authenticated user

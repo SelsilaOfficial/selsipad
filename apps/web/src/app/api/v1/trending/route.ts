@@ -9,6 +9,8 @@ import { createClient } from '@/lib/supabase/server';
 
 export const revalidate = 60; // Next.js ISR/Cache
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = createClient();

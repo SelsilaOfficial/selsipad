@@ -10,6 +10,8 @@ const getRpcUrl = () => {
          'https://data-seed-prebsc-1-s1.binance.org:8545';
 };
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   try {
     const { contractAddress, tokenAddress, requiredAmount } = await request.json();

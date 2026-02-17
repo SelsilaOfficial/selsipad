@@ -10,6 +10,8 @@ const supabase = createClient(
  * GET /api/sc-scan/[projectId]
  * Get latest scan results for a project
  */
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest, { params }: { params: { projectId: string } }) {
   try {
     const { data: scanResults, error } = await supabase

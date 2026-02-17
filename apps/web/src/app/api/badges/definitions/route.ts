@@ -10,6 +10,8 @@ const supabase = createClient(
  * GET /api/badges/definitions
  * List all badge definitions
  */
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     const { data: badges, error } = await supabase

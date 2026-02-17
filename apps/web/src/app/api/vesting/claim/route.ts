@@ -14,6 +14,8 @@ import type { VestingAllocation, VestingSchedule } from '@/lib/vesting/claim-uti
  *   amount: string; // Amount to claim (as string to handle BigInt)
  * }
  */
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession();

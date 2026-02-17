@@ -11,6 +11,8 @@ const supabase = createClient(
  * GET /api/rounds
  * List launch rounds with filters and pagination
  */
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);

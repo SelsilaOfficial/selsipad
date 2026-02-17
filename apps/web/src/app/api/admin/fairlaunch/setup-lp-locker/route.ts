@@ -46,6 +46,8 @@ function getRpcUrl(chain: string): string {
 
 const ADMIN_ROLE = ethers.id('ADMIN_ROLE');
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: NextRequest) {
   try {
     console.log('[Setup LP Locker] Starting LP Locker configuration...');

@@ -5,6 +5,8 @@ import { getServerSession } from '@/lib/auth/session';
 /**
  * Get current session info
  */
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   const session = await getServerSession();
 

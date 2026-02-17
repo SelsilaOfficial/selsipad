@@ -11,6 +11,8 @@ import { verifyDevAccess } from '@/lib/auth/devAccess';
  * GET /api/developer/analytics
  * Get platform analytics (developer only)
  */
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     // Check authentication

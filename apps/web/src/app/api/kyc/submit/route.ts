@@ -10,6 +10,8 @@ const supabase = createClient(
  * POST /api/kyc/submit
  * Submit KYC documents for verification
  */
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   try {
     // Get user from auth header

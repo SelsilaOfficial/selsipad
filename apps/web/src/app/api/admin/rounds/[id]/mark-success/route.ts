@@ -19,6 +19,8 @@ const RPC_BY_CHAIN: Record<string, string> = {
  * POST /api/admin/rounds/[id]/mark-success
  * Mark round as SUCCESS (admin only). For PRESALE with on-chain round, verifies contract status.
  */
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const adminResult = await requireAdmin(request);

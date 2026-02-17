@@ -11,6 +11,8 @@ const supabase = createClient(
  * GET /api/admin/rounds/[id]/vesting/analytics
  * Get vesting analytics for admin
  */
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     // Get authenticated admin user

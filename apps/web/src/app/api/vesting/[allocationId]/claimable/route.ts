@@ -9,6 +9,8 @@ import type { VestingAllocation, VestingSchedule } from '@/lib/vesting/claim-uti
  *
  * Get claimable amount and next unlock info for a vesting allocation
  */
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest, { params }: { params: { allocationId: string } }) {
   try {
     const { allocationId } = params;

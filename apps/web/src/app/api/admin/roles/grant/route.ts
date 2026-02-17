@@ -7,6 +7,8 @@ import { getServiceClient, isSuperAdmin } from '@/lib/admin/rbac';
  * IMPORTANT: This creates a two-man rule request, does NOT grant directly
  * Requires: Super admin
  */
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   try {
     // Get admin session

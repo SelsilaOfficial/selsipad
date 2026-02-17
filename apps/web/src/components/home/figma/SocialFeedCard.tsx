@@ -1,23 +1,28 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Heart, MessageCircle, Share2, Loader2, BadgeCheck } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { getFeedPosts, type Post } from '@/lib/data/feed';
+import { createClient } from '@/lib/supabase/client';
 import { formatDistance } from 'date-fns';
 import Link from 'next/link';
+
+const MAX_HOMEPAGE_POSTS = 5;
 
 export function SocialFeedCard() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
+  const [newPostIds, setNewPostIds] = useState<Set<string>>(new Set());
+  const channelRef = useRef<ReturnType<ReturnType<typeof createClient>['channel']> | null>(null);
 
+  // Initial fetch
   useEffect(() => {
     const loadPosts = async () => {
       try {
         const data = await getFeedPosts();
-        // Take only the first 5 posts for the homepage widget to save space/bandwidth
-        setPosts(data.slice(0, 5));
+        setPosts(data.slice(0, MAX_HOMEPAGE_POSTS));
       } catch (error) {
         console.error('Failed to load feed posts', error);
       } finally {
@@ -26,6 +31,100 @@ export function SocialFeedCard() {
     };
 
     loadPosts();
+  }, []);
+
+  // Real-time subscription for new posts + comments
+  useEffect(() => {
+    const supabase = createClient();
+
+    const channel = supabase
+      .channel('homepage-feed-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'posts',
+        },
+        async (payload) => {
+          // A new post was created — fetch its author profile to display properly
+          const newRow = payload.new as any;
+          if (!newRow?.id || newRow.deleted_at) return;
+
+          try {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('user_id, username, avatar_url, bluecheck_status')
+              .eq('user_id', newRow.author_id)
+              .single();
+
+            const newPost: Post = {
+              id: newRow.id,
+              author: {
+                id: newRow.author_id,
+                username: profile?.username || 'Anonymous',
+                avatar_url: profile?.avatar_url,
+                bluecheck:
+                  profile?.bluecheck_status === 'ACTIVE' ||
+                  profile?.bluecheck_status === 'VERIFIED',
+              },
+              content: newRow.content || '',
+              project_id: newRow.project_id,
+              type: (newRow.type || 'TEXT').toLowerCase() as Post['type'],
+              created_at: newRow.created_at,
+              likes: 0,
+              replies: 0,
+              is_liked: false,
+              image_urls: newRow.image_urls || [],
+              hashtags: newRow.hashtags || [],
+            };
+
+            // Mark as new for animation, clear after 3s
+            setNewPostIds((prev) => new Set(prev).add(newPost.id));
+            setTimeout(() => {
+              setNewPostIds((prev) => {
+                const next = new Set(prev);
+                next.delete(newPost.id);
+                return next;
+              });
+            }, 3000);
+
+            // Prepend and keep max 5
+            setPosts((prev) => {
+              if (prev.some((p) => p.id === newPost.id)) return prev;
+              return [newPost, ...prev].slice(0, MAX_HOMEPAGE_POSTS);
+            });
+          } catch (err) {
+            console.error('[SocialFeedCard] Failed to process new post:', err);
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'post_comments',
+        },
+        (payload) => {
+          // A new comment was created — increment reply count on matching post
+          const newComment = payload.new as any;
+          if (!newComment?.post_id) return;
+
+          setPosts((prev) =>
+            prev.map((p) =>
+              p.id === newComment.post_id ? { ...p, replies: (p.replies || 0) + 1 } : p
+            )
+          );
+        }
+      )
+      .subscribe();
+
+    channelRef.current = channel as any;
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   return (
@@ -43,7 +142,13 @@ export function SocialFeedCard() {
         ) : posts.length > 0 ? (
           posts.map((post) => (
             <Link key={post.id} href={`/feed/post/${post.id}`} className="block">
-              <div className="rounded-[20px] bg-gradient-to-br from-[#39AEC4]/10 to-[#39AEC4]/5 border border-[#39AEC4]/20 p-4 hover:border-[#39AEC4]/40 hover:bg-[#39AEC4]/10 transition-all cursor-pointer">
+              <div
+                className={`rounded-[20px] bg-gradient-to-br from-[#39AEC4]/10 to-[#39AEC4]/5 border p-4 hover:border-[#39AEC4]/40 hover:bg-[#39AEC4]/10 transition-all cursor-pointer ${
+                  newPostIds.has(post.id)
+                    ? 'border-[#39AEC4]/60 shadow-[0_0_12px_rgba(57,174,196,0.3)] animate-pulse'
+                    : 'border-[#39AEC4]/20'
+                }`}
+              >
                 {/* User Info */}
                 <div className="flex items-center gap-3 mb-2">
                   {post.author.avatar_url ? (

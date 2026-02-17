@@ -6,6 +6,8 @@ import { createClient } from '@supabase/supabase-js';
  * Generate Agora RTC Token for Voice/Video AMA
  * POST /api/v1/ama/[id]/agora-token
  */
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const amaId = params.id;

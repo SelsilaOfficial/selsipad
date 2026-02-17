@@ -3,6 +3,8 @@ import { PageHeader, PageContainer } from '@/components/layout';
 import { getRewards } from '@/lib/data/rewards';
 import { formatDistance } from 'date-fns';
 
+export const dynamic = 'force-dynamic';
+
 export default async function RewardsHistoryPage() {
   const allRewards = await getRewards();
 

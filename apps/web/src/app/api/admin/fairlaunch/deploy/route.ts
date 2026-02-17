@@ -42,6 +42,8 @@ function isoToUnixSeconds(iso: string | null | undefined): number {
   return Math.floor(new Date(hasTz ? s : s + 'Z').getTime() / 1000);
 }
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   try {
     // 1. Check admin authentication

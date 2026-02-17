@@ -7,6 +7,8 @@ import { createServiceRoleClient } from '@/lib/supabase/service-role';
  * GET /api/feed/comments/[postId]
  * Get comments for a post
  */
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest, { params }: { params: { postId: string } }) {
   try {
     const supabase = createClient();

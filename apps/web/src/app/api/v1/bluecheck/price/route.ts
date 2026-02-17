@@ -7,6 +7,8 @@ import { NextResponse } from 'next/server';
 
 const BLUECHECK_PRICE_USD = 10.0;
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     return NextResponse.json({

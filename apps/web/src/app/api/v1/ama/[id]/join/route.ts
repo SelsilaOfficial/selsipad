@@ -25,6 +25,8 @@ function generateJoinToken(amaId: string, userId: string, ttlMinutes: number = 1
   };
 }
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const supabase = await createClient();

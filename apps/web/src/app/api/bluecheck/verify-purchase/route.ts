@@ -24,6 +24,8 @@ const BLUECHECK_ABI = [
   },
 ] as const;
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: Request) {
   try {
     // Use wallet-based session auth

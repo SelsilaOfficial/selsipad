@@ -2,6 +2,8 @@ import { getUserProfile } from '@/lib/data/profile';
 import Link from 'next/link';
 import { formatDistance } from 'date-fns';
 
+export const dynamic = 'force-dynamic';
+
 export default async function KYCStatusPage() {
   const profile = await getUserProfile();
 

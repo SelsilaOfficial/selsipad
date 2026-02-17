@@ -7,6 +7,8 @@ import { logAdminAction, getClientIP, getUserAgent } from '@/lib/admin/audit-log
  * Create a new two-man rule action request
  * Requires: Admin session
  */
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   try {
     // Get admin session from cookie

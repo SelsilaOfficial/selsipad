@@ -17,6 +17,8 @@ const supabase = createClient(
  * POST /api/rounds/[id]/contribute/intent
  * Create contribution intent (step 1 of 2-step flow)
  */
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const roundId = params.id;

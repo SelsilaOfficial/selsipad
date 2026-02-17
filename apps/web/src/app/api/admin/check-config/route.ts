@@ -6,6 +6,8 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     // Check all users with admin status

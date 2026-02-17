@@ -10,6 +10,8 @@ const supabase = createClient(
  * GET /api/badges/[projectId]
  * Get all badges awarded to a project
  */
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest, { params }: { params: { projectId: string } }) {
   try {
     const { data: badges, error } = await supabase

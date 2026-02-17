@@ -10,6 +10,8 @@ import { getServerSession } from '@/lib/auth/session';
 import { validateReferralActivate } from '@selsipad/shared';
 import type { ReferralActivateRequest } from '@selsipad/shared';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession();

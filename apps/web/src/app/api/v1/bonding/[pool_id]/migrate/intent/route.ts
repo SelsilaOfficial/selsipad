@@ -11,6 +11,8 @@ const MIGRATION_FEE_SOL = 2500000000n; // 2.5 SOL in lamports
 const INTENT_EXPIRY_MINUTES = 10;
 const TREASURY_ADDRESS = process.env.TREASURY_ADDRESS || 'TREASURY_PLACEHOLDER';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(
   request: NextRequest,
   { params }: { params: { pool_id: string } }

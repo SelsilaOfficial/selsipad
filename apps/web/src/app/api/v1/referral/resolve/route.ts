@@ -7,6 +7,8 @@ import { createClient } from '@supabase/supabase-js';
  * Resolves a referral code to the referrer's wallet address for on-chain usage.
  * Returns the wallet address so the contribute() call can pass it to the contract.
  */
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get('code');
 

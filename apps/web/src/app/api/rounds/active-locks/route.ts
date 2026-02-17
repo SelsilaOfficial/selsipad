@@ -10,6 +10,8 @@ const supabase = createClient(
  * GET /api/rounds/active-locks
  * List all active liquidity locks (public)
  */
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     const url = new URL(request.url);

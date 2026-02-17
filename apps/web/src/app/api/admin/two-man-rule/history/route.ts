@@ -6,6 +6,8 @@ import { getServiceClient } from '@/lib/admin/rbac';
  * Get history of executed/rejected/expired actions
  * Requires: Admin session
  */
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     // Get admin session

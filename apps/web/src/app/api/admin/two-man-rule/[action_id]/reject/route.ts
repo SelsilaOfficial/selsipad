@@ -6,6 +6,8 @@ import { logAdminAction, getClientIP, getUserAgent } from '@/lib/admin/audit-log
  * POST /api/admin/two-man-rule/[action_id]/reject
  * Reject a pending two-man rule action
  */
+export const dynamic = 'force-dynamic';
+
 export async function POST(
   request: NextRequest,
   { params }: { params: { action_id: string } }

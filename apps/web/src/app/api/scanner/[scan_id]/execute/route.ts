@@ -7,6 +7,8 @@ import { processScanById } from '@/lib/contract-scanner/scanner-executor';
  *
  * Triggers immediate execution of a specific scan
  */
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest, { params }: { params: { scan_id: string } }) {
   try {
     const scanId = params.scan_id;

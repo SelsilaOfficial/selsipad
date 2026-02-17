@@ -12,6 +12,8 @@ const supabase = createClient(
  * Check all three success gates (public)
  * CRITICAL: All gates must pass for project to be SUCCESS
  */
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     // Get round

@@ -10,6 +10,8 @@ const supabase = createClient(
  * GET /api/admin/rounds/[id]/lock/status
  * Get lock verification status (admin)
  */
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     // Get authenticated admin user

@@ -74,6 +74,8 @@ async function verifyContributeReceipt(
  * Confirm contribution with transaction hash (step 2 of 2-step flow).
  * Verifies on-chain receipt before marking CONFIRMED.
  */
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     let userId: string | null = null;

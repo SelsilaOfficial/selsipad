@@ -11,6 +11,8 @@ const supabase = createClient(
  * POST /api/projects/[projectId]/rounds
  * Create a new launch round for a project
  */
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest, { params }: { params: { projectId: string } }) {
   try {
     // Get authenticated user

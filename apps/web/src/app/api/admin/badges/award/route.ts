@@ -11,6 +11,8 @@ const supabase = createClient(
  * Manually award a badge to a project
  * Requires: MANAGE_BADGES permission
  */
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   try {
     // Get user from auth header

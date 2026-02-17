@@ -9,6 +9,8 @@ import { createClient } from '@/lib/supabase/server';
 
 const POSTS_PER_PAGE = 20;
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();

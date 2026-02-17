@@ -13,6 +13,8 @@ import {
 } from '@selsipad/shared';
 import { verifyTransactionExists } from '@/lib/solana-verification';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(
   request: NextRequest,
   { params }: { params: { pool_id: string } }

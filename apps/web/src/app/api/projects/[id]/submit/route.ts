@@ -10,6 +10,8 @@ const supabase = createClient(
  * POST /api/projects/[id]/submit
  * Submit project for review (owner only)
  */
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     // Get user from auth header

@@ -53,6 +53,8 @@ const ESCROW_VAULTS = {
   56: '0x0000000000000000000000000000000000000000', // TODO: Deploy to mainnet
 };
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     return NextResponse.json({

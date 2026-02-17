@@ -1,6 +1,15 @@
 // Data layer for Rewards and Referrals - REAL API INTEGRATION
 // Connects to /api/v1/referral/* endpoints which use server-side auth
 
+/** Base URL for API calls - required on server (prerender/build) where relative URLs fail */
+function getApiBaseUrl(): string {
+  if (typeof window !== 'undefined') return '';
+  return (
+    process.env.NEXT_PUBLIC_APP_URL ??
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
+  );
+}
+
 export interface Reward {
   id: string;
   type: 'referral' | 'contribution' | 'social' | 'milestone';
@@ -38,7 +47,10 @@ export async function getRewards(claimedFilter?: boolean): Promise<Reward[]> {
   try {
     const status =
       claimedFilter === true ? 'CLAIMED' : claimedFilter === false ? 'CLAIMABLE' : undefined;
-    const url = status ? `/api/v1/referral/rewards?status=${status}` : `/api/v1/referral/rewards`;
+    const path = status
+      ? `/api/v1/referral/rewards?status=${status}`
+      : `/api/v1/referral/rewards`;
+    const url = `${getApiBaseUrl()}${path}`;
 
     const response = await fetch(url, { credentials: 'include' });
     if (!response.ok) {
@@ -83,7 +95,9 @@ export async function getClaimableRewards(): Promise<Reward[]> {
  */
 export async function getReferralStats(): Promise<ReferralStats> {
   try {
-    const response = await fetch('/api/v1/referral/stats', { credentials: 'include' });
+    const response = await fetch(`${getApiBaseUrl()}/api/v1/referral/stats`, {
+      credentials: 'include',
+    });
     if (!response.ok) {
       console.warn('Failed to fetch referral stats:', response.status);
       return getDefaultReferralStats();
@@ -129,7 +143,7 @@ export async function claimReward(rewardId: string): Promise<void> {
       throw new Error('Reward not found');
     }
 
-    const response = await fetch('/api/v1/referral/claim', {
+    const response = await fetch(`${getApiBaseUrl()}/api/v1/referral/claim`, {
       method: 'POST',
       credentials: 'include',
       headers: {
@@ -175,7 +189,7 @@ export async function claimAllRewards(): Promise<void> {
     const errors: string[] = [];
     for (const [, group] of groups) {
       try {
-        const response = await fetch('/api/v1/referral/claim', {
+        const response = await fetch(`${getApiBaseUrl()}/api/v1/referral/claim`, {
           method: 'POST',
           credentials: 'include',
           headers: {
@@ -273,7 +287,7 @@ export interface ClaimRequirements {
  */
 export async function getClaimRequirements(): Promise<ClaimRequirements | null> {
   try {
-    const response = await fetch('/api/v1/referral/claim-requirements', {
+    const response = await fetch(`${getApiBaseUrl()}/api/v1/referral/claim-requirements`, {
       credentials: 'include',
     });
     if (!response.ok) {

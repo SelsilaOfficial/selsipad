@@ -21,6 +21,8 @@ interface WalletAuthRequest {
  *
  * Verifies wallet signature and creates custom session
  */
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   try {
     const body: WalletAuthRequest = await request.json();

@@ -10,6 +10,8 @@ const supabase = createClient(
  * GET /api/admin/rounds
  * List rounds for admin review
  */
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     // Get authenticated user (admin check would be done via middleware in production)

@@ -11,6 +11,8 @@ import { processPendingScans } from '@/lib/contract-scanner/scanner-executor';
  * - After scan creation (webhook)
  * - Manual admin trigger
  */
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   try {
     // Optional: Add authentication check

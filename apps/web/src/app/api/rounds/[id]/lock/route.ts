@@ -10,6 +10,8 @@ const supabase = createClient(
  * GET /api/rounds/[id]/lock
  * Get liquidity lock details (public)
  */
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     // Get liquidity lock

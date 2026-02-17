@@ -18,6 +18,8 @@ import {
  * Body: { walletAddress: string, signature: string, nonce: string, chain: string }
  * Returns: { token: string, user: {...} }
  */
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: NextRequest) {
     try {
         const { walletAddress, signature, nonce, chain } = await req.json();

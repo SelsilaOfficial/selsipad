@@ -23,6 +23,8 @@ const supabase = createClient(
 // EscrowVault contract address (from Phase 1 deployment)
 const ESCROW_VAULT_ADDRESS = '0x6849A09c27F26fF0e58a2E36Dd5CAB2F9d0c617F';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
 

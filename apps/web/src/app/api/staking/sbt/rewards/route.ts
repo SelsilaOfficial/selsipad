@@ -7,6 +7,8 @@ import { getServerSession } from '@/lib/auth/session';
  *
  * Get claimable rewards for user's active stake
  */
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession();

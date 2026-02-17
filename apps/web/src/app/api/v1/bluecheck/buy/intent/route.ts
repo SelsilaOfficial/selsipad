@@ -24,6 +24,8 @@ const MOCK_PRICES: Record<string, Record<string, { price: string; decimals: numb
   },
 };
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();

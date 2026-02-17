@@ -11,6 +11,8 @@ const supabase = createClient(
  * Webhook receiver for smart contract scan results
  * Called by external scan providers (CertiK, Hacken, etc.)
  */
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   try {
     // TODO: Validate webhook signature based on provider

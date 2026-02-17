@@ -3,6 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 import { getUserRoles, isAdmin } from '@/lib/admin/rbac';
 import { logAdminAction, getClientIP, getUserAgent } from '@/lib/admin/audit-logging';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   try {
     const { walletAddress } = await request.json();

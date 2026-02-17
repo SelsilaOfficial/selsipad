@@ -10,6 +10,8 @@ const supabase = createClient(
  * POST /api/sc-scan/request
  * Request smart contract security scan
  */
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   try {
     // Get user from auth header

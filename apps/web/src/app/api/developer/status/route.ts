@@ -6,6 +6,8 @@ import { verifyDevAccess } from '@/lib/auth/devAccess';
  * GET /api/developer/status
  * Check if current user has developer access
  */
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     const session = await getServerSession();

@@ -11,6 +11,8 @@ import { verifyBondingOperation } from '@/lib/solana-verification';
 const DEPLOY_FEE_SOL = 500000000n; // 0.5 SOL in lamports
 const TREASURY_ADDRESS = process.env.TREASURY_ADDRESS || 'TREASURY_PLACEHOLDER';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(
   request: NextRequest,
   { params }: { params: { pool_id: string } }

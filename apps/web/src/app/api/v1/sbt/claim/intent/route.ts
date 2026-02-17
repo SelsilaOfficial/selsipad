@@ -10,6 +10,8 @@ import type { ClaimSbtRewardResponse } from '@selsipad/shared';
 const CLAIM_FEE_SOL = '100000000'; // ~0.1 SOL (Simplified $10 assumption for now)
 const TREASURY_ADDRESS = process.env.TREASURY_ADDRESS || 'TREASURY_PLACEHOLDER';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(
   request: NextRequest
 ): Promise<NextResponse<ClaimSbtRewardResponse | { error: string }>> {

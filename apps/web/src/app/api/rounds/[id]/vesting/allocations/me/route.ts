@@ -16,6 +16,8 @@ const supabase = createClient(
  * GET /api/rounds/[id]/vesting/allocations/me
  * Get user's vesting allocation and claimable amount
  */
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     // Get authenticated user

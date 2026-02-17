@@ -11,6 +11,8 @@ import type { SwapIntentRequest, SwapIntentResponse } from '@selsipad/shared';
 const INTENT_EXPIRY_SECONDS = 30; // 30 seconds for price validity
 const DEFAULT_SLIPPAGE_BPS = 100; // 1%
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(
   request: NextRequest,
   { params }: { params: { pool_id: string } }

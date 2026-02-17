@@ -6,6 +6,8 @@ import { getServiceClient, isSuperAdmin } from '@/lib/admin/rbac';
  * List all users with admin roles
  * Requires: Super admin or role:view permission
  */
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     // Get admin session

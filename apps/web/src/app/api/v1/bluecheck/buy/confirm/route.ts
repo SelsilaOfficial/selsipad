@@ -9,6 +9,8 @@ import { createClient } from '@/lib/supabase/server';
 import { validateBlueCheckBuyConfirm, calculateFeeSplit } from '@selsipad/shared';
 import type { BlueCheckBuyConfirmRequest } from '@selsipad/shared';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();

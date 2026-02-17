@@ -13,6 +13,8 @@ async function verifyFeeTx(txHash: string): Promise<boolean> {
   return txHash.startsWith('valid_tx') || txHash.length > 10;
 }
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(
   request: NextRequest
 ): Promise<NextResponse<SbtClaimConfirmResponse | { error: string }>> {

@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server';
 
 // GET /api/presale/[id]/contract-address
 // Returns the round contract address for a presale
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const supabase = createClient();

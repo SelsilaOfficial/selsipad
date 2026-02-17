@@ -11,6 +11,8 @@ const supabase = createClient(
  * Admin review KYC submission
  * Requires: REVIEW_KYC permission
  */
+export const dynamic = 'force-dynamic';
+
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     // Get user from auth header

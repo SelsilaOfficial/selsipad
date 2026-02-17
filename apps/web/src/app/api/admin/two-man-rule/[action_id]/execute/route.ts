@@ -8,6 +8,8 @@ import { logAdminAction, getClientIP, getUserAgent } from '@/lib/admin/audit-log
  * Execute an approved action
  * Requires: Super admin
  */
+export const dynamic = 'force-dynamic';
+
 export async function POST(
   request: NextRequest,
   { params }: { params: { action_id: string } }

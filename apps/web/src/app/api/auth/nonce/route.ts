@@ -8,6 +8,8 @@ import { generateNonce, createSignInMessage, errorResponse, successResponse } fr
  * Body: { walletAddress: string, chain: string }
  * Returns: { nonce: string, message: string}
  */
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: NextRequest) {
     try {
         const { walletAddress, chain } = await req.json();

@@ -9,6 +9,8 @@ import { getServerSession } from '@/lib/auth/session';
  * - Blue Check ACTIVE status
  * - At least 1 active referral
  */
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession();

@@ -12,6 +12,8 @@ const supabase = createClient(
  * POST /api/admin/rounds/[id]/approve
  * Approve a launch round (admin only)
  */
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const adminResult = await requireAdmin(request);

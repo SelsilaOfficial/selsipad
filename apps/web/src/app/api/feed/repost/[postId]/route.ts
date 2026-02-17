@@ -6,6 +6,8 @@ import { createClient } from '@/lib/supabase/server';
  * POST /api/feed/repost/[postId]
  * Create a repost of a post
  */
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest, { params }: { params: { postId: string } }) {
   try {
     const session = await getServerSession();

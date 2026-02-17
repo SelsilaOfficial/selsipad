@@ -9,6 +9,8 @@ import { getAuthUserId } from '@/lib/auth/require-admin';
  * Used by ParticipationForm to ensure referral is preserved across projects,
  * even when user navigates directly without a ?ref= URL parameter.
  */
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   try {
     const userId = await getAuthUserId(req);

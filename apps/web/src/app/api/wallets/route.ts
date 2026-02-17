@@ -14,6 +14,8 @@ import {
  * Requires: Authentication
  * Body: { walletAddress: string, chain: string }
  */
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: NextRequest) {
     try {
         // Get authenticated user (from session token)

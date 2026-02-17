@@ -11,6 +11,8 @@ const supabase = createClient(
  * Unlock liquidity after lock period expires
  * REQUIRES TWO-MAN RULE + TIME CHECK
  */
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     // Get authenticated admin user

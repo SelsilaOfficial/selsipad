@@ -6,6 +6,8 @@ import { getServerSession } from '@/lib/auth/session';
  * POST /api/wallet/link-solana
  * Link Solana wallet to authenticated user as SECONDARY wallet
  */
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   try {
     // 1. Verify user is authenticated (must have EVM PRIMARY wallet)
