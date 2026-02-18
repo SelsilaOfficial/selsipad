@@ -1,118 +1,158 @@
 /**
  * Blue Check Verifier Worker
- * Monitors PENDING bluecheck_purchases, verifies tx_hash, activates Blue Check
+ *
+ * Safety net: scans profiles where bluecheck_status != ACTIVE,
+ * checks on-chain hasBlueCheck(), and activates if verified.
+ * This catches cases where verify-purchase was missed (e.g. user closed browser).
  */
 
 import { createClient } from '@supabase/supabase-js';
+import { createPublicClient, http, type Chain } from 'viem';
+import { bscTestnet, bsc } from 'viem/chains';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-async function simulateOnChainVerification(
-  txHash: string,
-  chain: string,
-  expectedAmount: string
-): Promise<boolean> {
-  // TODO: Integrate with Tx Manager for real verification
-  console.log(`[SIMULATION] Verifying tx ${txHash} on ${chain} for amount ${expectedAmount}`);
+// Per-network BlueCheck contract addresses
+const BLUECHECK_ADDRESSES: Record<number, `0x${string}`> = {
+  97: '0xfFaB42EcD7Eb0a85b018516421C9aCc088aC7157', // BSC Testnet
+  56: '0xC14CdFE71Ca04c26c969a1C8a6aA4b1192e6fC43', // BSC Mainnet
+};
 
-  // Simulate verification (always success for now)
-  return true;
+const CHAIN_CONFIGS: Record<number, { chain: Chain; rpcEnv: string; rpcFallback: string }> = {
+  97: {
+    chain: bscTestnet,
+    rpcEnv: 'BSC_TESTNET_RPC_URL',
+    rpcFallback: 'https://bsc-testnet-rpc.publicnode.com',
+  },
+  56: {
+    chain: bsc,
+    rpcEnv: 'BSC_MAINNET_RPC_URL',
+    rpcFallback: 'https://bsc-dataseed1.binance.org',
+  },
+};
+
+const BLUECHECK_ABI = [
+  {
+    inputs: [{ internalType: 'address', name: 'user', type: 'address' }],
+    name: 'hasBlueCheck',
+    outputs: [{ internalType: 'bool', name: '', type: 'bool' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+] as const;
+
+/**
+ * Verify on-chain hasBlueCheck for a wallet address across all supported chains.
+ */
+async function verifyOnChain(
+  walletAddress: string
+): Promise<{ verified: boolean; chainId: number | null }> {
+  for (const [chainIdStr, config] of Object.entries(CHAIN_CONFIGS)) {
+    const chainId = Number(chainIdStr);
+    const contractAddress = BLUECHECK_ADDRESSES[chainId];
+    if (!contractAddress) continue;
+
+    try {
+      const rpcUrl = process.env[config.rpcEnv] || config.rpcFallback;
+      const publicClient = createPublicClient({
+        chain: config.chain,
+        transport: http(rpcUrl),
+      });
+
+      const hasPurchased = await publicClient.readContract({
+        address: contractAddress,
+        abi: BLUECHECK_ABI,
+        functionName: 'hasBlueCheck',
+        args: [walletAddress as `0x${string}`],
+      });
+
+      if (hasPurchased) {
+        return { verified: true, chainId };
+      }
+    } catch (err) {
+      console.warn(
+        `[BlueCheck Verifier] Failed to check chain ${chainId} for ${walletAddress}:`,
+        err
+      );
+    }
+  }
+
+  return { verified: false, chainId: null };
 }
 
 export async function runBlueCheckVerifier() {
   console.log('[BlueCheck Verifier] Starting...');
 
   try {
-    // Get PENDING purchases
-    const { data: purchases, error } = await supabase
-      .from('bluecheck_purchases')
-      .select('*')
-      .eq('status', 'PENDING')
-      .not('payment_tx_hash', 'is', null)
-      .order('created_at', { ascending: true })
-      .limit(10);
+    // Get profiles that are NOT active but have a linked EVM wallet
+    // This catches users who purchased on-chain but DB didn't update
+    const { data: nonActiveProfiles, error: profileError } = await supabase
+      .from('profiles')
+      .select('user_id, bluecheck_status')
+      .neq('bluecheck_status', 'ACTIVE')
+      .limit(50);
 
-    if (error) {
-      console.error('[BlueCheck Verifier] Error fetching purchases:', error);
+    if (profileError) {
+      console.error('[BlueCheck Verifier] Error fetching profiles:', profileError);
       return;
     }
 
-    console.log(`[BlueCheck Verifier] Found ${purchases?.length || 0} pending purchases`);
+    if (!nonActiveProfiles || nonActiveProfiles.length === 0) {
+      console.log('[BlueCheck Verifier] No non-active profiles to check');
+      return;
+    }
 
-    for (const purchase of purchases || []) {
+    console.log(`[BlueCheck Verifier] Checking ${nonActiveProfiles.length} non-active profiles`);
+
+    let activated = 0;
+
+    for (const profile of nonActiveProfiles) {
       try {
-        console.log(`[BlueCheck Verifier] Processing purchase ${purchase.id}`);
+        // Get the user's EVM wallet(s)
+        const { data: wallets, error: walletError } = await supabase
+          .from('wallets')
+          .select('address, chain')
+          .eq('user_id', profile.user_id)
+          .eq('chain', 'EVM_1');
 
-        // Verify transaction
-        const isValid = await simulateOnChainVerification(
-          purchase.payment_tx_hash!,
-          purchase.payment_chain,
-          purchase.payment_amount
-        );
+        if (walletError || !wallets || wallets.length === 0) {
+          continue; // No EVM wallet, skip
+        }
 
-        if (isValid) {
-          // Update purchase status to CONFIRMED
-          const { error: updateError } = await supabase
-            .from('bluecheck_purchases')
-            .update({ status: 'CONFIRMED' })
-            .eq('id', purchase.id);
+        // Check each wallet on-chain
+        for (const wallet of wallets) {
+          const result = await verifyOnChain(wallet.address);
 
-          if (updateError) {
-            console.error(
-              `[BlueCheck Verifier] Error updating purchase ${purchase.id}:`,
-              updateError
-            );
-            continue;
+          if (result.verified) {
+            // Activate in DB
+            const { error: updateError } = await supabase
+              .from('profiles')
+              .update({ bluecheck_status: 'ACTIVE' })
+              .eq('user_id', profile.user_id);
+
+            if (updateError) {
+              console.error(
+                `[BlueCheck Verifier] Error activating user ${profile.user_id}:`,
+                updateError
+              );
+            } else {
+              activated++;
+              console.log(
+                `[BlueCheck Verifier] ✅ Activated Blue Check for user ${profile.user_id} (chain ${result.chainId}, wallet ${wallet.address})`
+              );
+            }
+            break; // No need to check other wallets
           }
-
-          // Activate Blue Check for user
-          const { error: profileError } = await supabase
-            .from('profiles')
-            .update({ bluecheck_status: 'ACTIVE' })
-            .eq('user_id', purchase.user_id);
-
-          if (profileError) {
-            console.error(
-              `[BlueCheck Verifier] Error activating Blue Check for user ${purchase.user_id}:`,
-              profileError
-            );
-            continue;
-          }
-
-          // Mark fee_split as ready for processing
-          const { error: feeSplitError } = await supabase
-            .from('fee_splits')
-            .update({ processed: false })
-            .eq('source_type', 'BLUECHECK')
-            .eq('source_id', purchase.id);
-
-          if (feeSplitError) {
-            console.error(`[BlueCheck Verifier] Error updating fee split:`, feeSplitError);
-          }
-
-          console.log(`[BlueCheck Verifier] ✅ Activated Blue Check for user ${purchase.user_id}`);
-        } else {
-          // Mark as FAILED
-          const { error: failError } = await supabase
-            .from('bluecheck_purchases')
-            .update({ status: 'FAILED' })
-            .eq('id', purchase.id);
-
-          if (failError) {
-            console.error(`[BlueCheck Verifier] Error marking purchase as failed:`, failError);
-          }
-
-          console.log(`[BlueCheck Verifier] ❌ Failed verification for purchase ${purchase.id}`);
         }
       } catch (err) {
-        console.error(`[BlueCheck Verifier] Error processing purchase ${purchase.id}:`, err);
+        console.error(`[BlueCheck Verifier] Error processing user ${profile.user_id}:`, err);
       }
     }
 
-    console.log('[BlueCheck Verifier] Completed');
+    console.log(`[BlueCheck Verifier] Completed. Activated ${activated} users.`);
   } catch (error) {
     console.error('[BlueCheck Verifier] Fatal error:', error);
   }

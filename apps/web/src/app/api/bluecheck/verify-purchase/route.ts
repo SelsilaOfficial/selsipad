@@ -148,6 +148,7 @@ export async function POST(request: Request) {
       .from('profiles')
       .update({
         bluecheck_status: 'ACTIVE',
+        bluecheck_tx_hash: tx_hash,
       })
       .eq('user_id', session.userId)
       .select('user_id, bluecheck_status');
@@ -227,18 +228,21 @@ export async function POST(request: Request) {
             const amountPaid = (decoded.args as any)?.amountPaid as bigint;
             const treasuryAmt = (decoded.args as any)?.treasuryAmount as bigint;
 
-            // 1. Create fee_splits record
-            const { error: splitError } = await supabase.from('fee_splits').insert({
-              source_type: 'BLUECHECK',
-              source_id: crypto.randomUUID(),
-              total_amount: amountPaid.toString(),
-              treasury_amount: treasuryAmt.toString(),
-              referral_pool_amount: referrerReward.toString(),
-              asset: '0x0000000000000000000000000000000000000000', // native BNB
-              chain: chainStr,
-              processed: true,
-              processed_at: new Date().toISOString(),
-            });
+            // 1. Create fee_splits record (idempotent: tx_hash as source_id)
+            const { error: splitError } = await supabase.from('fee_splits').upsert(
+              {
+                source_type: 'BLUECHECK',
+                source_id: tx_hash,
+                total_amount: amountPaid.toString(),
+                treasury_amount: treasuryAmt.toString(),
+                referral_pool_amount: referrerReward.toString(),
+                asset: '0x0000000000000000000000000000000000000000', // native BNB
+                chain: chainStr,
+                processed: true,
+                processed_at: new Date().toISOString(),
+              },
+              { onConflict: 'source_type,source_id', ignoreDuplicates: true }
+            );
 
             if (splitError) {
               console.error('[BlueCheck Verify] Fee split insert error:', splitError);
@@ -249,16 +253,20 @@ export async function POST(request: Request) {
             }
 
             // 2. Create referral_ledger entry — CLAIMED since reward auto-sent on-chain
-            const { error: ledgerError } = await supabase.from('referral_ledger').insert({
-              referrer_id: referrerWallet.user_id,
-              source_type: 'BLUECHECK',
-              source_id: crypto.randomUUID(),
-              amount: referrerReward.toString(),
-              asset: '0x0000000000000000000000000000000000000000', // native BNB
-              chain: chainStr,
-              status: 'CLAIMED',
-              claimed_at: new Date().toISOString(),
-            });
+            //    Idempotent: tx_hash as source_id prevents duplicates
+            const { error: ledgerError } = await supabase.from('referral_ledger').upsert(
+              {
+                referrer_id: referrerWallet.user_id,
+                source_type: 'BLUECHECK',
+                source_id: tx_hash,
+                amount: referrerReward.toString(),
+                asset: '0x0000000000000000000000000000000000000000', // native BNB
+                chain: chainStr,
+                status: 'CLAIMED',
+                claimed_at: new Date().toISOString(),
+              },
+              { onConflict: 'source_type,source_id', ignoreDuplicates: true }
+            );
 
             if (ledgerError) {
               console.error('[BlueCheck Verify] Referral ledger insert error:', ledgerError);
