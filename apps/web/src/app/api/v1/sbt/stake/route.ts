@@ -6,7 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { verifySbtOwnership } from '@selsipad/shared/dist/utils/sbt-verification';
+import { verifySbtOwnership } from '@selsipad/shared/src/utils/sbt-verification';
 import type { StakeSbtRequest, StakeSbtResponse, SbtRule } from '@selsipad/shared';
 
 export const dynamic = 'force-dynamic';
