@@ -1,13 +1,14 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { ethers } from 'ethers';
 
 // Helper to get non-public RPC URL if available
 const getRpcUrl = () => {
-  return process.env.BSC_TESTNET_RPC_URL || 
-         process.env.NEXT_PUBLIC_BSC_TESTNET_RPC_URL || 
-         'https://data-seed-prebsc-1-s1.binance.org:8545';
+  return (
+    process.env.BSC_TESTNET_RPC_URL ||
+    process.env.NEXT_PUBLIC_BSC_TESTNET_RPC_URL ||
+    'https://data-seed-prebsc-1-s1.binance.org:8545'
+  );
 };
 
 export const dynamic = 'force-dynamic';
@@ -18,7 +19,7 @@ export async function POST(request: NextRequest) {
 
     if (!contractAddress || !tokenAddress) {
       return NextResponse.json(
-        { error: 'Missing contractAddress or tokenAddress' }, 
+        { error: 'Missing contractAddress or tokenAddress' },
         { status: 400 }
       );
     }
@@ -33,17 +34,14 @@ export async function POST(request: NextRequest) {
 
     const balance = await (tokenContract as any).balanceOf(contractAddress);
     // If requiredAmount is provided, check against it, otherwise assume > 0 is good enough for now
-    
+
     if (balance <= 0n) {
-       return NextResponse.json(
-        { error: 'Contract has no token balance' }, 
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Contract has no token balance' }, { status: 400 });
     }
 
     // 2. Update Database
     const supabase = createClient();
-    
+
     // Find the launch round
     const { data: launchRound, error: findError } = await supabase
       .from('launch_rounds')
@@ -52,22 +50,22 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (findError || !launchRound) {
-       return NextResponse.json({ error: 'Launch round not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Launch round not found' }, { status: 404 });
     }
 
     // Update status
     const newParams = {
-        ...launchRound.params,
-        funding_state: 'FUNDED',
-        funded_at: new Date().toISOString()
+      ...launchRound.params,
+      funding_state: 'FUNDED',
+      funded_at: new Date().toISOString(),
     };
 
     const { error: updateError } = await supabase
       .from('launch_rounds')
       .update({
-        status: 'LIVE',
+        status: 'ACTIVE',
         deployment_status: 'FUNDED', // ✅ Update deployment status
-        params: newParams
+        params: newParams,
       })
       .eq('id', launchRound.id);
 
@@ -75,8 +73,7 @@ export async function POST(request: NextRequest) {
       throw new Error(updateError.message);
     }
 
-    return NextResponse.json({ success: true, status: 'LIVE' });
-
+    return NextResponse.json({ success: true, status: 'ACTIVE' });
   } catch (error: any) {
     console.error('[ConfirmFunding] Error:', error);
     return NextResponse.json(

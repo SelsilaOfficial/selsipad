@@ -141,7 +141,7 @@ export async function GET(request: NextRequest, { params }: { params: { projectI
 
     // Filter by status if not owner
     if (!isOwner) {
-      query = query.in('status', ['APPROVED', 'LIVE', 'ENDED', 'FINALIZED']);
+      query = query.in('status', ['APPROVED', 'DEPLOYED', 'ACTIVE', 'LIVE', 'ENDED', 'FINALIZED']);
     }
 
     const { data: rounds, error } = await query;

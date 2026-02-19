@@ -155,8 +155,8 @@ export async function saveFairlaunch(data: SaveFairlaunchData): Promise<SaveFair
     // 3. Determine initial status based on start time
     const now = new Date();
     const startAt = new Date(data.startTime);
-    // Valid status values: DRAFT, SUBMITTED, APPROVED, LIVE, ENDED, FINALIZED, REJECTED
-    const initialStatus = startAt > now ? 'APPROVED' : 'LIVE';
+    // launch_rounds valid: DRAFT, SUBMITTED, APPROVED, ACTIVE, ENDED, FINALIZED, REJECTED
+    const initialStatus = startAt > now ? 'APPROVED' : 'ACTIVE';
 
     // 3b. chain string for launch_round (uses chainId already defined above)
     const chainStr = chainId.toString();

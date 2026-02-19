@@ -53,7 +53,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
     // Check access permissions
     const isOwner = round.projects.owner_user_id === userId;
-    const isPublic = ['APPROVED', 'LIVE', 'ENDED', 'FINALIZED'].includes(round.status);
+    const isPublic = ['APPROVED', 'ACTIVE', 'LIVE', 'ENDED', 'FINALIZED'].includes(round.status);
 
     if (!isOwner && !isPublic) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
@@ -93,7 +93,10 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     const authHeader = request.headers.get('authorization');
     if (authHeader?.startsWith('Bearer ')) {
       const token = authHeader.replace('Bearer ', '');
-      const { data: { user }, error } = await supabase.auth.getUser(token);
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.getUser(token);
       if (!error && user) userId = user.id;
     }
     if (!userId) userId = await getAuthUserId(request);

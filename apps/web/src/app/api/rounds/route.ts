@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
 
     // If not authenticated, only show public rounds
     if (!userId) {
-      query = query.in('status', ['APPROVED', 'LIVE', 'ENDED', 'FINALIZED']);
+      query = query.in('status', ['APPROVED', 'DEPLOYED', 'ACTIVE', 'LIVE', 'ENDED', 'FINALIZED']);
     }
 
     // Order and paginate

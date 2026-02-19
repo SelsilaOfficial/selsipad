@@ -70,7 +70,15 @@ export async function getLPLocks(): Promise<LPLockItem[]> {
       )
     `
     )
-    .in('status', ['DEPLOYED', 'LIVE', 'ENDED', 'FINALIZED', 'SUCCESS', 'FINALIZED_SUCCESS'])
+    .in('status', [
+      'DEPLOYED',
+      'ACTIVE',
+      'LIVE',
+      'ENDED',
+      'FINALIZED',
+      'SUCCESS',
+      'FINALIZED_SUCCESS',
+    ])
     .order('created_at', { ascending: false });
 
   if (error) {
