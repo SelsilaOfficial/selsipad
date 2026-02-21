@@ -227,10 +227,10 @@ export default async function HomePage() {
                   Disclaimer
                 </h3>
                 <p className="text-xs sm:text-sm text-gray-400 leading-relaxed">
-                  Selsipad does not endorse, recommend, or guarantee any project listed on this
+                  Selsila does not endorse, recommend, or guarantee any project listed on this
                   platform. All investments carry inherent risks. Users are solely responsible for
                   conducting their own research (DYOR) and seeking independent financial advice
-                  before making any investment decisions. Selsipad shall not be held liable for any
+                  before making any investment decisions. Selsila shall not be held liable for any
                   losses incurred.
                 </p>
               </div>
@@ -335,7 +335,7 @@ export default async function HomePage() {
                       href="/privacy"
                       className="text-xs text-gray-500 hover:text-[#39AEC4] transition-colors"
                     >
-                      Legal and Compliance
+                      Privacy Policy
                     </a>
                   </li>
                   <li>

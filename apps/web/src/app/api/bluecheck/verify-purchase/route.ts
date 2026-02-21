@@ -160,12 +160,22 @@ export async function POST(request: Request) {
 
     console.log('[BlueCheck Verify] Profile updated:', updateData);
 
-    // Parse transaction receipt to get referrer info
+    // ========== REFERRAL PROCESSING ==========
+    // Process referral reward, activation, and fee split.
+    // Each step runs independently — one failure does NOT block others.
     const chainStr = String(chainId);
+    let referralProcessingWarnings: string[] = [];
+
+    // Step 1: Fetch transaction receipt and parse BlueCheckPurchased event
+    let referrerAddress: string | null = null;
+    let referrerReward: bigint | null = null;
+    let amountPaid: bigint | null = null;
+    let treasuryAmt: bigint | null = null;
+
     try {
       const receipt = await publicClient.getTransactionReceipt({ hash: tx_hash as `0x${string}` });
+      console.log('[BlueCheck Referral] Receipt fetched, logs count:', receipt.logs.length);
 
-      // Parse BlueCheckPurchased event to extract referrer
       const blueCheckEventAbi = [
         {
           anonymous: false,
@@ -202,101 +212,171 @@ export async function POST(request: Request) {
           topics: eventLog.topics,
         });
 
-        const referrerAddress = (decoded.args as any)?.referrer as string;
-        const referrerReward = (decoded.args as any)?.referrerReward as bigint;
-        const zeroAddress = '0x0000000000000000000000000000000000000000';
+        referrerAddress = (decoded.args as any)?.referrer as string;
+        referrerReward = (decoded.args as any)?.referrerReward as bigint;
+        amountPaid = (decoded.args as any)?.amountPaid as bigint;
+        treasuryAmt = (decoded.args as any)?.treasuryAmount as bigint;
 
-        console.log(
-          '[BlueCheck Verify] Event referrer:',
-          referrerAddress,
-          'reward:',
-          referrerReward?.toString()
-        );
-
-        // If referrer is not zero address and not treasury, create fee_split record
-        if (referrerAddress && referrerAddress.toLowerCase() !== zeroAddress) {
-          // Lookup referrer user_id from wallet address
-          const { data: referrerWallet } = await supabase
-            .from('wallets')
-            .select('user_id')
-            .ilike('address', referrerAddress)
-            .single();
-
-          console.log('[BlueCheck Verify] Referrer wallet lookup:', referrerWallet);
-
-          if (referrerWallet?.user_id) {
-            const amountPaid = (decoded.args as any)?.amountPaid as bigint;
-            const treasuryAmt = (decoded.args as any)?.treasuryAmount as bigint;
-
-            // 1. Create fee_splits record (idempotent: tx_hash as source_id)
-            const { error: splitError } = await supabase.from('fee_splits').upsert(
-              {
-                source_type: 'BLUECHECK',
-                source_id: tx_hash,
-                total_amount: amountPaid.toString(),
-                treasury_amount: treasuryAmt.toString(),
-                referral_pool_amount: referrerReward.toString(),
-                asset: '0x0000000000000000000000000000000000000000', // native BNB
-                chain: chainStr,
-                processed: true,
-                processed_at: new Date().toISOString(),
-              },
-              { onConflict: 'source_type,source_id', ignoreDuplicates: true }
-            );
-
-            if (splitError) {
-              console.error('[BlueCheck Verify] Fee split insert error:', splitError);
-            } else {
-              console.log(
-                `[BlueCheck Verify] Created fee_split: chain=${chainStr}, total=${amountPaid.toString()}, referral=${referrerReward.toString()}`
-              );
-            }
-
-            // 2. Create referral_ledger entry — CLAIMED since reward auto-sent on-chain
-            //    Idempotent: tx_hash as source_id prevents duplicates
-            const { error: ledgerError } = await supabase.from('referral_ledger').upsert(
-              {
-                referrer_id: referrerWallet.user_id,
-                source_type: 'BLUECHECK',
-                source_id: tx_hash,
-                amount: referrerReward.toString(),
-                asset: '0x0000000000000000000000000000000000000000', // native BNB
-                chain: chainStr,
-                status: 'CLAIMED',
-                claimed_at: new Date().toISOString(),
-              },
-              { onConflict: 'source_type,source_id', ignoreDuplicates: true }
-            );
-
-            if (ledgerError) {
-              console.error('[BlueCheck Verify] Referral ledger insert error:', ledgerError);
-            } else {
-              console.log(
-                `[BlueCheck Verify] Created referral_ledger: chain=${chainStr}, ${referrerReward.toString()} to referrer ${referrerWallet.user_id}`
-              );
-            }
-
-            // 3. Activate the referral relationship
-            const { error: activateError } = await supabase
-              .from('referral_relationships')
-              .update({ activated_at: new Date().toISOString() })
-              .eq('referrer_id', referrerWallet.user_id)
-              .eq('referee_id', session.userId)
-              .is('activated_at', null);
-
-            if (activateError) {
-              console.error('[BlueCheck Verify] Referral activation error:', activateError);
-            } else {
-              console.log(
-                `[BlueCheck Verify] Activated referral: referee=${session.userId} -> referrer=${referrerWallet.user_id}`
-              );
-            }
-          }
-        }
+        console.log('[BlueCheck Referral] Parsed event — referrer:', referrerAddress, 'reward:', referrerReward?.toString());
+      } else {
+        console.warn('[BlueCheck Referral] BlueCheckPurchased event NOT found in receipt logs. Total logs:', receipt.logs.length);
+        referralProcessingWarnings.push('BlueCheckPurchased event not found in tx logs');
       }
     } catch (err) {
-      console.error('[BlueCheck Verify] Failed to parse event or create fee_split:', err);
-      // Don't fail the verification, just log the error
+      const errMsg = err instanceof Error ? err.message : String(err);
+      console.error('[BlueCheck Referral] STEP 1 FAILED — Receipt fetch/parse error:', errMsg);
+      referralProcessingWarnings.push(`Receipt fetch failed: ${errMsg}`);
+    }
+
+    // Step 2: Lookup referrer wallet and process rewards (only if event was parsed)
+    const zeroAddress = '0x0000000000000000000000000000000000000000';
+    if (referrerAddress && referrerAddress.toLowerCase() !== zeroAddress && referrerReward) {
+      let referrerUserId: string | null = null;
+
+      // Step 2a: Lookup referrer user_id from wallet address
+      try {
+        const { data: referrerWallet, error: walletError } = await supabase
+          .from('wallets')
+          .select('user_id')
+          .ilike('address', referrerAddress)
+          .single();
+
+        if (walletError || !referrerWallet?.user_id) {
+          console.error('[BlueCheck Referral] STEP 2a FAILED — Referrer wallet not found for address:', referrerAddress, 'error:', walletError);
+          referralProcessingWarnings.push(`Referrer wallet not found: ${referrerAddress}`);
+        } else {
+          referrerUserId = referrerWallet.user_id;
+          console.log('[BlueCheck Referral] Referrer user_id:', referrerUserId);
+        }
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        console.error('[BlueCheck Referral] STEP 2a FAILED — Wallet lookup error:', errMsg);
+        referralProcessingWarnings.push(`Wallet lookup error: ${errMsg}`);
+      }
+
+      if (referrerUserId) {
+        // Step 2b: Create fee_splits record
+        try {
+          const { error: splitError } = await supabase.from('fee_splits').upsert(
+            {
+              source_type: 'BLUECHECK',
+              source_id: tx_hash,
+              total_amount: amountPaid!.toString(),
+              treasury_amount: treasuryAmt!.toString(),
+              referral_pool_amount: referrerReward.toString(),
+              asset: zeroAddress, // native BNB
+              chain: chainStr,
+              processed: true,
+              processed_at: new Date().toISOString(),
+            },
+            { onConflict: 'source_type,source_id', ignoreDuplicates: true }
+          );
+
+          if (splitError) {
+            console.error('[BlueCheck Referral] STEP 2b FAILED — Fee split error:', splitError);
+            referralProcessingWarnings.push(`Fee split insert failed: ${splitError.message}`);
+          } else {
+            console.log(`[BlueCheck Referral] STEP 2b OK — fee_split created: chain=${chainStr}, total=${amountPaid!.toString()}`);
+          }
+        } catch (err) {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          console.error('[BlueCheck Referral] STEP 2b FAILED — Fee split error:', errMsg);
+          referralProcessingWarnings.push(`Fee split error: ${errMsg}`);
+        }
+
+        // Step 2c: Create referral_ledger entry (with referee_id for proper tracking)
+        try {
+          const { error: ledgerError } = await supabase.from('referral_ledger').upsert(
+            {
+              referrer_id: referrerUserId,
+              referee_id: session.userId,
+              source_type: 'BLUECHECK',
+              source_id: tx_hash,
+              amount: referrerReward.toString(),
+              asset: zeroAddress, // native BNB
+              chain: chainStr,
+              status: 'CLAIMED',
+              claimed_at: new Date().toISOString(),
+            },
+            { onConflict: 'source_type,source_id,referee_id', ignoreDuplicates: true }
+          );
+
+          if (ledgerError) {
+            console.error('[BlueCheck Referral] STEP 2c FAILED — Ledger error:', ledgerError);
+            referralProcessingWarnings.push(`Referral ledger insert failed: ${ledgerError.message}`);
+          } else {
+            console.log(`[BlueCheck Referral] STEP 2c OK — referral_ledger: ${referrerReward.toString()} BNB to referrer ${referrerUserId}, referee ${session.userId}`);
+          }
+        } catch (err) {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          console.error('[BlueCheck Referral] STEP 2c FAILED — Ledger error:', errMsg);
+          referralProcessingWarnings.push(`Referral ledger error: ${errMsg}`);
+        }
+
+        // Step 2d: Activate the referral relationship + increment active_referral_count
+        try {
+          const { data: activatedRows, error: activateError } = await supabase
+            .from('referral_relationships')
+            .update({ activated_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+            .eq('referrer_id', referrerUserId)
+            .eq('referee_id', session.userId)
+            .is('activated_at', null)
+            .select('id');
+
+          if (activateError) {
+            console.error('[BlueCheck Referral] STEP 2d FAILED — Activation error:', activateError);
+            referralProcessingWarnings.push(`Referral activation failed: ${activateError.message}`);
+          } else if (activatedRows && activatedRows.length > 0) {
+            console.log(`[BlueCheck Referral] STEP 2d OK — Activated referral: referee=${session.userId} -> referrer=${referrerUserId}`);
+
+            // Increment active_referral_count on referrer's profile
+            const { error: countError } = await supabase.rpc('increment_active_referral_count', {
+              target_user_id: referrerUserId,
+            });
+
+            if (countError) {
+              // Fallback: direct update if RPC doesn't exist
+              console.warn('[BlueCheck Referral] RPC increment failed, using direct update:', countError.message);
+              const { error: directError } = await supabase
+                .from('profiles')
+                .update({
+                  active_referral_count: (await supabase
+                    .from('referral_relationships')
+                    .select('id', { count: 'exact' })
+                    .eq('referrer_id', referrerUserId)
+                    .not('activated_at', 'is', null)
+                  ).count || 0,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq('user_id', referrerUserId);
+
+              if (directError) {
+                console.error('[BlueCheck Referral] STEP 2d PARTIAL — active_referral_count update failed:', directError);
+                referralProcessingWarnings.push(`active_referral_count update failed: ${directError.message}`);
+              } else {
+                console.log(`[BlueCheck Referral] STEP 2d OK — active_referral_count updated for referrer ${referrerUserId}`);
+              }
+            } else {
+              console.log(`[BlueCheck Referral] STEP 2d OK — active_referral_count incremented for referrer ${referrerUserId}`);
+            }
+          } else {
+            console.log(`[BlueCheck Referral] STEP 2d SKIP — No pending referral to activate (already active or not found)`);
+          }
+        } catch (err) {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          console.error('[BlueCheck Referral] STEP 2d FAILED — Activation error:', errMsg);
+          referralProcessingWarnings.push(`Referral activation error: ${errMsg}`);
+        }
+      }
+    } else if (referrerAddress && referrerAddress.toLowerCase() === zeroAddress) {
+      console.log('[BlueCheck Referral] No referrer (zero address) — skipping referral processing');
+    }
+
+    // Log summary of referral processing
+    if (referralProcessingWarnings.length > 0) {
+      console.warn('[BlueCheck Referral] COMPLETED WITH WARNINGS:', JSON.stringify(referralProcessingWarnings));
+    } else {
+      console.log('[BlueCheck Referral] COMPLETED SUCCESSFULLY — all steps passed');
     }
 
     return NextResponse.json({
