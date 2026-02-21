@@ -4,8 +4,10 @@ import { useState, useEffect } from 'react';
 import { AmountInput, Button, ConfirmModal, useToast } from '@/components/ui';
 import { Card, CardContent } from '@/components/ui';
 import { useContribute } from '@/lib/web3/presale-hooks';
+import { FAIRLAUNCH_ABI } from '@/contracts/Fairlaunch';
+import { saveFairlaunchContribution } from '@/actions/fairlaunch/save-contribution';
 import { savePresaleContribution } from '@/actions/presale/save-contribution';
-import { useAccount, useBalance, usePublicClient } from 'wagmi';
+import { useAccount, useBalance, usePublicClient, useWriteContract } from 'wagmi';
 import { formatUnits, isAddress, zeroAddress } from 'viem';
 import { useSearchParams } from 'next/navigation';
 
@@ -45,6 +47,12 @@ export function ParticipationForm({
 
   // Presale contribute hook (V2.4 — supports referrer)
   const { contribute: presaleContribute, isPending: isPresaleContributing } = useContribute();
+
+  // Fairlaunch contribute hook (no args, just payable BNB)
+  const { writeContractAsync: fairlaunchWriteContract, isPending: isFairlaunchContributing } =
+    useWriteContract();
+
+  const isContributing = isPresaleContributing || isFairlaunchContributing;
 
   // Resolve referrer wallet address from referral code or direct address
   // Fallback: use master referrer (platform wallet) so referral pool is always distributed
@@ -155,12 +163,24 @@ export function ParticipationForm({
     if (!canParticipate || !contractAddress || !publicClient) return;
 
     try {
-      // Use presale contribute hook with referrer
-      const hash = await presaleContribute({
-        roundAddress: contractAddress as `0x${string}`,
-        amount: BigInt(Math.floor(amountNum * 1e18)), // Convert to wei
-        referrer: referrer as `0x${string}`,
-      });
+      let hash: `0x${string}`;
+
+      if (projectType === 'fairlaunch') {
+        // Fairlaunch: contribute() has NO args, just send BNB as value
+        hash = await fairlaunchWriteContract({
+          address: contractAddress as `0x${string}`,
+          abi: FAIRLAUNCH_ABI,
+          functionName: 'contribute',
+          value: BigInt(Math.floor(amountNum * 1e18)),
+        });
+      } else {
+        // Presale: contribute(amount, referrer) with referrer tracking
+        hash = await presaleContribute({
+          roundAddress: contractAddress as `0x${string}`,
+          amount: BigInt(Math.floor(amountNum * 1e18)),
+          referrer: referrer as `0x${string}`,
+        });
+      }
 
       showToast('success', `Transaction sent! Waiting for confirmation...`);
 
@@ -169,17 +189,27 @@ export function ParticipationForm({
         try {
           const receipt = await publicClient.waitForTransactionReceipt({ hash });
           if (receipt.status === 'success') {
-            // Save contribution to database for transaction history & referral tracking
-            await savePresaleContribution({
-              roundId: projectId,
-              txHash: hash,
-              amount: amount, // ETH/BNB amount string
-              referrerCode: refParam || undefined,
-            });
+            // Save contribution to database — use the correct action per type
+            if (projectType === 'fairlaunch') {
+              await saveFairlaunchContribution({
+                roundId: projectId,
+                txHash: hash,
+                amount: BigInt(Math.floor(amountNum * 1e18)).toString(),
+                chain: network === 'BNB' ? '97' : '1',
+                walletAddress: address || '',
+              });
+            } else {
+              await savePresaleContribution({
+                roundId: projectId,
+                txHash: hash,
+                amount: amount,
+                referrerCode: refParam || undefined,
+              });
+            }
             showToast('success', `Successfully contributed ${amount} ${network}`);
           }
         } catch (dbErr: any) {
-          console.warn('[Presale] DB save failed (on-chain tx succeeded):', dbErr);
+          console.warn('[Contribute] DB save failed (on-chain tx succeeded):', dbErr);
           showToast('success', `Contributed ${amount} ${network} (history may update shortly)`);
         }
       }
@@ -257,7 +287,7 @@ export function ParticipationForm({
         description={`You are about to contribute ${amount} ${network} to ${projectName}. This transaction cannot be reversed.`}
         confirmText="Confirm & Submit"
         variant="primary"
-        isLoading={isPresaleContributing}
+        isLoading={isContributing}
       />
     </div>
   );

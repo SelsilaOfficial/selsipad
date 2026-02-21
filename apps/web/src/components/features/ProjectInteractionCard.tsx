@@ -50,11 +50,9 @@ export function ProjectInteractionCard({ project }: ProjectInteractionCardProps)
   const isUpcoming = project.status === 'upcoming';
   const isLive = project.status === 'live';
 
-  const hasMetSoftcap = project.raised >= project.target * 0.2; // Assume 20% softcap? No project has softcap field?
-  // Project interface has `target`. It is Hardcap.
-  // `getProjectById` maps `softcap` to `target`? No `target` is hardcap.
-  // `params.softcap`. I didn't expose softcap in `Project` interface explicitly.
-  // But FairlaunchClaimer needs to know if Refund is needed.
+  // Use actual softcap from project data (set in getProjectById from params.softcap)
+  const softcap = (project as any).softcap || project.target;
+  const hasMetSoftcap = project.raised >= softcap;
 
   // Actually, `FairlaunchClaimer` also checks `useUserContribution` and `useHasClaimed`.
   // If the contract says it's failed, `claimTokens` will revert.

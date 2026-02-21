@@ -20,8 +20,12 @@ interface TransactionsTableProps {
   project: Project;
 }
 
-// Contributed event signature: Contributed(address indexed user, uint256 amount, address referral)
-const CONTRIBUTED_TOPIC = '0xec470969f3350ca5a15f0d85053f8763ffd0ee39c7b74fcdc5af7862718e292a';
+// Presale event: Contributed(address indexed user, uint256 amount, address referral)
+const PRESALE_CONTRIBUTED_TOPIC =
+  '0xec470969f3350ca5a15f0d85053f8763ffd0ee39c7b74fcdc5af7862718e292a';
+// Fairlaunch event: Contributed(address indexed user, uint256 amount, uint256 totalRaised)
+const FAIRLAUNCH_CONTRIBUTED_TOPIC =
+  '0xfa35a310d7113dddce1c275da946348e9aaebf9050b00b372033c4d84b0bd6eb';
 
 function getExplorerUrl(chain: string): { api: string; ui: string; key: string } {
   switch (chain) {
@@ -84,11 +88,16 @@ export default function TransactionsTable({ project }: TransactionsTableProps) {
         // Step 2: Fallback → read on-chain events from BSCScan
         if (project.contract_address) {
           const explorer = getExplorerUrl(project.chain || '97');
+          // Use the correct event topic based on project type
+          const topic =
+            project.type === 'fairlaunch'
+              ? FAIRLAUNCH_CONTRIBUTED_TOPIC
+              : PRESALE_CONTRIBUTED_TOPIC;
           const params = new URLSearchParams({
             module: 'logs',
             action: 'getLogs',
             address: project.contract_address,
-            topic0: CONTRIBUTED_TOPIC,
+            topic0: topic,
             fromBlock: '0',
             toBlock: 'latest',
             apikey: explorer.key,

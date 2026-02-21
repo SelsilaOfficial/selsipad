@@ -82,13 +82,14 @@ export default function AdminFairlaunchPage() {
           .gte('end_at', now)
           .order('start_at', { ascending: false }),
 
-        // Ended fairlaunches (DEPLOYED, past end_at)
+        // Ended fairlaunches: past end_at OR in terminal status (FINALIZED, CANCELLED_FAILED, ENDED)
         supabase
           .from('launch_rounds')
           .select(selectFields)
           .eq('type', 'FAIRLAUNCH')
-          .eq('status', 'DEPLOYED')
-          .lt('end_at', now)
+          .or(
+            `and(status.eq.DEPLOYED,end_at.lt.${now}),status.in.(FINALIZED,CANCELLED_FAILED,ENDED)`
+          )
           .order('end_at', { ascending: false }),
       ]);
 

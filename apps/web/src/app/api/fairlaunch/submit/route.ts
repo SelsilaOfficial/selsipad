@@ -66,6 +66,7 @@ export async function POST(request: NextRequest) {
     const validation = validateDeploymentParams(deployParams);
     if (!validation.success) {
       const errors = formatValidationErrors(validation.error?.issues || []);
+      console.error('[Submit API] ❌ Validation failed:', errors);
       return NextResponse.json(
         { success: false, error: 'Validation failed', details: errors },
         { status: 400 }
