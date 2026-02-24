@@ -48,9 +48,11 @@ const TREASURY_WALLETS = {
 };
 
 // Escrow vault addresses per chain
-const ESCROW_VAULTS = {
+const ESCROW_VAULTS: Record<number, string> = {
   97: '0x6849A09c27F26fF0e58a2E36Dd5CAB2F9d0c617F', // BSC Testnet (from Phase 1)
   56: '0x0000000000000000000000000000000000000000', // TODO: Deploy to mainnet
+  11155111: process.env.NEXT_PUBLIC_ESCROW_VAULT_SEPOLIA || '0x0000000000000000000000000000000000000000',
+  84532: process.env.NEXT_PUBLIC_ESCROW_VAULT_BASE_SEPOLIA || '0x0000000000000000000000000000000000000000',
 };
 
 export const dynamic = 'force-dynamic';
