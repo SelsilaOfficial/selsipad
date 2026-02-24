@@ -33,7 +33,7 @@ function logSection(title) {
   console.log('═'.repeat(60));
 }
 
-const FACTORY_ADDRESS = '0x4fF7ED86972DD4762096044F1B6eDEad28FD5ADd';
+const FACTORY_ADDRESS = '0xa16fD43f6183017c64eB461497B681eeB2f52E09';
 
 // Minimal ABI for PancakeSwap Factory (to check LP pair)
 const UNISWAP_FACTORY_ABI = [
@@ -89,13 +89,16 @@ async function main() {
   logSection('1️⃣  LAUNCH TOKEN');
 
   const referrerAddress = hasSecondWallet ? secondWallet.address : deployer.address;
+  const createFee = await factory.createFee();
   const initialBuy = hre.ethers.parseEther('0.01'); // small initial buy
+  const totalValue = createFee + initialBuy;
 
   log(`📝 Launching "Selsipad Test" (STEST) with initial buy of 0.01 BNB...`, 'yellow');
   log(`   Referrer: ${referrerAddress}`, 'blue');
+  log(`   Create Fee: ${hre.ethers.formatEther(createFee)} BNB`, 'blue');
 
   const launchTx = await factory.launchToken('Selsipad Test', 'STEST', referrerAddress, {
-    value: initialBuy,
+    value: totalValue,
   });
 
   const launchReceipt = await launchTx.wait();
@@ -164,13 +167,6 @@ async function main() {
   log(`   rReserveEth:   ${hre.ethers.formatEther(info2.rReserveEth)}`, 'blue');
   const progress2 = await factory.getMigrationProgress(tokenAddress);
   log(`   Migration progress: ${Number(progress2) / 100}%`, 'yellow');
-
-  // Check referral reward accumulated
-  const refReward = await factory.referralRewards(tokenAddress, referrerAddress);
-  log(
-    `   Referral reward accumulated for ${referrerAddress.slice(0, 10)}...: ${hre.ethers.formatEther(refReward)} BNB`,
-    'cyan'
-  );
 
   await sleep(3000);
 
@@ -285,36 +281,10 @@ async function main() {
   await sleep(3000);
 
   // ════════════════════════════════════════════════════════════════
-  // STEP 5: Claim Referral Reward
+  // STEP 5: (Removed) Claim Referral Reward
   // ════════════════════════════════════════════════════════════════
-  logSection('5️⃣  CLAIM REFERRAL REWARD');
-
-  const infoFinal = await factory.tokens(tokenAddress);
-  const finalRefReward = await factory.referralRewards(tokenAddress, referrerAddress);
-
-  if (!infoFinal.liquidityMigrated) {
-    log('⚠️  Token not yet migrated — referral claim not yet available', 'yellow');
-    log(`   Pending reward: ${hre.ethers.formatEther(finalRefReward)} BNB`, 'cyan');
-  } else if (finalRefReward === 0n) {
-    log('⚠️  No referral rewards to claim', 'yellow');
-  } else {
-    log(`📝 Claiming ${hre.ethers.formatEther(finalRefReward)} BNB referral reward...`, 'yellow');
-
-    // Use the referrer wallet if available, else deployer
-    const claimSigner = hasSecondWallet ? secondWallet : deployer;
-    const factoryAsReferrer = factory.connect(claimSigner);
-
-    try {
-      const claimTx = await factoryAsReferrer.claimReferralReward(tokenAddress);
-      const claimReceipt = await claimTx.wait();
-      log(`✅ Claim tx: ${claimReceipt.hash}`, 'green');
-
-      const afterClaim = await factory.referralRewards(tokenAddress, referrerAddress);
-      log(`   Remaining reward: ${hre.ethers.formatEther(afterClaim)} BNB (should be 0)`, 'cyan');
-    } catch (err) {
-      log(`❌ Claim failed: ${err.message}`, 'red');
-    }
-  }
+  logSection('5️⃣  (REMOVED) CLAIM REFERRAL REWARD');
+  log('⚠️  Referral rewards are now handled off-chain via the indexer', 'yellow');
 
   // ════════════════════════════════════════════════════════════════
   // SUMMARY
@@ -332,10 +302,6 @@ async function main() {
   );
   log(`rReserveEth: ${hre.ethers.formatEther(finalInfo.rReserveEth)}`, 'blue');
   log(`Total launched: ${totalTokens}`, 'blue');
-  log(
-    `Ref reward remaining: ${hre.ethers.formatEther(await factory.referralRewards(tokenAddress, referrerAddress))} BNB`,
-    'blue'
-  );
 
   console.log('');
   log('🔗 Explorer links:', 'yellow');

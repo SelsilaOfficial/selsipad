@@ -79,11 +79,6 @@ contract SelsipadBondingCurveFactory is Ownable, ReentrancyGuard {
     // Treasury
     address public treasuryWallet;
 
-    // Referral claimable balances  token => referrer => claimable amount
-    mapping(address => mapping(address => uint256)) public referralRewards;
-    // Track total pending referral for a token (for accounting)
-    mapping(address => uint256) public totalPendingReferral;
-
     // ── Curve parameters (defaults, can be updated by owner) ──
     uint256 public V_ETH_RESERVE    = 15 ether / 1000;        // 0.015 ETH
     uint256 public V_TOKEN_RESERVE  = 1_073_000_000 ether;     // 1.073 B tokens
@@ -99,9 +94,6 @@ contract SelsipadBondingCurveFactory is Ownable, ReentrancyGuard {
 
     // ── Create fee ──
     uint256 public createFee = 0.05 ether;  // 0.05 BNB to launch a token
-
-    // ── Referral timeout ──
-    uint256 public constant REFERRAL_TIMEOUT = 30 days;  // claim after 30 days even without migration
 
     // LP token burn address (dead address)
     address public constant DEAD_ADDRESS = 0x000000000000000000000000000000000000dEaD;
@@ -140,18 +132,6 @@ contract SelsipadBondingCurveFactory is Ownable, ReentrancyGuard {
         address lpPair
     );
 
-    event ReferralRewardAccumulated(
-        address indexed token,
-        address indexed referrer,
-        uint256 amount
-    );
-
-    event ReferralRewardClaimed(
-        address indexed token,
-        address indexed referrer,
-        uint256 amount
-    );
-
     event TreasuryUpdated(address oldTreasury, address newTreasury);
     event MigrationThresholdUpdated(uint256 oldThreshold, uint256 newThreshold);
     event CreateFeeUpdated(uint256 oldFee, uint256 newFee);
@@ -166,10 +146,8 @@ contract SelsipadBondingCurveFactory is Ownable, ReentrancyGuard {
     error TradingNotMigrated();
     error InsufficientReserve();
     error TransferFailed();
-    error NothingToClaim();
     error InvalidAddress();
     error InsufficientFee();
-    error ClaimNotReady();
 
     // ═══════════════════════════════════════════════════════════════
     //                       CONSTRUCTOR
@@ -364,68 +342,19 @@ contract SelsipadBondingCurveFactory is Ownable, ReentrancyGuard {
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * @dev Splits the trade fee.
-     *      • Valid referrer → 50 % treasury, 50 % accumulated for referrer.
-     *      • No referrer    → 100 % treasury.
+     * @dev Sends the complete trade fee to the treasury.
+     *      Referral accounting is handled off-chain via TokensPurchased/TokensSold events.
      */
     function _distributeFee(
-        address _token,
+        address /* _token */,
         uint256 fee,
-        address referrer,
-        address trader
+        address /* referrer */,
+        address /* trader */
     ) internal {
-        bool hasValidReferrer = (
-            referrer != address(0) &&
-            referrer != trader
-        );
-
-        if (hasValidReferrer) {
-            uint256 referrerShare  = (fee * REFERRAL_FEE_BPS) / TRADE_FEE_BPS;
-            uint256 treasuryShare  = fee - referrerShare;
-
-            // Send treasury portion immediately
-            (bool ok, ) = payable(treasuryWallet).call{value: treasuryShare}("");
-            if (!ok) revert TransferFailed();
-
-            // Accumulate referrer share (claimable after migration)
-            referralRewards[_token][referrer]  += referrerShare;
-            totalPendingReferral[_token]       += referrerShare;
-
-            emit ReferralRewardAccumulated(_token, referrer, referrerShare);
-        } else {
-            // No referrer → full 1.5 % to treasury
+        if (fee > 0) {
             (bool ok, ) = payable(treasuryWallet).call{value: fee}("");
             if (!ok) revert TransferFailed();
         }
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    //                  REFERRAL REWARD CLAIM
-    // ═══════════════════════════════════════════════════════════════
-
-    /**
-     * @notice Claim accumulated referral rewards.
-     *         Claimable if: token has migrated, OR 30 days have passed since launch.
-     * @param _token The bonding-curve token.
-     */
-    function claimReferralReward(address _token) external nonReentrant {
-        TokenInfo storage info = tokens[_token];
-
-        // Allow claim if migrated OR if REFERRAL_TIMEOUT has elapsed
-        bool migrated  = info.liquidityMigrated;
-        bool timedOut  = (block.timestamp >= info.createdAt + REFERRAL_TIMEOUT);
-        if (!migrated && !timedOut) revert ClaimNotReady();
-
-        uint256 reward = referralRewards[_token][msg.sender];
-        if (reward == 0) revert NothingToClaim();
-
-        referralRewards[_token][msg.sender] = 0;
-        totalPendingReferral[_token]       -= reward;
-
-        (bool ok, ) = payable(msg.sender).call{value: reward}("");
-        if (!ok) revert TransferFailed();
-
-        emit ReferralRewardClaimed(_token, msg.sender, reward);
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -443,13 +372,8 @@ contract SelsipadBondingCurveFactory is Ownable, ReentrancyGuard {
         TokenInfo storage info = tokens[_token];
         info.liquidityMigrated = true;
 
-        // Contract ETH balance = rReserveEth + totalPendingReferral
-        // We must keep pendingRef in the contract for future claims.
-        uint256 pendingRef  = totalPendingReferral[_token];
-        uint256 contractBal = address(this).balance;
-        uint256 ethToPool   = contractBal > pendingRef
-            ? contractBal - pendingRef
-            : 0;
+        // Use all ETH held by the contract 
+        uint256 ethToPool = address(this).balance;
 
         // Calculate token amount for LP based on current curve price.
         // price (eth per token) = vReserveEth / vReserveToken

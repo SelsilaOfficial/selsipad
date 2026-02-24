@@ -114,10 +114,6 @@ async function main() {
     `   Deployer tokens: ${hre.ethers.formatEther(await token.balanceOf(deployer.address))}`,
     'cyan'
   );
-  log(
-    `   Ref reward: ${hre.ethers.formatEther(await factory.referralRewards(tokenAddress, refAddr))} BNB`,
-    'cyan'
-  );
   await sleep(2000);
 
   // ── STEP 3: Sell some tokens ──
@@ -198,30 +194,8 @@ async function main() {
   }
   await sleep(2000);
 
-  // ── STEP 6: Claim referral ──
-  sec('6️⃣  CLAIM REFERRAL REWARD');
-  const reward = await factory.referralRewards(tokenAddress, refAddr);
-  log(`   Pending reward: ${hre.ethers.formatEther(reward)} BNB`, 'cyan');
-
-  if (!info.liquidityMigrated) {
-    log('⚠️  Not migrated — claim blocked until 30-day timeout', 'yellow');
-  } else if (reward === 0n) {
-    log('⚠️  No rewards to claim', 'yellow');
-  } else {
-    const signer = referrer || deployer;
-    const fAsClaimer = factory.connect(signer);
-    try {
-      const tx6 = await fAsClaimer.claimReferralReward(tokenAddress);
-      const r6 = await tx6.wait();
-      log(`✅ Claim tx: ${r6.hash}`, 'green');
-      log(
-        `   Remaining: ${hre.ethers.formatEther(await factory.referralRewards(tokenAddress, refAddr))} BNB`,
-        'cyan'
-      );
-    } catch (err) {
-      log(`❌ Claim failed: ${err.shortMessage || err.message}`, 'red');
-    }
-  }
+  // ── STEP 6: (Removed) Claim referral reward ──
+  // Referral rewards are now handled off-chain via the indexer.
 
   // ── SUMMARY ──
   sec('📊 FINAL SUMMARY');

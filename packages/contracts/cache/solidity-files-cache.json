@@ -1667,6 +1667,87 @@
       "artifacts": [
         "UniversalRouterMock"
       ]
+    },
+    "/var/www/selsipad/selsipad/packages/contracts/contracts/bonding-curve/SelsipadBondingCurveFactory.sol": {
+      "lastModificationDate": 1771960174366,
+      "contentHash": "1ec2537c4b7f97fba288c0800f017881",
+      "sourceName": "contracts/bonding-curve/SelsipadBondingCurveFactory.sol",
+      "solcConfig": {
+        "version": "0.8.20",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "@openzeppelin/contracts/access/Ownable.sol",
+        "@openzeppelin/contracts/utils/ReentrancyGuard.sol",
+        "./SelsipadBCToken.sol"
+      ],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "IERC20Minimal",
+        "IUniswapV2Factory",
+        "IUniswapV2Router02",
+        "SelsipadBondingCurveFactory"
+      ]
+    },
+    "/var/www/selsipad/selsipad/packages/contracts/contracts/bonding-curve/SelsipadBCToken.sol": {
+      "lastModificationDate": 1771955668807,
+      "contentHash": "9624c4cabb277ef3559f06cd58b40ffa",
+      "sourceName": "contracts/bonding-curve/SelsipadBCToken.sol",
+      "solcConfig": {
+        "version": "0.8.20",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "SelsipadBCToken"
+      ]
     }
   }
 }

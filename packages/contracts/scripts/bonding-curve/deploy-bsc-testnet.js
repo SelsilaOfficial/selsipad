@@ -133,7 +133,6 @@ async function main() {
       treasuryWallet,
       migrationThreshold: '1 ' + nativeCoin,
       tradeFee: '1.5%',
-      referralSplit: '50% of fee (0.75%)',
     },
     explorer: explorerBaseUrl,
   };
