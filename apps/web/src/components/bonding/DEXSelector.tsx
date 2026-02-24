@@ -107,7 +107,7 @@ export function FeeSplitDisplay({ swapFeeBps, totalVolume }: FeeSplitDisplayProp
     const fee = (vol / 10000n) * BigInt(swapFeeBps);
     const treasury = fee / 2n;
     const referral = fee - treasury;
-    volumeDisplay = ` (${(Number(fee) / 1e9).toFixed(4)} SOL collected)`;
+    volumeDisplay = ` (${(Number(fee) / 1e18).toFixed(4)} BNB collected)`;
   }
 
   return (
@@ -144,9 +144,9 @@ interface GraduationProgressProps {
 }
 
 export function GraduationProgress({ actualSol, thresholdSol, status }: GraduationProgressProps) {
-  const actual = Number(BigInt(actualSol) / 10000000n) / 100;
-  const threshold = Number(BigInt(thresholdSol) / 10000000n) / 100;
-  const progress = Math.min((actual / threshold) * 100, 100);
+  const actual = Number(BigInt(actualSol)) / 1e18;
+  const threshold = Number(BigInt(thresholdSol)) / 1e18;
+  const progress = threshold > 0 ? Math.min((actual / threshold) * 100, 100) : 0;
 
   const statusColor =
     {
@@ -173,7 +173,7 @@ export function GraduationProgress({ actualSol, thresholdSol, status }: Graduati
         />
       </div>
       <div className="text-xs text-gray-600 text-center">
-        {actual.toFixed(2)} SOL / {threshold.toFixed(2)} SOL ({progress.toFixed(1)}%)
+        {actual.toFixed(4)} BNB / {threshold.toFixed(4)} BNB ({progress.toFixed(1)}%)
       </div>
     </div>
   );

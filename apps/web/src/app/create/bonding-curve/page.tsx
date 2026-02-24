@@ -1,12 +1,10 @@
 import { redirect } from 'next/navigation';
 import { getServerSession } from '@/lib/auth/session';
-import { checkSolanaWallet } from '@/lib/wallet/check-wallet';
-import { SolanaWalletPrompt } from '@/components/wallet/SolanaWalletPrompt';
 import { CreateBondingCurveWizard } from './CreateBondingCurveWizard';
 
 export const metadata = {
   title: 'Create Bonding Curve | SELSIPAD',
-  description: 'Launch your token with permissionless bonding curve on Solana',
+  description: 'Launch your token with permissionless EVM bonding curve',
 };
 
 /**
@@ -14,8 +12,7 @@ export const metadata = {
  *
  * ARCHITECTURE:
  * - Requires EVM wallet for authentication (PRIMARY)
- * - Requires Solana wallet for feature execution (SECONDARY)
- * - Shows prompt if Solana wallet not linked
+ * - EVM Smart Contract Factory interaction is handled natively in Wizard via Wagmi
  */
 export default async function CreateBondingCurvePage() {
   // 1. Check EVM authentication (PRIMARY wallet)
@@ -25,23 +22,11 @@ export default async function CreateBondingCurvePage() {
     redirect('/');
   }
 
-  // 2. Check if Solana wallet is linked (SECONDARY wallet)
-  const solanaAddress = await checkSolanaWallet();
-
-  // 3. If no Solana wallet, show prompt to connect
-  if (!solanaAddress) {
-    return (
-      <div className="min-h-screen bg-bg-page py-8">
-        <SolanaWalletPrompt feature="Bonding Curve" />
-      </div>
-    );
-  }
-
-  // 4. Solana wallet exists, show bonding curve form
+  // 2. EVM wallet exists (via auth session), show bonding curve form
   return (
     <div className="min-h-screen bg-gray-950 py-8">
       <div className="container mx-auto px-4">
-        <CreateBondingCurveWizard walletAddress={solanaAddress} />
+        <CreateBondingCurveWizard walletAddress={""} />
       </div>
     </div>
   );

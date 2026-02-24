@@ -15,17 +15,16 @@ interface BondingPool {
   status: string;
   token_name: string;
   token_symbol: string;
-  token_mint: string;
+  token_address: string;
   token_decimals: number;
   total_supply: number;
-  virtual_sol_reserves: number;
+  virtual_native_reserves: number;
   virtual_token_reserves: number;
-  actual_sol_reserves: number;
+  actual_native_reserves: number;
   actual_token_reserves: number;
-  deploy_fee_sol: number;
+  deploy_fee_native: number;
   swap_fee_bps: number;
-  graduation_threshold_sol: number;
-  migration_fee_sol: number;
+  graduation_threshold_native: number;
   target_dex: string;
   created_at: string;
   deployed_at: string;
@@ -42,15 +41,15 @@ export function BondingCurveDetail({ pool, userAddress }: BondingCurveDetailProp
   const [activeTab, setActiveTab] = useState<TabType>('overview');
 
   // Calculate metrics
-  const solRaised = pool.actual_sol_reserves / 1e9;
-  const threshold = pool.graduation_threshold_sol / 1e9;
+  const solRaised = (pool.actual_native_reserves || 0) / 1e18;
+  const threshold = (pool.graduation_threshold_native || 0) / 1e18;
   const progress = threshold > 0 ? (solRaised / threshold) * 100 : 0;
-  const swapFee = pool.swap_fee_bps / 100;
+  const swapFee = (pool.swap_fee_bps || 0) / 100;
 
   // Price calculation (simplified - actual would use bonding curve formula)
   const currentPrice =
-    pool.virtual_sol_reserves > 0 && pool.virtual_token_reserves > 0
-      ? pool.virtual_sol_reserves / pool.virtual_token_reserves / 1e9
+    (pool.virtual_native_reserves || 0) > 0 && (pool.virtual_token_reserves || 0) > 0
+      ? pool.virtual_native_reserves / pool.virtual_token_reserves / 1e18
       : 0;
 
   const tabs: { key: TabType; label: string; enabled: boolean }[] = [
@@ -86,9 +85,9 @@ export function BondingCurveDetail({ pool, userAddress }: BondingCurveDetailProp
               <StatusPill status={pool.status as any} />
             </div>
             <div className="text-sm font-mono text-gray-500">
-              Mint: {pool.token_mint?.slice(0, 12)}...{pool.token_mint?.slice(-12)}
+              Contract: {pool.token_address?.slice(0, 12)}...{pool.token_address?.slice(-12)}
               <a
-                href={`https://solscan.io/token/${pool.token_mint}`}
+                href={`https://testnet.bscscan.com/address/${pool.token_address}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 ml-2 text-blue-400 hover:text-blue-300"
@@ -103,11 +102,11 @@ export function BondingCurveDetail({ pool, userAddress }: BondingCurveDetailProp
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
           <div>
             <div className="text-sm text-gray-400 mb-1">Current Price</div>
-            <div className="text-xl font-bold text-white">{currentPrice.toFixed(8)} SOL</div>
+            <div className="text-xl font-bold text-white">{currentPrice.toFixed(8)} BNB</div>
           </div>
           <div>
-            <div className="text-sm text-gray-400 mb-1">SOL Raised</div>
-            <div className="text-xl font-bold text-white">{solRaised.toFixed(2)} SOL</div>
+            <div className="text-sm text-gray-400 mb-1">BNB Raised</div>
+            <div className="text-xl font-bold text-white">{solRaised.toFixed(4)} BNB</div>
           </div>
           <div>
             <div className="text-sm text-gray-400 mb-1">Swap Fee</div>
@@ -132,8 +131,8 @@ export function BondingCurveDetail({ pool, userAddress }: BondingCurveDetailProp
             />
           </div>
           <div className="flex justify-between text-sm">
-            <span className="text-gray-500">Raised: {solRaised.toFixed(2)} SOL</span>
-            <span className="text-gray-500">Target: {threshold.toFixed(2)} SOL</span>
+            <span className="text-gray-500">Raised: {solRaised.toFixed(4)} BNB</span>
+            <span className="text-gray-500">Target: {threshold.toFixed(4)} BNB</span>
           </div>
         </div>
       </div>
@@ -173,23 +172,22 @@ export function BondingCurveDetail({ pool, userAddress }: BondingCurveDetailProp
 }
 
 function OverviewTab({ pool }: { pool: BondingPool }) {
-  const deployFee = pool.deploy_fee_sol / 1e9;
-  const migrationFee = pool.migration_fee_sol / 1e9;
-  const swapFee = pool.swap_fee_bps / 100;
+  const deployFee = (pool.deploy_fee_native || 0) / 1e18;
+  const swapFee = (pool.swap_fee_bps || 0) / 100;
 
   return (
     <div className="space-y-6">
       {/* Graduation Progress */}
       <GraduationProgress
-        actualSol={pool.actual_sol_reserves.toString()}
-        thresholdSol={pool.graduation_threshold_sol.toString()}
+        actualSol={(pool.actual_native_reserves || 0).toString()}
+        thresholdSol={(pool.graduation_threshold_native || 0).toString()}
         status={pool.status}
       />
 
       {/* Fee Split Display */}
       <FeeSplitDisplay
         swapFeeBps={pool.swap_fee_bps}
-        totalVolume={pool.actual_sol_reserves.toString()}
+        totalVolume={(pool.actual_native_reserves || 0).toString()}
       />
 
       {/* DEX Migration Info */}
@@ -218,7 +216,7 @@ function OverviewTab({ pool }: { pool: BondingPool }) {
             <div>
               <p className="text-white font-medium">Automatic Graduation</p>
               <p className="text-gray-400">
-                When target SOL reached → migrate to {pool.target_dex || 'DEX'}
+                When target BNB reached → migrate to {pool.target_dex || 'DEX'}
               </p>
             </div>
           </div>
@@ -228,21 +226,16 @@ function OverviewTab({ pool }: { pool: BondingPool }) {
       {/* Fees */}
       <div>
         <h3 className="text-lg font-semibold text-white mb-3">💰 Fees</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="p-4 bg-gray-800 rounded-lg">
             <div className="text-sm text-gray-400 mb-1">Deploy Fee</div>
-            <div className="text-xl font-bold text-white">{deployFee} SOL</div>
+            <div className="text-xl font-bold text-white">{deployFee} BNB</div>
             <div className="text-xs text-gray-500 mt-1">One-time</div>
           </div>
           <div className="p-4 bg-gray-800 rounded-lg">
             <div className="text-sm text-gray-400 mb-1">Swap Fee</div>
             <div className="text-xl font-bold text-white">{swapFee}%</div>
-            <div className="text-xs text-gray-500 mt-1">50% Treasury / 50% Referral</div>
-          </div>
-          <div className="p-4 bg-gray-800 rounded-lg">
-            <div className="text-sm text-gray-400 mb-1">Migration Fee</div>
-            <div className="text-xl font-bold text-white">{migrationFee} SOL</div>
-            <div className="text-xs text-gray-500 mt-1">At graduation</div>
+            <div className="text-xs text-gray-500 mt-1">100% Protocol</div>
           </div>
         </div>
       </div>
@@ -269,15 +262,15 @@ function OverviewTab({ pool }: { pool: BondingPool }) {
           <div className="p-4 bg-gray-800 rounded-lg">
             <div className="text-sm text-gray-400 mb-2">Virtual Reserves (AMM)</div>
             <div className="space-y-1 text-sm">
-              <div>SOL: {(pool.virtual_sol_reserves / 1e9).toFixed(4)}</div>
-              <div>Token: {(pool.virtual_token_reserves / 1e9).toFixed(4)}</div>
+              <div>BNB: {((pool.virtual_native_reserves || 0) / 1e18).toFixed(4)}</div>
+              <div>Token: {((pool.virtual_token_reserves || 0) / 1e18).toFixed(4)}</div>
             </div>
           </div>
           <div className="p-4 bg-gray-800 rounded-lg">
             <div className="text-sm text-gray-400 mb-2">Actual Reserves</div>
             <div className="space-y-1 text-sm">
-              <div>SOL: {(pool.actual_sol_reserves / 1e9).toFixed(4)}</div>
-              <div>Token: {(pool.actual_token_reserves / 1e9).toFixed(4)}</div>
+              <div>BNB: {((pool.actual_native_reserves || 0) / 1e18).toFixed(4)}</div>
+              <div>Token: {((pool.actual_token_reserves || 0) / 1e18).toFixed(4)}</div>
             </div>
           </div>
         </div>
