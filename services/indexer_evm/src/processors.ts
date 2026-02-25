@@ -158,12 +158,10 @@ async function processReferral(tokenAddress: string, trader: string, baseEthAmou
     return;
   }
 
-  // Find UUID for the trader (used as source_id or tracked if needed)
+  // Find UUID for the trader (referee)
   const traderUserId = await getUserIdFromWallet(trader);
   
-  // Actually Phase 7 referral_ledger requires source_id which maps to a UUID interaction.
-  // We can look up the swap UUID we just inserted, or we can use the trader's user_id temporarily if source_id is lenient, 
-  // but looking up the bonding_swaps transaction ID is definitively safer.
+  // Look up the swap UUID we just inserted for source_id
   const { data: swapObj } = await supabase
     .from('bonding_swaps')
     .select('id')
@@ -182,11 +180,12 @@ async function processReferral(tokenAddress: string, trader: string, baseEthAmou
 
   const { error } = await supabase.from('referral_ledger').insert({
     referrer_id: referrerUserId, 
-    source_type: 'BONDING', // Fixed constraint failure!
-    source_id: swapObj.id, // Must be UUID
-    amount: referrerShare.toString(), // EVM Native 18-decimal WEI string
+    referee_id: traderUserId || null,
+    source_type: 'BONDING',
+    source_id: swapObj.id,
+    amount: referrerShare.toString(),
     asset: 'BNB',
-    chain: 'bscTestnet',
+    chain: '97',
     status: 'CLAIMABLE',
     created_at: new Date().toISOString(),
   });
@@ -197,6 +196,22 @@ async function processReferral(tokenAddress: string, trader: string, baseEthAmou
     }
   } else {
     console.log(`Saved referral reward of ${ethers.formatEther(referrerShare)} BNB for UUID ${referrerUserId}`);
+  }
+
+  // Activate the referral_relationship if not yet activated
+  if (traderUserId) {
+    const { error: activateError } = await supabase
+      .from('referral_relationships')
+      .update({ activated_at: new Date().toISOString() })
+      .eq('referee_id', traderUserId)
+      .eq('referrer_id', referrerUserId)
+      .is('activated_at', null);
+
+    if (activateError) {
+      console.warn(`Could not activate referral_relationship for referee ${traderUserId}:`, activateError.message);
+    } else {
+      console.log(`Activated referral_relationship for referee ${traderUserId} → referrer ${referrerUserId}`);
+    }
   }
 }
 

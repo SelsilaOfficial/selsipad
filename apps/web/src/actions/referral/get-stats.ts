@@ -281,6 +281,9 @@ export async function getReferralStats(): Promise<{
           contributionAmountNative += weiToNative(c.amount || '0');
         });
 
+        // Add bonding curve swap contributions from referral_ledger
+        totalContributions += info.contributionCount;
+
         // Also check for Blue Check purchase
         const { data: bcProfile } = await supabase
           .from('profiles')

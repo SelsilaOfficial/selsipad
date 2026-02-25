@@ -15,9 +15,28 @@ export async function saveFairlaunchContribution(params: {
   walletAddress: string; // Wallet address from client
 }): Promise<{ success: boolean; error?: string }> {
   try {
-    // Get current session (optional for referral tracking)
+    // Require session for proper referral tracking (consistent with presale)
     const session = await getServerSession();
+    if (!session?.userId) {
+      // Fallback: try to resolve user_id from wallet address
+      const supabaseLookup = createServiceRoleClient();
+      const { data: walletRow } = await supabaseLookup
+        .from('wallets')
+        .select('user_id')
+        .ilike('address', params.walletAddress)
+        .limit(1)
+        .single();
 
+      if (!walletRow?.user_id) {
+        console.warn('[saveFairlaunchContribution] No session and wallet not registered:', params.walletAddress);
+        return { success: false, error: 'Not authenticated. Please connect and sign in with your wallet.' };
+      }
+
+      // Use wallet-resolved userId
+      var resolvedUserId = walletRow.user_id;
+    }
+
+    const userId = session?.userId || resolvedUserId!;
     const supabase = createServiceRoleClient();
 
     // Get round details
@@ -38,8 +57,8 @@ export async function saveFairlaunchContribution(params: {
     // IMPORTANT: status must be 'CONFIRMED' to trigger total_raised update
     const { error: insertError } = await supabase.from('contributions').insert({
       round_id: params.roundId,
-      user_id: session?.userId || null, // From wallet-only session (EVM auth)
-      wallet_address: params.walletAddress.toLowerCase(), // Use provided wallet address
+      user_id: userId, // Always set — from session or wallet lookup
+      wallet_address: params.walletAddress.toLowerCase(),
       amount: amountInEther,
       chain: params.chain,
       tx_hash: params.txHash,
@@ -54,19 +73,16 @@ export async function saveFairlaunchContribution(params: {
       }
     }
 
-    // ✅ Record for referral tracking
-    // Skip if userId is null (wallet-only auth) or no session
-    if (session?.userId) {
-      await recordContribution({
-        userId: session.userId,
-        sourceType: 'FAIRLAUNCH',
-        sourceId: params.roundId,
-        amount: params.amount,
-        asset: round.raise_asset || 'NATIVE',
-        chain: params.chain,
-        txHash: params.txHash,
-      });
-    }
+    // ✅ Record for referral tracking (always runs since userId is guaranteed)
+    await recordContribution({
+      userId,
+      sourceType: 'FAIRLAUNCH',
+      sourceId: params.roundId,
+      amount: params.amount,
+      asset: round.raise_asset || 'NATIVE',
+      chain: params.chain,
+      txHash: params.txHash,
+    });
 
     return { success: true };
   } catch (error: any) {
