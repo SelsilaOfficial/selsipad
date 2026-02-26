@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { formatEther, formatUnits } from 'viem';
-import { Loader2 } from 'lucide-react';
+import { Loader2, TrendingUp, TrendingDown, ExternalLink } from 'lucide-react';
 
 interface UserTxEvent {
   id: string;
@@ -84,56 +84,62 @@ export function UserTransactionsTable({ poolAddress, userAddress }: { poolAddres
 
   if (!userAddress) {
     return (
-        <div className="py-8 text-center text-gray-500 bg-gray-900 border border-gray-800 rounded-xl">
+        <div className="py-8 text-center text-gray-500 bg-white/5 border border-white/5 rounded-[16px]">
             Connect wallet to view your transactions
         </div>
     )
   }
 
   if (loading && transactions.length === 0) {
-     return <div className="py-8 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-blue-500" /></div>;
+     return <div className="py-8 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-[#39AEC4]" /></div>;
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-left text-sm text-gray-400">
-        <thead className="text-xs text-gray-500 uppercase bg-gray-800 border-b border-gray-700">
-          <tr>
-            <th className="px-4 py-3 font-medium">Type</th>
-            <th className="px-4 py-3 font-medium text-right">Amount In</th>
-            <th className="px-4 py-3 font-medium text-right">Amount Out</th>
-            <th className="px-4 py-3 font-medium">Tx Hash</th>
-            <th className="px-4 py-3 font-medium">Time</th>
-          </tr>
-        </thead>
-        <tbody>
-          {transactions.length === 0 ? (
-            <tr>
-              <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
-                You have no transactions for this token yet.
-              </td>
-            </tr>
-          ) : (
-            transactions.map((tx) => (
-              <tr key={tx.id} className="border-b border-gray-800/50 hover:bg-gray-800/50 transition-colors">
-                <td className={`px-4 py-3 font-bold ${tx.type === 'BUY' ? 'text-green-500' : 'text-red-500'}`}>
-                  {tx.type}
-                </td>
-                <td className="px-4 py-3 text-white text-right font-mono">{tx.amountIn}</td>
-                <td className="px-4 py-3 text-white text-right font-mono">{tx.amountOut}</td>
-                <td className="px-4 py-3 font-mono text-xs">
-                    <a href={`https://testnet.bscscan.com/tx/${tx.txHash}`} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 transition-colors">
-                        {tx.txHash.slice(0, 6)}...{tx.txHash.slice(-4)}
-                    </a>
-                </td>
-                <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
-                   {new Date(tx.timestamp).toLocaleString()}
-                </td>
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
+    <div className="space-y-3 min-w-[500px]">
+      {transactions.length === 0 ? (
+        <div className="p-4 text-center text-gray-500 bg-white/5 rounded-[16px] border border-white/5">
+          You have no transactions for this token yet.
+        </div>
+      ) : (
+        transactions.map((tx) => (
+          <div key={tx.id} className="flex flex-wrap sm:flex-nowrap items-center justify-between p-4 rounded-[16px] bg-white/5 border border-white/5 hover:border-[#39AEC4]/30 hover:bg-white/10 transition-all gap-4">
+            <div className="flex items-center gap-4">
+              <div className={`w-10 h-10 shrink-0 rounded-full flex items-center justify-center ${
+                tx.type === 'BUY' ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'
+              }`}>
+                {tx.type === 'BUY' ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
+              </div>
+              <div>
+                <p className="font-bold text-white capitalize">{tx.type} TOKEN</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className={`text-sm font-bold font-mono ${tx.type === 'BUY' ? 'text-green-400' : 'text-red-400'}`}>
+                    {tx.type === 'BUY' ? '+' : '-'}{tx.amountOut.replace(' TOKEN', '')}
+                  </span>
+                  <span className="text-xs text-gray-500 font-mono">for {tx.amountIn}</span>
+                </div>
+              </div>
+            </div>
+            <div className="text-right w-full sm:w-auto flex justify-end">
+              <div>
+                 <a 
+                   href={`https://testnet.bscscan.com/tx/${tx.txHash}`} 
+                   target="_blank" 
+                   rel="noopener noreferrer" 
+                   className="text-sm font-mono text-[#39AEC4] hover:text-white transition-colors flex items-center justify-end gap-1.5"
+                 >
+                    {tx.txHash.slice(0, 8)}...{tx.txHash.slice(-6)}
+                    <ExternalLink className="w-3.5 h-3.5" />
+                 </a>
+                 <p className="text-xs text-gray-500 mt-1">
+                   {new Date(tx.timestamp).toLocaleString(undefined, {
+                      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                   })}
+                 </p>
+              </div>
+            </div>
+          </div>
+        ))
+      )}
     </div>
   );
 }

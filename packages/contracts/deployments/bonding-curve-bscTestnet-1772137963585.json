@@ -1,0 +1,16 @@
+{
+  "network": "bscTestnet",
+  "chainId": "97",
+  "timestamp": "2026-02-26T20:32:43.584Z",
+  "deployer": "0x95D94D86CfC550897d2b80672a3c94c12429a90D",
+  "contracts": {
+    "bondingCurveFactory": "0x8572CF00E6a91D54cEAF009bd4cbbEC8CCA41F4b"
+  },
+  "config": {
+    "router": "0xD99D1c33F9fC3444f8101754aBC46c52416550D1",
+    "treasuryWallet": "0x95D94D86CfC550897d2b80672a3c94c12429a90D",
+    "migrationThreshold": "1 BNB",
+    "tradeFee": "1.5%"
+  },
+  "explorer": "https://testnet.bscscan.com"
+}

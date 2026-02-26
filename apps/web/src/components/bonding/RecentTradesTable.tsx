@@ -84,51 +84,55 @@ export function RecentTradesTable({ poolAddress }: { poolAddress: string }) {
   }, [poolAddress, supabase]);
 
   if (loading && trades.length === 0) {
-     return <div className="py-8 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-blue-500" /></div>;
+     return <div className="py-8 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-[#39AEC4]" /></div>;
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-left text-sm text-gray-400">
-        <thead className="text-xs text-gray-500 uppercase bg-gray-800 border-b border-gray-700">
-          <tr>
-            <th className="px-4 py-3 font-medium">Type</th>
-            <th className="px-4 py-3 font-medium text-right">Price (BNB)</th>
-            <th className="px-4 py-3 font-medium text-right">Token Amount</th>
-            <th className="px-4 py-3 font-medium text-right">Total BNB</th>
-            <th className="px-4 py-3 font-medium">Time</th>
-            <th className="px-4 py-3 font-medium">Maker</th>
-          </tr>
-        </thead>
-        <tbody>
-          {trades.length === 0 ? (
-            <tr>
-              <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
-                No trades found yet. Be the first to trade!
-              </td>
-            </tr>
-          ) : (
-            trades.map((trade) => (
-              <tr key={trade.id} className="border-b border-gray-800/50 hover:bg-gray-800/50 transition-colors">
-                <td className={`px-4 py-3 font-bold ${trade.type === 'BUY' ? 'text-green-500' : 'text-red-500'}`}>
-                  {trade.type}
-                </td>
-                <td className="px-4 py-3 text-white text-right font-mono">{trade.priceBnb.toFixed(8)}</td>
-                <td className="px-4 py-3 text-white text-right font-mono">{trade.tokenAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
-                <td className="px-4 py-3 text-white text-right font-mono">{trade.bnbAmount.toFixed(4)}</td>
-                <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
-                   {new Date(trade.timestamp).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                </td>
-                <td className="px-4 py-3 font-mono text-xs">
-                  <a href={`https://testnet.bscscan.com/address/${trade.maker}`} target="_blank" rel="noopener noreferrer" className="hover:text-blue-400 transition-colors">
-                    {trade.maker.slice(0, 6)}...{trade.maker.slice(-4)}
-                  </a>
-                </td>
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
+    <div className="space-y-2 min-w-[500px]">
+      {trades.length === 0 ? (
+        <div className="p-4 text-center text-gray-500 bg-white/5 rounded-lg border border-white/5">
+          No trades found yet. Be the first to trade!
+        </div>
+      ) : (
+        trades.map((trade) => (
+          <div key={trade.id} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/5 hover:bg-white/10 hover:border-[#39AEC4]/30 transition-all">
+            <div className="flex items-center gap-3">
+              <div className="hidden sm:block">
+                 {trade.type === 'BUY' ? (
+                   <div className="w-8 h-8 rounded-full bg-green-500/10 flex items-center justify-center">
+                     <span className="text-green-400 text-xs font-bold">B</span>
+                   </div>
+                 ) : (
+                   <div className="w-8 h-8 rounded-full bg-red-500/10 flex items-center justify-center">
+                     <span className="text-red-400 text-xs font-bold">S</span>
+                   </div>
+                 )}
+              </div>
+              <div>
+                <p className="text-sm">
+                  <span className={`font-bold ${trade.type === 'BUY' ? 'text-green-400' : 'text-red-400'}`}>
+                    {trade.type === 'BUY' ? 'Bought' : 'Sold'}
+                  </span>
+                  <span className="text-gray-300 ml-2 font-mono">
+                    {trade.tokenAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                  </span>
+                </p>
+                <div className="flex items-center gap-2 text-xs text-gray-500 mt-0.5">
+                   <span>{new Date(trade.timestamp).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+                   <span>•</span>
+                   <a href={`https://testnet.bscscan.com/address/${trade.maker}`} target="_blank" rel="noopener noreferrer" className="hover:text-[#39AEC4] transition-colors font-mono">
+                     {trade.maker.slice(0, 6)}...{trade.maker.slice(-4)}
+                   </a>
+                </div>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-sm font-bold text-white font-mono">{trade.bnbAmount.toFixed(4)} BNB</p>
+              <p className="text-xs text-gray-500 font-mono">@ {trade.priceBnb.toFixed(8)}</p>
+            </div>
+          </div>
+        ))
+      )}
     </div>
   );
 }

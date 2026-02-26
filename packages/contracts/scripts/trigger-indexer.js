@@ -2,7 +2,7 @@ const hre = require("hardhat");
 const { ethers } = hre;
 
 async function main() {
-  const FACTORY_ADDRESS = "0x9cE2f9284EF7C711ec541f1bC07c844097722618";
+  const FACTORY_ADDRESS = "0xF60c79c80Ed3fcE16846ecd64c7b1b1dD391d1Ec";
   const CREATE_FEE = ethers.parseEther("0.05");
 
   const [deployer, referrer] = await ethers.getSigners();

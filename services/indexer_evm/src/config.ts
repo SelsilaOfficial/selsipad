@@ -6,7 +6,7 @@ dotenv.config({ path: '../../apps/web/.env' }); // Adjust path to project root i
 export const RPC_URL = process.env.NEXT_PUBLIC_EVM_RPC_URL || 'https://data-seed-prebsc-1-s1.binance.org:8545/';
 export const MAINNET_RPC_URL = process.env.BSC_MAINNET_RPC_URL || 'https://bsc-dataseed1.binance.org';
 
-export const FACTORY_ADDRESS = '0x9cE2f9284EF7C711ec541f1bC07c844097722618'; // From recent deploy
+export const FACTORY_ADDRESS = '0x8572CF00E6a91D54cEAF009bd4cbbEC8CCA41F4b'; // Slippage protection deploy
 export const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 export const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 

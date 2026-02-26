@@ -28,14 +28,14 @@ export async function handleTokenLaunched(args: any, txHash: string) {
       token_name: name,
       token_symbol: symbol,
       status: 'LIVE',
-      total_supply: "1000000000000000000000000000", // 1 Billion tokens (18 decimals)
+      total_supply: "1000000000000000000000000000", // 1 Billion tokens (18 decimals) — fixed MAX_SUPPLY
       token_decimals: 18, 
       deploy_tx_hash: txHash,
-      actual_token_reserves: "1000000000000000000000000000",
+      actual_token_reserves: "800000000000000000000000000",   // 800M trading reserve (pre-mint model)
       actual_native_reserves: "0",
-      virtual_token_reserves: "1000000000000000000000000000",
-      virtual_native_reserves: "30000000000000000000", // 30 BNB
-      graduation_threshold_native: "24000000000000000000", // 24 BNB
+      virtual_token_reserves: "1000000000000000000000000000", // 1B virtual
+      virtual_native_reserves: "30000000000000000000",        // 30 BNB virtual
+      graduation_threshold_native: "1000000000000000000",     // 1 BNB (testnet)
       chain_id: 97,
       created_at: new Date().toISOString(),
       deployed_at: new Date().toISOString()
@@ -107,7 +107,7 @@ async function recordSwap(type: string, tokenAddress: string, trader: string, to
   // We map 'bscTestnet' to the Phase 7 Supabase schema (assuming pool_id is fetched via token_address)
   const { data: poolObj } = await supabase
     .from('bonding_pools')
-    .select('id')
+    .select('id, actual_native_reserves, actual_token_reserves, virtual_native_reserves, virtual_token_reserves')
     .eq('token_address', tokenAddress.toLowerCase())
     .limit(1)
     .single();
@@ -115,6 +115,31 @@ async function recordSwap(type: string, tokenAddress: string, trader: string, to
   if (!poolObj) {
     console.error(`Skipping swap for tx ${txHash}: Unknown bonding pool ${tokenAddress}`);
     return;
+  }
+
+  // Calculate new reserves
+  const currentNativeReserves = BigInt(poolObj.actual_native_reserves || '0');
+  const currentTokenReserves = BigInt(poolObj.actual_token_reserves || '0');
+  const currentVirtualNative = BigInt(poolObj.virtual_native_reserves || '0');
+  const currentVirtualToken = BigInt(poolObj.virtual_token_reserves || '0');
+
+  let newNativeReserves: bigint;
+  let newTokenReserves: bigint;
+  let newVirtualNative: bigint;
+  let newVirtualToken: bigint;
+
+  if (type === 'BUY') {
+    // BUY: native increases, tokens decrease
+    newNativeReserves = currentNativeReserves + ethAmount;
+    newTokenReserves = currentTokenReserves - tokenAmount;
+    newVirtualNative = currentVirtualNative + ethAmount;
+    newVirtualToken = currentVirtualToken - tokenAmount;
+  } else {
+    // SELL: native decreases, tokens increase
+    newNativeReserves = currentNativeReserves - ethAmount;
+    newTokenReserves = currentTokenReserves + tokenAmount;
+    newVirtualNative = currentVirtualNative - ethAmount;
+    newVirtualToken = currentVirtualToken + tokenAmount;
   }
 
   const { error } = await supabase.from('bonding_swaps').insert({
@@ -129,10 +154,10 @@ async function recordSwap(type: string, tokenAddress: string, trader: string, to
     treasury_fee: treasuryFee.toString(),
     referral_pool_fee: referralPoolFee.toString(),
     tx_hash: txHash,
-    native_reserves_before: 0, 
-    token_reserves_before: 0, 
-    native_reserves_after: 0, 
-    token_reserves_after: 0, 
+    native_reserves_before: currentNativeReserves.toString(), 
+    token_reserves_before: currentTokenReserves.toString(), 
+    native_reserves_after: newNativeReserves.toString(), 
+    token_reserves_after: newTokenReserves.toString(), 
     chain_id: 97,
     signature_verified: true
   });
@@ -142,6 +167,24 @@ async function recordSwap(type: string, tokenAddress: string, trader: string, to
     if (error.code !== '23505') { 
       console.error(`Error inserting swap for tx ${txHash}:`, error.message);
     }
+    return; // Don't update reserves if swap insert failed
+  }
+
+  // Update pool reserves after successful swap insert
+  const { error: updateError } = await supabase
+    .from('bonding_pools')
+    .update({
+      actual_native_reserves: newNativeReserves.toString(),
+      actual_token_reserves: newTokenReserves.toString(),
+      virtual_native_reserves: newVirtualNative.toString(),
+      virtual_token_reserves: newVirtualToken.toString(),
+    })
+    .eq('id', poolObj.id);
+
+  if (updateError) {
+    console.error(`Error updating pool reserves for ${tokenAddress}:`, updateError.message);
+  } else {
+    console.log(`[${type}] Updated reserves for ${tokenAddress}: native=${newNativeReserves}, token=${newTokenReserves}`);
   }
 }
 

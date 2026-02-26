@@ -102,8 +102,11 @@ export function ExploreProjectCard({ project, index }: ExploreProjectCardProps) 
   const displayPercentage =
     (project as any).type === 'fairlaunch' ? percentage : Math.min(100, percentage);
 
+  const isBondingCurve = (project as any).type === 'bonding_curve';
+  const linkHref = isBondingCurve ? `/bonding-curve/${project.id}` : `/project/${project.id}`;
+
   return (
-    <Link href={`/project/${project.id}`} className="block h-full group">
+    <Link href={linkHref} className="block h-full group">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -290,13 +293,15 @@ export function ExploreProjectCard({ project, index }: ExploreProjectCardProps) 
             <div className="flex items-center gap-1.5">
               <Clock size={12} />
               <span>
-                {isEnded
-                  ? isRefundable
-                    ? 'Softcap Not Reached'
-                    : 'Ended'
-                  : isLive
-                    ? `Ends in ${countdown || '...'}`
-                    : `Starts in ${countdown || '...'}`}
+                {isBondingCurve
+                  ? 'Bonding Curve'
+                  : isEnded
+                    ? isRefundable
+                      ? 'Softcap Not Reached'
+                      : 'Ended'
+                    : isLive
+                      ? `Ends in ${countdown || '...'}`
+                      : `Starts in ${countdown || '...'}`}
               </span>
             </div>
           </div>

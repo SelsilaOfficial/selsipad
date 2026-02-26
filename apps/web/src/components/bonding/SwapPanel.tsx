@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt, useBalance } from 'wagmi';
 import { parseEther, formatEther, parseAbi, parseUnits, formatUnits } from 'viem';
-import { Loader2, ArrowDown } from 'lucide-react';
+import { Loader2, ArrowDown, Info } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface SwapPanelProps {
@@ -16,8 +16,8 @@ interface SwapPanelProps {
 const FACTORY_ADDRESS = process.env.NEXT_PUBLIC_BONDING_CURVE_FACTORY_ADDRESS as `0x${string}`;
 
 const FACTORY_ABI = parseAbi([
-  'function buyToken(address _token, address _referrer) external payable',
-  'function sellToken(address _token, uint256 tokenAmount, address _referrer) external',
+  'function buyToken(address _token, address _referrer, uint256 _minAmountOut) external payable',
+  'function sellToken(address _token, uint256 tokenAmount, address _referrer, uint256 _minAmountOut) external',
   'function getAmountOut(address _token, uint256 ethIn) external view returns (uint256 tokensOut)',
   'function getAmountIn(address _token, uint256 tokenAmount) external view returns (uint256 ethOut)',
 ]);
@@ -34,6 +34,7 @@ export function SwapPanel({ poolAddress, targetDex, isMigrated, onSuccess }: Swa
   const [mode, setMode] = useState<'buy' | 'sell'>('buy');
   const [amountIn, setAmountIn] = useState('');
   const [debouncedAmount, setDebouncedAmount] = useState('');
+  const [slippage, setSlippage] = useState('1.0');
   const [referrer, setReferrer] = useState<`0x${string}`>('0x0000000000000000000000000000000000000000');
 
   // Resolve referrer wallet via server action (bypasses RLS)
@@ -91,8 +92,14 @@ export function SwapPanel({ poolAddress, targetDex, isMigrated, onSuccess }: Swa
     query: { enabled: amountInParsed > 0n },
   });
 
-  const estimatedReceive = amountOutQuote ? 
+  const estimatedReceiveRaw = amountOutQuote ? 
     (mode === 'buy' ? formatUnits(amountOutQuote, tokenDecimals) : formatEther(amountOutQuote)) : '';
+  // Format: tokens → max 2 decimals with commas, BNB → max 8 decimals
+  const estimatedReceive = estimatedReceiveRaw
+    ? mode === 'buy'
+      ? Number(estimatedReceiveRaw).toLocaleString(undefined, { maximumFractionDigits: 2 })
+      : Number(estimatedReceiveRaw).toFixed(8)
+    : '';
 
   // Allowance check (only for sell)
   const { data: allowance, refetch: refetchAllowance } = useReadContract({
@@ -112,16 +119,28 @@ export function SwapPanel({ poolAddress, targetDex, isMigrated, onSuccess }: Swa
     hash: txHash,
   });
 
+  // Track whether last tx was an approval (don't clear input after approve)
+  const [lastAction, setLastAction] = useState<'approve' | 'trade' | null>(null);
+
   // Handle Success Side Effects
   useEffect(() => {
     if (isTxSuccess) {
-      toast.success('Transaction Successful!');
-      setAmountIn('');
-      refetchBnb();
-      refetchToken();
-      refetchAllowance();
-      if (onSuccess) onSuccess();
-      resetWrite();
+      if (lastAction === 'approve') {
+        toast.success('Approval Successful! Now click Sell to proceed.');
+        refetchAllowance();
+        resetWrite();
+        setLastAction(null);
+        // Don't clear amountIn — user wants to sell
+      } else {
+        toast.success('Transaction Successful!');
+        setAmountIn('');
+        refetchBnb();
+        refetchToken();
+        refetchAllowance();
+        if (onSuccess) onSuccess();
+        resetWrite();
+        setLastAction(null);
+      }
     }
   }, [isTxSuccess]);
 
@@ -129,33 +148,51 @@ export function SwapPanel({ poolAddress, targetDex, isMigrated, onSuccess }: Swa
     if (!amountInParsed) return;
 
     if (needsApproval) {
+      setLastAction('approve');
+      // Approve max uint256 so user doesn't have to approve every time
+      const MAX_UINT256 = 2n ** 256n - 1n;
       writeContract({
         address: poolAddress as `0x${string}`,
         abi: ERC20_ABI,
         functionName: 'approve',
-        args: [FACTORY_ADDRESS, amountInParsed],
+        args: [FACTORY_ADDRESS, MAX_UINT256],
       }, {
         onError: (err) => toast.error('Approval failed: ' + err.message)
       });
       return;
     }
 
+    setLastAction('trade');
+    // Calculate minAmountOut based on slippage
+    const slippageBps = Math.round(parseFloat(slippage) * 100); // e.g., 1.0% → 100
     if (mode === 'buy') {
+      // For buy: minAmountOut = estimated tokens * (1 - slippage)
+      let minOut = 0n;
+      if (estimatedReceiveRaw) {
+        const estimated = parseUnits(String(estimatedReceiveRaw), 18);
+        minOut = estimated - (estimated * BigInt(slippageBps) / 10000n);
+      }
       writeContract({
         address: FACTORY_ADDRESS,
         abi: FACTORY_ABI,
         functionName: 'buyToken',
-        args: [poolAddress as `0x${string}`, referrer],
+        args: [poolAddress as `0x${string}`, referrer, minOut],
         value: amountInParsed,
       }, {
         onError: (err) => toast.error('Buy failed: ' + err.message)
       });
     } else {
+      // For sell: minAmountOut = estimated BNB * (1 - slippage)
+      let minOut = 0n;
+      if (estimatedReceiveRaw) {
+        const estimated = parseEther(String(estimatedReceiveRaw));
+        minOut = estimated - (estimated * BigInt(slippageBps) / 10000n);
+      }
       writeContract({
         address: FACTORY_ADDRESS,
         abi: FACTORY_ABI,
         functionName: 'sellToken',
-        args: [poolAddress as `0x${string}`, amountInParsed, referrer],
+        args: [poolAddress as `0x${string}`, amountInParsed, referrer, minOut],
       }, {
         onError: (err) => toast.error('Sell failed: ' + err.message)
       });
@@ -166,114 +203,183 @@ export function SwapPanel({ poolAddress, targetDex, isMigrated, onSuccess }: Swa
 
   return (
     <div className="w-full">
-      <div className="flex bg-gray-800 p-1 border-b border-gray-800">
+      {/* Buy/Sell Toggle */}
+      <div className="flex gap-2 mb-4 p-1 rounded-[16px] bg-black/40 border border-white/5">
         <button
-          className={`flex-1 py-3 text-sm font-bold transition-colors ${
-            mode === 'buy' ? 'bg-green-500 text-white rounded-t-lg shadow-[0_-2px_0_0_#22c55e_inset]' : 'text-gray-400 hover:text-white'
-          }`}
           onClick={() => { setMode('buy'); setAmountIn(''); }}
+          className={`flex-1 py-2.5 rounded-[12px] font-bold text-sm transition-all ${
+            mode === 'buy'
+              ? 'bg-gradient-to-r from-[#39AEC4] to-[#4EABC8] text-white shadow-lg shadow-[#39AEC4]/30'
+              : 'text-gray-400 hover:text-white hover:bg-white/5'
+          }`}
         >
           Buy
         </button>
         <button
-          className={`flex-1 py-3 text-sm font-bold transition-colors ${
-            mode === 'sell' ? 'bg-red-500 text-white rounded-t-lg shadow-[0_-2px_0_0_#ef4444_inset]' : 'text-gray-400 hover:text-white'
-          }`}
           onClick={() => { setMode('sell'); setAmountIn(''); }}
+          className={`flex-1 py-2.5 rounded-[12px] font-bold text-sm transition-all ${
+            mode === 'sell'
+              ? 'bg-gradient-to-r from-[#756BBA] to-[#8B7BC8] text-white shadow-lg shadow-[#756BBA]/30'
+              : 'text-gray-400 hover:text-white hover:bg-white/5'
+          }`}
         >
           Sell
         </button>
       </div>
 
-      <div className="p-6 space-y-4">
-        {/* Input Card */}
-        <div className="bg-gray-800 rounded-xl p-4 border border-gray-700/50">
-          <div className="flex justify-between text-xs font-medium text-gray-400 mb-3">
-            <span>You pay</span>
-            <button 
-               className="hover:text-white transition-colors"
-               onClick={() => {
-                 if (mode === 'buy' && bnbBalance) setAmountIn(formatEther(bnbBalance.value));
-                 if (mode === 'sell' && tokenBalanceRaw) setAmountIn(formatUnits(tokenBalanceRaw as bigint, tokenDecimals));
-               }}
-            >
-              Balance: {mode === 'buy' ? Number(bnbBalance ? formatEther(bnbBalance.value) : 0).toFixed(4) : Number(tokenBalanceRaw ? formatUnits(tokenBalanceRaw as bigint, tokenDecimals) : 0).toLocaleString()}
-            </button>
-          </div>
-          <div className="flex items-center gap-2">
+      {/* From Input */}
+      <div className="mb-3">
+        <label className="text-xs text-gray-400 mb-1.5 block">You {mode === 'buy' ? 'Pay' : 'Sell'}</label>
+        <div className="rounded-[16px] bg-black/40 border border-[#39AEC4]/30 p-3 hover:border-[#39AEC4]/50 transition-colors">
+          <div className="flex items-center justify-between mb-1">
             <input
               type="number"
               placeholder="0.0"
               value={amountIn}
               onChange={(e) => setAmountIn(e.target.value)}
-              className="w-full bg-transparent text-3xl font-bold text-white outline-none placeholder:text-gray-600 appearance-none"
+              className="bg-transparent text-xl font-bold text-white outline-none flex-1 w-0 placeholder:text-gray-600"
             />
-            <div className="flex items-center gap-2 bg-gray-900 px-3 py-1.5 rounded-lg border border-gray-700 font-medium text-white shrink-0">
-               {mode === 'buy' ? 'BNB' : 'TOKEN'}
+            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg ${mode === 'buy' ? 'bg-[#39AEC4]/10 text-[#39AEC4]' : 'bg-[#756BBA]/10 text-[#756BBA]'}`}>
+              <span className="font-bold text-sm">{mode === 'buy' ? 'BNB' : 'TOKEN'}</span>
             </div>
           </div>
-          <div className="mt-4 flex gap-2">
-             {['0.1', '0.5', '1'].map(val => (
-                <button 
-                  key={val}
-                  onClick={() => setAmountIn(val)}
-                  className="px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 rounded transition-colors"
-                >
-                  {val} {mode === 'buy' ? 'BNB' : ''}
-                </button>
-             ))}
-          </div>
-        </div>
-
-        <div className="flex justify-center -my-3 relative z-10">
-          <div className="bg-gray-700 border-4 border-gray-900 rounded-full p-1.5 text-white shadow-lg">
-            <ArrowDown className="w-4 h-4" />
-          </div>
-        </div>
-
-        {/* Output Card */}
-        <div className="bg-gray-800 rounded-xl p-4 border border-gray-700/50">
-          <div className="flex justify-between text-xs font-medium text-gray-400 mb-3">
-            <span>You receive (estimated)</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-full text-3xl font-bold text-gray-500 truncate h-[36px] flex items-center">
-               {isQuoteLoading ? <Loader2 className="w-6 h-6 animate-spin" /> : (estimatedReceive || '0.0')}
-            </div>
-            <div className="flex items-center gap-2 bg-gray-900 px-3 py-1.5 rounded-lg border border-gray-700 font-medium text-white shrink-0">
-               {mode === 'buy' ? 'TOKEN' : 'BNB'}
-            </div>
-          </div>
-        </div>
-
-        {/* Action Button */}
-        {isMigrated ? (
-          <button disabled className="w-full py-4 mt-2 bg-gray-800 text-gray-500 font-bold rounded-xl cursor-not-allowed border border-gray-700">
-            Trading Migrated to {targetDex || 'DEX'}
-          </button>
-        ) : !userAddress ? (
-          <button disabled className="w-full py-4 mt-2 bg-blue-600/50 text-white/50 font-bold rounded-xl cursor-not-allowed">
-            Connect Wallet to Trade
-          </button>
-        ) : (
-          <button 
-            disabled={isButtonDisabled}
-            onClick={handleAction}
-            className={`w-full py-4 mt-2 text-white font-bold text-lg rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 ${
-              isButtonDisabled ? 'opacity-50 cursor-not-allowed bg-gray-700' : 
-              needsApproval ? 'bg-blue-600 hover:bg-blue-500' :
-              mode === 'buy' ? 'bg-green-500 hover:bg-green-400' : 'bg-red-500 hover:bg-red-400'
-            }`}
-          >
-            {isWritePending || isTxConfirming ? (
-               <><Loader2 className="w-5 h-5 animate-spin"/> Processing...</>
-            ) : needsApproval ? (
-               'Approve TOKEN'
-            ) : (
-               mode === 'buy' ? 'Place Trade' : 'Sell TOKEN'
+          <div className="flex justify-between items-center mt-2">
+            <button 
+              className="text-xs text-gray-500 hover:text-[#39AEC4] transition-colors"
+              onClick={() => {
+                if (mode === 'buy' && bnbBalance) setAmountIn(formatEther(bnbBalance.value));
+                if (mode === 'sell' && tokenBalanceRaw) setAmountIn(formatUnits(tokenBalanceRaw as bigint, tokenDecimals));
+              }}
+            >
+              Balance: {mode === 'buy' ? Number(bnbBalance ? formatEther(bnbBalance.value) : 0).toFixed(4) : Number(tokenBalanceRaw ? formatUnits(tokenBalanceRaw as bigint, tokenDecimals) : 0).toLocaleString()}
+            </button>
+            
+            {/* Quick Amount Buttons */}
+            {mode === 'buy' && (
+              <div className="flex gap-1.5">
+                {['0.1', '0.5', '1'].map(val => (
+                  <button 
+                    key={val}
+                    onClick={() => setAmountIn(val)}
+                    className="px-2 py-0.5 text-[10px] font-medium bg-white/5 hover:bg-[#39AEC4]/20 hover:text-[#39AEC4] text-gray-400 rounded transition-colors border border-white/5"
+                  >
+                    {val}
+                  </button>
+                ))}
+              </div>
             )}
-          </button>
-        )}
+            {mode === 'sell' && (
+              <div className="flex gap-1.5">
+                 <button 
+                    onClick={() => {
+                        if (tokenBalanceRaw) {
+                           const half = (tokenBalanceRaw as bigint) / 2n;
+                           setAmountIn(formatUnits(half, tokenDecimals));
+                        }
+                    }}
+                    className="px-2 py-0.5 text-[10px] font-medium bg-white/5 hover:bg-[#756BBA]/20 hover:text-[#756BBA] text-gray-400 rounded transition-colors border border-white/5"
+                  >
+                    50%
+                  </button>
+                  <button 
+                    onClick={() => {
+                        if (tokenBalanceRaw) {
+                           setAmountIn(formatUnits(tokenBalanceRaw as bigint, tokenDecimals));
+                        }
+                    }}
+                    className="px-2 py-0.5 text-[10px] font-medium bg-white/5 hover:bg-[#756BBA]/20 hover:text-[#756BBA] text-gray-400 rounded transition-colors border border-white/5"
+                  >
+                    Max
+                  </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Vertical divider with arrow */}
+      <div className="flex justify-center -my-3 relative z-10">
+        <div className="bg-[#030614] border border-[#39AEC4]/30 rounded-full p-1.5 text-gray-400">
+          <ArrowDown className="w-3.5 h-3.5" />
+        </div>
+      </div>
+
+      {/* To Input */}
+      <div className="mb-4">
+        <label className="text-xs text-gray-400 mb-1.5 block mt-2">You {mode === 'buy' ? 'Receive' : 'Get'}</label>
+        <div className="rounded-[16px] bg-black/40 border border-[#39AEC4]/30 p-3">
+          <div className="flex items-center justify-between">
+            <div className="bg-transparent text-xl font-bold text-gray-400 flex-1 w-0 flex items-center h-[32px]">
+               {isQuoteLoading ? <Loader2 className="w-5 h-5 animate-spin text-[#39AEC4]" /> : (estimatedReceive || '0.0')}
+            </div>
+            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg ${mode === 'buy' ? 'bg-[#756BBA]/10 text-[#756BBA]' : 'bg-[#39AEC4]/10 text-[#39AEC4]'}`}>
+              <span className="font-bold text-sm">{mode === 'buy' ? 'TOKEN' : 'BNB'}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Slippage Settings */}
+      <div className="mb-5">
+        <div className="flex items-center justify-between mb-2">
+          <label className="text-xs text-gray-400">Slippage Tolerance</label>
+        </div>
+        <div className="flex gap-2">
+          {['0.5', '1.0', '2.0'].map(val => (
+            <button
+              key={val}
+              onClick={() => setSlippage(val)}
+              className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                slippage === val
+                  ? 'bg-[#39AEC4]/20 text-[#39AEC4] border border-[#39AEC4]/50'
+                  : 'bg-black/40 text-gray-400 hover:text-white border border-white/5'
+              }`}
+            >
+              {val}%
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Action Button */}
+      {isMigrated ? (
+        <button disabled className="w-full py-3.5 rounded-xl font-bold text-sm bg-black/40 text-gray-500 border border-white/10 cursor-not-allowed">
+          Trading Migrated to {targetDex || 'DEX'}
+        </button>
+      ) : !userAddress ? (
+        <button disabled className="w-full py-3.5 rounded-xl font-bold text-sm bg-[#39AEC4]/10 text-[#39AEC4]/50 border border-[#39AEC4]/20 cursor-not-allowed">
+          Connect Wallet to Trade
+        </button>
+      ) : (
+        <button
+          disabled={isButtonDisabled}
+          onClick={handleAction}
+          className={`w-full py-3.5 rounded-xl font-bold text-sm shadow-lg transition-all flex items-center justify-center gap-2 ${
+            isButtonDisabled 
+              ? 'opacity-50 cursor-not-allowed bg-black/40 text-gray-500 border border-white/10' 
+              : needsApproval 
+                ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-400 hover:to-blue-500 text-white shadow-blue-500/20'
+              : mode === 'buy'
+                ? 'bg-gradient-to-r from-[#39AEC4] to-[#4EABC8] hover:from-[#39AEC4]/90 hover:to-[#4EABC8]/90 text-white shadow-[#39AEC4]/20'
+                : 'bg-gradient-to-r from-[#756BBA] to-[#8B7BC8] hover:from-[#756BBA]/90 hover:to-[#8B7BC8]/90 text-white shadow-[#756BBA]/20'
+          }`}
+        >
+          {isWritePending || isTxConfirming ? (
+             <><Loader2 className="w-4 h-4 animate-spin"/> Processing...</>
+          ) : needsApproval ? (
+             'Approve TOKEN'
+          ) : (
+             mode === 'buy' ? 'Buy TOKEN' : 'Sell TOKEN'
+          )}
+        </button>
+      )}
+
+      {/* Info */}
+      <div className="mt-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+        <p className="text-xs text-amber-200/80 flex items-start gap-2 leading-relaxed">
+          <Info className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-400" />
+          <span>Bonding curve pricing increases with every buy. Early buyers get more tokens per BNB.</span>
+        </p>
       </div>
     </div>
   );

@@ -35,10 +35,6 @@ export default async function BondingCurveDetailPage({ params }: { params: { id:
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 py-8">
-      <div className="container mx-auto px-4">
-        <BondingCurveDetail pool={pool} userAddress={session?.address} />
-      </div>
-    </div>
+    <BondingCurveDetail pool={pool} userAddress={session?.address} />
   );
 }

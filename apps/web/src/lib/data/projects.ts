@@ -10,7 +10,7 @@ export interface Project {
   logo: string; // Maps to logo_url in DB
   banner?: string; // Maps to banner_url/cover_image
   description: string;
-  type: 'presale' | 'fairlaunch';
+  type: 'presale' | 'fairlaunch' | 'bonding_curve';
   network: 'SOL' | 'EVM';
   chain?: string; // Specific chain ID (97, 56, 1, 11155111, 8453, 84532, etc.)
   currency: string; // BNB, ETH, SOL
@@ -559,6 +559,64 @@ export async function getAllProjects(filters?: {
     return projects;
   } catch (err) {
     console.error('Unexpected error in getAllProjects:', err);
+    return [];
+  }
+}
+
+/**
+ * Get Bonding Curve Pools
+ *
+ * Fetches bonding curve pools from bonding_pools table
+ * and maps them to the Project[] format for unified display
+ */
+export async function getBondingCurvePools(): Promise<Project[]> {
+  const supabase = createClient();
+
+  try {
+    const { data, error } = await supabase
+      .from('bonding_pools')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching bonding pools:', error);
+      return [];
+    }
+
+    return (data || []).map((pool: any) => {
+      const bnbRaised = Number(pool.actual_native_reserves || 0) / 1e18;
+      const threshold = Number(pool.graduation_threshold_native || 0) / 1e18;
+      const isGraduated = pool.status === 'graduated';
+
+      return {
+        id: pool.id,
+        name: pool.token_name || 'Unnamed Token',
+        symbol: pool.token_symbol || 'TKN',
+        logo: pool.logo_url || '/placeholder-logo.png',
+        banner: pool.banner_url || '/placeholder-banner.jpg',
+        description: pool.description || '',
+        type: 'bonding_curve' as const,
+        network: 'EVM' as const,
+        chain: '97', // BSC Testnet
+        currency: 'BNB',
+        status: isGraduated ? 'ended' : 'live',
+        raised: bnbRaised,
+        target: threshold || 1,
+        participants: 0,
+        kyc_verified: false,
+        audit_status: null,
+        lp_lock: false,
+        token_address: pool.token_address,
+        metadata: {
+          website: pool.website,
+          twitter: pool.twitter,
+          telegram: pool.telegram,
+          isBondingCurve: true,
+        },
+      };
+    });
+  } catch (err) {
+    console.error('Unexpected error in getBondingCurvePools:', err);
     return [];
   }
 }

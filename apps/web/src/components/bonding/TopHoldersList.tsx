@@ -86,54 +86,45 @@ export function TopHoldersList({ poolAddress, totalSupply }: { poolAddress: stri
   }, [poolAddress, totalSupply, supabase]);
 
   if (loading && holders.length === 0) {
-     return <div className="py-8 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-blue-500" /></div>;
+     return <div className="py-8 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-[#39AEC4]" /></div>;
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-left text-sm text-gray-400">
-        <thead className="text-xs text-gray-500 uppercase bg-gray-800 border-b border-gray-700">
-          <tr>
-            <th className="px-4 py-3 font-medium">Rank</th>
-            <th className="px-4 py-3 font-medium">Address</th>
-            <th className="px-4 py-3 font-medium text-right">Token Amount</th>
-            <th className="px-4 py-3 font-medium text-right">% Supply</th>
-          </tr>
-        </thead>
-        <tbody>
-          {holders.length === 0 ? (
-            <tr>
-              <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
-                No active holders found yet.
-              </td>
-            </tr>
-          ) : (
-            holders.map((holder, index) => (
-              <tr key={holder.address} className="border-b border-gray-800/50 hover:bg-gray-800/50 transition-colors">
-                <td className="px-4 py-3 font-bold text-gray-300">
-                  #{index + 1}
-                </td>
-                <td className="px-4 py-3 font-mono text-xs">
-                  <a href={`https://testnet.bscscan.com/address/${holder.address}`} target="_blank" rel="noopener noreferrer" className="text-white hover:text-blue-400 transition-colors">
-                     {holder.address.slice(0, 6)}...{holder.address.slice(-4)}
-                  </a>
-                </td>
-                <td className="px-4 py-3 text-white text-right font-mono">
-                  {holder.tokenAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                </td>
-                <td className="px-4 py-3 text-white text-right font-mono">
-                  <div className="flex items-center justify-end gap-2">
-                     <span>{holder.percentage.toFixed(2)}%</span>
-                     <div className="w-16 h-1.5 bg-gray-800 rounded-full overflow-hidden shrink-0">
-                        <div className="h-full bg-blue-500" style={{ width: `${Math.min(holder.percentage, 100)}%` }} />
-                     </div>
-                  </div>
-                </td>
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
+    <div className="space-y-3">
+      {holders.length === 0 ? (
+        <div className="p-4 text-center text-gray-500 bg-white/5 rounded-[16px] border border-white/5">
+          No active holders found yet.
+        </div>
+      ) : (
+        holders.map((holder, index) => (
+          <div key={holder.address} className="flex flex-wrap sm:flex-nowrap items-center justify-between p-4 rounded-[16px] bg-white/5 border border-white/5 hover:border-[#39AEC4]/30 hover:bg-white/10 transition-all gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 shrink-0 rounded-full bg-gradient-to-br from-[#39AEC4] to-[#756BBA] flex items-center justify-center font-bold text-sm text-white shadow-lg shadow-[#39AEC4]/20">
+                {index + 1}
+              </div>
+              <div>
+                <a 
+                   href={`https://testnet.bscscan.com/address/${holder.address}`} 
+                   target="_blank" 
+                   rel="noopener noreferrer" 
+                   className="font-mono text-sm text-gray-300 hover:text-white transition-colors"
+                >
+                   {holder.address.slice(0, 8)}...{holder.address.slice(-6)}
+                </a>
+                <p className="text-xs text-gray-500 mt-0.5">{holder.tokenAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })} tokens</p>
+              </div>
+            </div>
+            <div className="text-right w-full sm:w-auto flex justify-end">
+              <div className="flex items-center gap-3">
+                 <p className="font-bold text-[#39AEC4] text-sm sm:text-base">{holder.percentage.toFixed(2)}%</p>
+                 <div className="w-16 h-1.5 bg-black/40 rounded-full overflow-hidden shrink-0 hidden sm:block">
+                    <div className="h-full bg-gradient-to-r from-[#39AEC4] to-[#756BBA]" style={{ width: `${Math.min(holder.percentage, 100)}%` }} />
+                 </div>
+              </div>
+            </div>
+          </div>
+        ))
+      )}
     </div>
   );
 }

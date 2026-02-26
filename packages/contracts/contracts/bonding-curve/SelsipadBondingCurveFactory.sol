@@ -33,10 +33,21 @@ interface IERC20Minimal {
 
 /**
  * @title SelsipadBondingCurveFactory
- * @notice Creates bonding-curve tokens and handles buy/sell trading with a
- *         constant-product (x·y = k) virtual AMM.  When the real ETH/BNB
- *         reserve hits the migration threshold the liquidity is automatically
- *         migrated to a DEX (PancakeSwap / Uniswap V2).
+ * @notice Pre-mint inventory bonding curve.
+ *
+ *         At launch the entire MAX_SUPPLY (1 B tokens) is minted to this
+ *         contract.  Tokens are split into TRADING_RESERVE (for buy/sell)
+ *         and MIGRATION_RESERVE (for DEX LP migration).
+ *
+ *         Buy  = transfer tokens FROM factory → buyer
+ *         Sell = transferFrom tokens FROM seller → factory
+ *
+ *         totalSupply never changes after launch.
+ *
+ * Price model
+ * ───────────
+ *  Virtual AMM constant-product (x·y = k).
+ *  Starting virtual reserves: 30 BNB / 1 B tokens.
  *
  * Fee model
  * ─────────
@@ -59,7 +70,7 @@ contract SelsipadBondingCurveFactory is Ownable, ReentrancyGuard {
         uint256 vReserveEth;      // virtual ETH reserve  (used in price calc)
         uint256 vReserveToken;    // virtual token reserve (used in price calc)
         uint256 rReserveEth;      // real ETH locked in the curve
-        int256  rReserveToken;    // real tokens remaining in the curve
+        uint256 rReserveToken;    // real tokens available for trading in factory
         bool    liquidityMigrated;
         uint256 createdAt;        // block.timestamp at launch
     }
@@ -79,10 +90,11 @@ contract SelsipadBondingCurveFactory is Ownable, ReentrancyGuard {
     // Treasury
     address public treasuryWallet;
 
-    // ── Curve parameters (defaults, can be updated by owner) ──
-    uint256 public V_ETH_RESERVE    = 15 ether / 1000;        // 0.015 ETH
-    uint256 public V_TOKEN_RESERVE  = 1_073_000_000 ether;     // 1.073 B tokens
-    uint256 public R_TOKEN_RESERVE  = 793_100_000  ether;      // 793.1 M tokens
+    // ── Curve parameters (pump.fun style) ──
+    uint256 public V_ETH_RESERVE      = 30 ether;              // 30 BNB virtual
+    uint256 public V_TOKEN_RESERVE    = 1_000_000_000 ether;   // 1B tokens virtual
+    uint256 public TRADING_RESERVE    = 800_000_000 ether;     // 800M for curve trading
+    uint256 public MIGRATION_RESERVE  = 200_000_000 ether;     // 200M for DEX LP
 
     // ── Fee config ──
     uint256 public constant TRADE_FEE_BPS    = 150;   // 1.5 %
@@ -148,6 +160,7 @@ contract SelsipadBondingCurveFactory is Ownable, ReentrancyGuard {
     error TransferFailed();
     error InvalidAddress();
     error InsufficientFee();
+    error SlippageExceeded();
 
     // ═══════════════════════════════════════════════════════════════
     //                       CONSTRUCTOR
@@ -175,7 +188,8 @@ contract SelsipadBondingCurveFactory is Ownable, ReentrancyGuard {
 
     /**
      * @notice Create a new bonding-curve token.
-     *         Optionally buy tokens in the same tx by sending ETH/BNB.
+     *         The token constructor pre-mints MAX_SUPPLY (1B) to this factory.
+     *         Optionally buy tokens in the same tx by sending extra ETH/BNB.
      * @param _name     Token name
      * @param _symbol   Token symbol
      * @param _referrer Referrer address (address(0) if none)
@@ -196,15 +210,16 @@ contract SelsipadBondingCurveFactory is Ownable, ReentrancyGuard {
 
         uint256 remainingEth = msg.value - createFee;
 
+        // Deploy token — constructor pre-mints MAX_SUPPLY to this factory
         SelsipadBCToken token = new SelsipadBCToken(_name, _symbol, msg.sender);
 
         TokenInfo storage info = tokens[address(token)];
         info.creator       = msg.sender;
         info.tokenAddress  = address(token);
         info.rReserveEth   = 0;
-        info.rReserveToken = int256(R_TOKEN_RESERVE);
-        info.vReserveEth   = V_ETH_RESERVE;
-        info.vReserveToken = V_TOKEN_RESERVE;
+        info.rReserveToken = TRADING_RESERVE;    // 800M tokens for trading
+        info.vReserveEth   = V_ETH_RESERVE;      // 30 BNB virtual
+        info.vReserveToken = V_TOKEN_RESERVE;     // 1B virtual
         info.liquidityMigrated = false;
         info.createdAt     = block.timestamp;
 
@@ -214,7 +229,7 @@ contract SelsipadBondingCurveFactory is Ownable, ReentrancyGuard {
 
         // Optional initial buy with remaining ETH (after fee deduction)
         if (remainingEth > 0) {
-            _buyInternal(address(token), msg.sender, remainingEth, _referrer);
+            _buyInternal(address(token), msg.sender, remainingEth, _referrer, 0);
         }
     }
 
@@ -224,26 +239,28 @@ contract SelsipadBondingCurveFactory is Ownable, ReentrancyGuard {
 
     /**
      * @notice Buy tokens on the bonding curve by sending ETH/BNB.
-     * @param _token    Token address
-     * @param _referrer Referrer address (address(0) if none)
+     * @param _token         Token address
+     * @param _referrer      Referrer address (address(0) if none)
+     * @param _minAmountOut  Minimum tokens to receive (slippage protection), 0 to skip
      */
     function buyToken(
         address _token,
-        address _referrer
+        address _referrer,
+        uint256 _minAmountOut
     ) external payable nonReentrant {
         if (msg.value == 0) revert ZeroAmount();
-        _buyInternal(_token, msg.sender, msg.value, _referrer);
+        _buyInternal(_token, msg.sender, msg.value, _referrer, _minAmountOut);
     }
 
     /**
-     * @dev Shared buy logic. Handles fee splitting, reserve update, and
-     *      auto-migration check.
+     * @dev Shared buy logic. Uses transfer from factory inventory, NOT mint.
      */
     function _buyInternal(
         address _token,
         address buyer,
         uint256 ethIn,
-        address referrer
+        address referrer,
+        uint256 minAmountOut
     ) internal {
         TokenInfo storage info = tokens[_token];
         if (info.tokenAddress == address(0))  revert InvalidToken();
@@ -264,13 +281,18 @@ contract SelsipadBondingCurveFactory is Ownable, ReentrancyGuard {
 
         uint256 tokensOut = info.vReserveToken - newVToken;
 
+        // Check trading reserve has enough tokens
+        if (tokensOut > info.rReserveToken) revert InsufficientReserve();
+        if (minAmountOut > 0 && tokensOut < minAmountOut) revert SlippageExceeded();
+
         info.vReserveEth   = newVEth;
         info.vReserveToken = newVToken;
         info.rReserveEth  += netEthIn;
-        info.rReserveToken -= int256(tokensOut);
+        info.rReserveToken -= tokensOut;
 
-        // Mint tokens to buyer
-        SelsipadBCToken(_token).mintFromFactory(buyer, tokensOut);
+        // Transfer tokens from factory inventory to buyer (NOT mint)
+        bool ok = IERC20Minimal(_token).transfer(buyer, tokensOut);
+        if (!ok) revert TransferFailed();
 
         emit TokensPurchased(_token, buyer, tokensOut, ethIn, referrer);
 
@@ -287,14 +309,16 @@ contract SelsipadBondingCurveFactory is Ownable, ReentrancyGuard {
     /**
      * @notice Sell tokens back to the bonding curve.
      *         Caller must have approved this contract to spend their tokens.
-     * @param _token      Token address
-     * @param tokenAmount Amount of tokens to sell
-     * @param _referrer   Referrer address (address(0) if none)
+     * @param _token         Token address
+     * @param tokenAmount    Amount of tokens to sell
+     * @param _referrer      Referrer address (address(0) if none)
+     * @param _minAmountOut  Minimum ETH to receive (slippage protection), 0 to skip
      */
     function sellToken(
         address _token,
         uint256 tokenAmount,
-        address _referrer
+        address _referrer,
+        uint256 _minAmountOut
     ) external nonReentrant {
         if (tokenAmount == 0) revert ZeroAmount();
 
@@ -313,8 +337,9 @@ contract SelsipadBondingCurveFactory is Ownable, ReentrancyGuard {
         // ── Fee ──
         uint256 fee       = (grossEthOut * TRADE_FEE_BPS) / BPS_DENOMINATOR;
         uint256 netEthOut = grossEthOut - fee;
+        if (_minAmountOut > 0 && netEthOut < _minAmountOut) revert SlippageExceeded();
 
-        // Transfer tokens from seller → contract (burn held internally)
+        // Transfer tokens from seller → factory (back to inventory)
         bool ok = IERC20Minimal(_token).transferFrom(
             msg.sender,
             address(this),
@@ -328,7 +353,7 @@ contract SelsipadBondingCurveFactory is Ownable, ReentrancyGuard {
         info.vReserveEth   = newVEth;
         info.vReserveToken = newVToken;
         info.rReserveEth  -= grossEthOut;
-        info.rReserveToken += int256(tokenAmount);
+        info.rReserveToken += tokenAmount;
 
         // Send ETH to seller
         (bool sent, ) = payable(msg.sender).call{value: netEthOut}("");
@@ -363,31 +388,35 @@ contract SelsipadBondingCurveFactory is Ownable, ReentrancyGuard {
 
     /**
      * @dev Automatically called when rReserveEth >= migrationThreshold.
-     *      1. Mints remaining curve tokens to this contract.
+     *      1. Uses factory's token balance (MIGRATION_RESERVE + unsold TRADING) for LP.
      *      2. Approves the router.
      *      3. Adds liquidity (ETH + tokens) on the DEX.
      *      4. Sends LP tokens to DEAD_ADDRESS (burn / permanent lock).
+     *
+     *      After migration, both buy and sell revert (TradingMigrated).
+     *      No further minting is possible (MAX_SUPPLY already minted).
      */
     function _migrateLiquidity(address _token) internal {
         TokenInfo storage info = tokens[_token];
         info.liquidityMigrated = true;
 
-        // Use all ETH held by the contract 
+        // Use all ETH held by the contract
         uint256 ethToPool = address(this).balance;
+
+        // Use all tokens the factory still holds (unsold trading + migration reserve)
+        uint256 tokenBalance = IERC20Minimal(_token).balanceOf(address(this));
 
         // Calculate token amount for LP based on current curve price.
         // price (eth per token) = vReserveEth / vReserveToken
         // tokenForLP = ethToPool / price = ethToPool * vReserveToken / vReserveEth
-        uint256 tokenForLP = (ethToPool * info.vReserveToken) / info.vReserveEth;
+        uint256 calculatedTokenForLP = (ethToPool * info.vReserveToken) / info.vReserveEth;
 
-        // Reset real reserves
+        // Use the smaller of calculated or available balance
+        uint256 tokenForLP = calculatedTokenForLP < tokenBalance ? calculatedTokenForLP : tokenBalance;
+
+        // Reset real reserves (trading is done)
         info.rReserveEth   = 0;
         info.rReserveToken = 0;
-
-        // Mint the calculated token amount to this contract for LP
-        if (tokenForLP > 0) {
-            SelsipadBCToken(_token).mintFromFactory(address(this), tokenForLP);
-        }
 
         // Approve router to spend tokens
         IERC20Minimal(_token).approve(uniswapRouter, tokenForLP);
@@ -497,11 +526,13 @@ contract SelsipadBondingCurveFactory is Ownable, ReentrancyGuard {
     function updateReserves(
         uint256 _vEthReserve,
         uint256 _vTokenReserve,
-        uint256 _rTokenReserve
+        uint256 _tradingReserve,
+        uint256 _migrationReserve
     ) external onlyOwner {
-        V_ETH_RESERVE   = _vEthReserve;
-        V_TOKEN_RESERVE = _vTokenReserve;
-        R_TOKEN_RESERVE = _rTokenReserve;
+        V_ETH_RESERVE      = _vEthReserve;
+        V_TOKEN_RESERVE    = _vTokenReserve;
+        TRADING_RESERVE    = _tradingReserve;
+        MIGRATION_RESERVE  = _migrationReserve;
     }
 
     function setRouter(address _router) external onlyOwner {
