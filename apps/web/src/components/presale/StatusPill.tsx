@@ -64,6 +64,11 @@ export function StatusPill({ status }: StatusPillProps) {
           label: 'Rejected',
           color: 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300',
         };
+      case 'GRADUATED':
+        return {
+          label: 'Graduated 🎓',
+          color: 'bg-amber-500/20 text-amber-400 border border-amber-500/30',
+        };
       default:
         return {
           label: status,

@@ -197,14 +197,14 @@ export function BondingCurveDetail({ pool, userAddress }: BondingCurveDetailProp
             {/* Price */}
             <div className="rounded-[16px] bg-gradient-to-br from-[#39AEC4]/10 to-[#39AEC4]/5 backdrop-blur-xl border border-[#39AEC4]/30 p-4 transition-transform hover:scale-[1.02]">
               <p className="text-xs text-gray-400 mb-1">Price</p>
-              <p className="text-lg font-bold text-white">{spotPriceBNB.toFixed(10)} <span className="text-xs text-[#39AEC4] font-normal">BNB</span></p>
+              <p className="text-lg font-bold text-white" style={{fontFamily: 'Inter, system-ui, -apple-system, sans-serif'}}>{spotPriceBNB.toFixed(10)} <span className="text-xs text-[#39AEC4] font-normal">BNB</span></p>
               {bnbPrice > 0 && <p className="text-xs text-gray-500 mt-0.5">≈ ${spotPriceUSD < 0.0001 ? spotPriceUSD.toFixed(10) : spotPriceUSD.toFixed(6)} USD</p>}
             </div>
 
             {/* Market Cap */}
             <div className="rounded-[16px] bg-gradient-to-br from-[#756BBA]/10 to-[#756BBA]/5 backdrop-blur-xl border border-[#756BBA]/30 p-4 transition-transform hover:scale-[1.02]">
               <p className="text-xs text-gray-400 mb-1">Market Cap{isEstimated ? ' (Est.)' : ''}</p>
-              <p className="text-lg font-bold text-white">
+              <p className="text-lg font-bold text-white" style={{fontFamily: 'Inter, system-ui, -apple-system, sans-serif'}}>
                 ${marketCapUSD > 1_000_000 ? (marketCapUSD/1_000_000).toFixed(2) + 'M' : marketCapUSD > 1000 ? (marketCapUSD/1000).toFixed(2) + 'K' : marketCapUSD.toFixed(2)}
                 <span className="text-xs text-[#756BBA] font-normal ml-1">USD</span>
               </p>
@@ -214,19 +214,19 @@ export function BondingCurveDetail({ pool, userAddress }: BondingCurveDetailProp
             {/* Liquidity Raised */}
             <div className="rounded-[16px] bg-gradient-to-br from-green-500/10 to-green-500/5 backdrop-blur-xl border border-green-500/30 p-4 transition-transform hover:scale-[1.02]">
               <p className="text-xs text-gray-400 mb-1">Liquidity Raised</p>
-              <p className="text-lg font-bold text-white">{liquidityRaised.toFixed(4)} <span className="text-xs text-green-400 font-normal">BNB</span></p>
+              <p className="text-lg font-bold text-white" style={{fontFamily: 'Inter, system-ui, -apple-system, sans-serif'}}>{liquidityRaised.toFixed(4)} <span className="text-xs text-green-400 font-normal">BNB</span></p>
             </div>
 
             {/* Graduation Target */}
             <div className="rounded-[16px] bg-gradient-to-br from-amber-500/10 to-amber-500/5 backdrop-blur-xl border border-amber-500/30 p-4 transition-transform hover:scale-[1.02]">
               <p className="text-xs text-gray-400 mb-1">Graduation Target</p>
-              <p className="text-lg font-bold text-white">{gradThresholdBNB.toFixed(4)} <span className="text-xs text-amber-400 font-normal">BNB</span></p>
+              <p className="text-lg font-bold text-white" style={{fontFamily: 'Inter, system-ui, -apple-system, sans-serif'}}>{gradThresholdBNB.toFixed(4)} <span className="text-xs text-amber-400 font-normal">BNB</span></p>
             </div>
 
             <div className="col-span-2 md:col-span-1 rounded-[16px] bg-gradient-to-br from-blue-500/10 to-blue-500/5 backdrop-blur-xl border border-blue-500/30 p-4">
               <p className="text-xs text-gray-400 mb-1">Bonding Curve Progress</p>
               <div className="flex items-end justify-between">
-                <p className="text-lg font-bold text-blue-400">{progress.toFixed(1)}%</p>
+                <p className="text-lg font-bold text-blue-400" style={{fontFamily: 'Inter, system-ui, -apple-system, sans-serif'}}>{progress.toFixed(1)}%</p>
               </div>
               <div className="w-full h-1.5 bg-black/40 rounded-full mt-1.5 overflow-hidden border border-blue-500/30">
                  <div 
@@ -407,14 +407,14 @@ export function BondingCurveDetail({ pool, userAddress }: BondingCurveDetailProp
                 <div className="rounded-[20px] bg-gradient-to-br from-[#39AEC4]/10 to-[#756BBA]/10 backdrop-blur-xl border border-[#39AEC4]/30 shadow-[#39AEC4]/10 shadow-xl overflow-hidden">
                     <div className="p-4 border-b border-white/10 flex items-center gap-2 bg-black/20">
                        <Flame className="w-5 h-5 text-[#39AEC4]" />
-                       <h3 className="font-bold">Trade {pool.token_symbol}</h3>
+                       <h3 className="font-bold">{pool.status === 'GRADUATED' ? 'Trade on PancakeSwap 🥞' : `Trade ${pool.token_symbol}`}</h3>
                     </div>
                     {/* Inner wrapper for existing SwapPanel to make it blend into the new UI */}
                     <div className="p-5">
                       <SwapPanel 
                         poolAddress={pool.token_address} 
-                        targetDex={pool.target_dex} 
-                        isMigrated={pool.status === 'MIGRATED'} 
+                        targetDex={pool.target_dex || 'PancakeSwap'} 
+                        isMigrated={pool.status === 'GRADUATED'} 
                       />
                     </div>
                 </div>
@@ -627,6 +627,7 @@ function PriceChartPanel({ poolAddress, tokenDecimals, currentSpotPrice }: { poo
                 dataKey="time"
                 stroke="#4b5563"
                 fontSize={11}
+                fontFamily="Inter, system-ui, -apple-system, sans-serif"
                 tickLine={false}
                 axisLine={false}
                 interval="preserveStartEnd"
@@ -635,6 +636,7 @@ function PriceChartPanel({ poolAddress, tokenDecimals, currentSpotPrice }: { poo
                 domain={[(dataMin: number) => Math.max(0, dataMin * 0.9), (dataMax: number) => dataMax * 1.1]}
                 stroke="#4b5563"
                 fontSize={11}
+                fontFamily="Inter, system-ui, -apple-system, sans-serif"
                 tickFormatter={(val) => val.toFixed(10)}
                 tickLine={false}
                 axisLine={false}
@@ -648,6 +650,7 @@ function PriceChartPanel({ poolAddress, tokenDecimals, currentSpotPrice }: { poo
                   borderRadius: '12px',
                   color: '#fff',
                   fontSize: '13px',
+                  fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
                   padding: '10px 14px',
                 }}
                 itemStyle={{ color: '#39AEC4', fontWeight: 'bold' }}

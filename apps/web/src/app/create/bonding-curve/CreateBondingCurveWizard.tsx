@@ -45,7 +45,6 @@ export function CreateBondingCurveWizard({ walletAddress }: CreateBondingCurveWi
   const [errors, setErrors] = useState<any>({});
   const [isSavingMetadata, setIsSavingMetadata] = useState(false);
 
-  // Logo & Banner previews
   const [logoPreview, setLogoPreview] = useState<string>('');
   const [bannerPreview, setBannerPreview] = useState<string>('');
   const [logoFile, setLogoFile] = useState<File | null>(null);
@@ -66,6 +65,14 @@ export function CreateBondingCurveWizard({ walletAddress }: CreateBondingCurveWi
     },
     referrer: '0x0000000000000000000000000000000000000000',
   });
+
+  // Refs to keep latest values accessible in useEffect closures
+  const logoFileRef = useRef<File | null>(null);
+  const bannerFileRef = useRef<File | null>(null);
+  const wizardDataRef = useRef(wizardData);
+  useEffect(() => { logoFileRef.current = logoFile; }, [logoFile]);
+  useEffect(() => { bannerFileRef.current = bannerFile; }, [bannerFile]);
+  useEffect(() => { wizardDataRef.current = wizardData; }, [wizardData]);
 
   // Wagmi hooks
   const { writeContract, data: txHash, isPending: isTxPending, error: txError } = useWriteContract();
@@ -115,6 +122,11 @@ export function CreateBondingCurveWizard({ walletAddress }: CreateBondingCurveWi
 
     async function saveMetadata() {
       setIsSavingMetadata(true);
+      // Read latest values from refs to avoid stale closure
+      const currentLogoFile = logoFileRef.current;
+      const currentBannerFile = bannerFileRef.current;
+      const currentWizardData = wizardDataRef.current;
+      console.log('[Wizard] saveMetadata called. logoFile:', !!currentLogoFile, 'bannerFile:', !!currentBannerFile);
       try {
         const { createClient } = await import('@/lib/supabase/client');
         const supabase = createClient();
@@ -154,7 +166,7 @@ export function CreateBondingCurveWizard({ walletAddress }: CreateBondingCurveWi
               .from('bonding_pools')
               .select('token_address')
               .eq('creator_wallet', address?.toLowerCase() || '')
-              .eq('token_name', wizardData.basics.name)
+              .eq('token_name', currentWizardData.basics.name)
               .order('created_at', { ascending: false })
               .limit(1)
               .single();
@@ -174,12 +186,12 @@ export function CreateBondingCurveWizard({ walletAddress }: CreateBondingCurveWi
 
         // ── Step 3: Upload logo ──
         let logoUrl = '';
-        if (logoFile) {
-          const ext = logoFile.name.split('.').pop() || 'png';
-          const path = `logos/${Date.now()}_${wizardData.basics.symbol}.${ext}`;
+        if (currentLogoFile) {
+          const ext = currentLogoFile.name.split('.').pop() || 'png';
+          const path = `logos/${Date.now()}_${currentWizardData.basics.symbol}.${ext}`;
           const { error: uploadErr } = await supabase.storage
             .from('bonding-curve')
-            .upload(path, logoFile, { contentType: logoFile.type, upsert: true });
+            .upload(path, currentLogoFile, { contentType: currentLogoFile.type, upsert: true });
           if (!uploadErr) {
             const { data: urlData } = supabase.storage.from('bonding-curve').getPublicUrl(path);
             logoUrl = urlData.publicUrl;
@@ -191,12 +203,12 @@ export function CreateBondingCurveWizard({ walletAddress }: CreateBondingCurveWi
 
         // ── Step 4: Upload banner ──
         let bannerUrl = '';
-        if (bannerFile) {
-          const ext = bannerFile.name.split('.').pop() || 'png';
-          const path = `banners/${Date.now()}_${wizardData.basics.symbol}.${ext}`;
+        if (currentBannerFile) {
+          const ext = currentBannerFile.name.split('.').pop() || 'png';
+          const path = `banners/${Date.now()}_${currentWizardData.basics.symbol}.${ext}`;
           const { error: uploadErr } = await supabase.storage
             .from('bonding-curve')
-            .upload(path, bannerFile, { contentType: bannerFile.type, upsert: true });
+            .upload(path, currentBannerFile, { contentType: currentBannerFile.type, upsert: true });
           if (!uploadErr) {
             const { data: urlData } = supabase.storage.from('bonding-curve').getPublicUrl(path);
             bannerUrl = urlData.publicUrl;
@@ -210,10 +222,10 @@ export function CreateBondingCurveWizard({ walletAddress }: CreateBondingCurveWi
         const updatePayload: any = {};
         if (logoUrl) updatePayload.logo_url = logoUrl;
         if (bannerUrl) updatePayload.banner_url = bannerUrl;
-        if (wizardData.basics.description) updatePayload.description = wizardData.basics.description;
-        if (wizardData.socials.website) updatePayload.website = wizardData.socials.website;
-        if (wizardData.socials.twitter) updatePayload.twitter = wizardData.socials.twitter;
-        if (wizardData.socials.telegram) updatePayload.telegram = wizardData.socials.telegram;
+        if (currentWizardData.basics.description) updatePayload.description = currentWizardData.basics.description;
+        if (currentWizardData.socials.website) updatePayload.website = currentWizardData.socials.website;
+        if (currentWizardData.socials.twitter) updatePayload.twitter = currentWizardData.socials.twitter;
+        if (currentWizardData.socials.telegram) updatePayload.telegram = currentWizardData.socials.telegram;
 
         if (Object.keys(updatePayload).length > 0) {
           console.log('[Wizard] Updating pool', tokenAddress, 'with:', Object.keys(updatePayload));

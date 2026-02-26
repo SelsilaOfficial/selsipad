@@ -75,6 +75,25 @@ export async function handleTokensSold(args: any, txHash: string) {
   await processReferral(tokenAddress, seller, grossEthOut, referrer, txHash);
 }
 
+// Function to handle LiquidityMigrated event (graduation to DEX)
+export async function handleLiquidityMigrated(args: any, txHash: string) {
+  const [tokenAddress, tokenAmount, ethAmount, pair] = args;
+  console.log(`[LiquidityMigrated] Token: ${tokenAddress}, ETH: ${ethers.formatEther(ethAmount)}, Pair: ${pair}`);
+
+  const { error } = await supabase
+    .from('bonding_pools')
+    .update({
+      status: 'GRADUATED',
+    })
+    .eq('token_address', tokenAddress.toLowerCase());
+
+  if (error) {
+    console.error(`Error updating pool status for ${tokenAddress}:`, error.message);
+  } else {
+    console.log(`[LiquidityMigrated] Pool ${tokenAddress} graduated! LP pair: ${pair}`);
+  }
+}
+
 // Shared helper to retrieve user UUID from a wallet address
 async function getUserIdFromWallet(walletAddress: string): Promise<string | null> {
   const { data, error } = await supabase

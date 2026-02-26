@@ -1,12 +1,13 @@
 import { ethers } from 'ethers';
 import { provider, FACTORY_ADDRESS, BLUECHECK_ADDRESS, mainnetProvider, MAINNET_BLUECHECK_ADDRESS } from './config.js';
-import { handleTokenLaunched, handleTokensPurchased, handleTokensSold, handleBlueCheckPurchased } from './processors.js';
+import { handleTokenLaunched, handleTokensPurchased, handleTokensSold, handleBlueCheckPurchased, handleLiquidityMigrated } from './processors.js';
 
 // Minimal ABI for the factory events we care about
 const FACTORY_ABI = [
   "event TokenLaunched(address indexed token, string name, string symbol, address indexed creator)",
   "event TokensPurchased(address indexed token, address indexed buyer, uint256 tokenAmount, uint256 ethCost, address indexed referrer)",
-  "event TokensSold(address indexed token, address indexed seller, uint256 tokenAmount, uint256 ethRefund, address indexed referrer)"
+  "event TokensSold(address indexed token, address indexed seller, uint256 tokenAmount, uint256 ethRefund, address indexed referrer)",
+  "event LiquidityMigrated(address indexed token, uint256 tokenAmount, uint256 ethAmount, address pair)"
 ];
 
 const BLUECHECK_ABI = [
@@ -47,6 +48,16 @@ async function main() {
       await handleTokensSold(event.args, txHash);
     } catch (err: any) {
       console.error(`Error processing TokensSold: ${err.message}`);
+    }
+  });
+
+  // Listen to LiquidityMigrated (graduation to DEX)
+  factoryContract.on('LiquidityMigrated', async (token: string, tokenAmount: bigint, ethAmount: bigint, pair: string, event: any) => {
+    try {
+      const txHash = event.log?.transactionHash || event.transactionHash;
+      await handleLiquidityMigrated(event.args, txHash);
+    } catch (err: any) {
+      console.error(`Error processing LiquidityMigrated: ${err.message}`);
     }
   });
 

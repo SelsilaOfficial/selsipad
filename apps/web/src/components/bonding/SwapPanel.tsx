@@ -15,11 +15,21 @@ interface SwapPanelProps {
 
 const FACTORY_ADDRESS = process.env.NEXT_PUBLIC_BONDING_CURVE_FACTORY_ADDRESS as `0x${string}`;
 
+// PancakeSwap V2 Router (BSC Testnet)
+const PCS_ROUTER = '0xD99D1c33F9fC3444f8101754aBC46c52416550D1' as `0x${string}`;
+const WBNB = '0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd' as `0x${string}`;
+
 const FACTORY_ABI = parseAbi([
   'function buyToken(address _token, address _referrer, uint256 _minAmountOut) external payable',
   'function sellToken(address _token, uint256 tokenAmount, address _referrer, uint256 _minAmountOut) external',
   'function getAmountOut(address _token, uint256 ethIn) external view returns (uint256 tokensOut)',
   'function getAmountIn(address _token, uint256 tokenAmount) external view returns (uint256 ethOut)',
+]);
+
+const PCS_ROUTER_ABI = parseAbi([
+  'function getAmountsOut(uint256 amountIn, address[] calldata path) external view returns (uint256[] memory amounts)',
+  'function swapExactETHForTokensSupportingFeeOnTransferTokens(uint256 amountOutMin, address[] calldata path, address to, uint256 deadline) external payable',
+  'function swapExactTokensForETHSupportingFeeOnTransferTokens(uint256 amountIn, uint256 amountOutMin, address[] calldata path, address to, uint256 deadline) external',
 ]);
 
 const ERC20_ABI = parseAbi([
@@ -80,20 +90,38 @@ export function SwapPanel({ poolAddress, targetDex, isMigrated, onSuccess }: Swa
     functionName: 'decimals',
   });
 
-  // Quotes
+  // Parse input amount
   const amountInParsed = debouncedAmount && !isNaN(Number(debouncedAmount)) ? 
     (mode === 'buy' ? parseEther(debouncedAmount) : parseUnits(debouncedAmount, tokenDecimals)) : 0n;
 
-  const { data: amountOutQuote, isLoading: isQuoteLoading } = useReadContract({
+  // Quotes — Bonding Curve mode
+  const { data: amountOutQuote, isLoading: isQuoteLoadingBC } = useReadContract({
     address: FACTORY_ADDRESS,
     abi: FACTORY_ABI,
     functionName: mode === 'buy' ? 'getAmountOut' : 'getAmountIn',
     args: amountInParsed > 0n ? [poolAddress as `0x${string}`, amountInParsed] : undefined,
-    query: { enabled: amountInParsed > 0n },
+    query: { enabled: amountInParsed > 0n && !isMigrated },
   });
 
-  const estimatedReceiveRaw = amountOutQuote ? 
-    (mode === 'buy' ? formatUnits(amountOutQuote, tokenDecimals) : formatEther(amountOutQuote)) : '';
+  // Quotes — DEX mode (PancakeSwap Router)
+  const dexPath = mode === 'buy'
+    ? [WBNB, poolAddress as `0x${string}`]
+    : [poolAddress as `0x${string}`, WBNB];
+  const { data: dexAmountsOut, isLoading: isQuoteLoadingDEX } = useReadContract({
+    address: PCS_ROUTER,
+    abi: PCS_ROUTER_ABI,
+    functionName: 'getAmountsOut',
+    args: amountInParsed > 0n ? [amountInParsed, dexPath] : undefined,
+    query: { enabled: amountInParsed > 0n && isMigrated },
+  });
+
+  const isQuoteLoading = isMigrated ? isQuoteLoadingDEX : isQuoteLoadingBC;
+  const rawQuoteValue = isMigrated
+    ? (dexAmountsOut ? (dexAmountsOut as bigint[])[1] : undefined)
+    : amountOutQuote;
+
+  const estimatedReceiveRaw = rawQuoteValue ? 
+    (mode === 'buy' ? formatUnits(rawQuoteValue as bigint, tokenDecimals) : formatEther(rawQuoteValue as bigint)) : '';
   // Format: tokens → max 2 decimals with commas, BNB → max 8 decimals
   const estimatedReceive = estimatedReceiveRaw
     ? mode === 'buy'
@@ -101,12 +129,13 @@ export function SwapPanel({ poolAddress, targetDex, isMigrated, onSuccess }: Swa
       : Number(estimatedReceiveRaw).toFixed(8)
     : '';
 
-  // Allowance check (only for sell)
+  // Allowance check (only for sell) — target changes based on mode
+  const approvalTarget = isMigrated ? PCS_ROUTER : FACTORY_ADDRESS;
   const { data: allowance, refetch: refetchAllowance } = useReadContract({
     address: poolAddress as `0x${string}`,
     abi: ERC20_ABI,
     functionName: 'allowance',
-    args: userAddress && FACTORY_ADDRESS ? [userAddress, FACTORY_ADDRESS] : undefined,
+    args: userAddress && approvalTarget ? [userAddress, approvalTarget] : undefined,
     query: { enabled: mode === 'sell' && !!userAddress },
   });
 
@@ -149,13 +178,12 @@ export function SwapPanel({ poolAddress, targetDex, isMigrated, onSuccess }: Swa
 
     if (needsApproval) {
       setLastAction('approve');
-      // Approve max uint256 so user doesn't have to approve every time
       const MAX_UINT256 = 2n ** 256n - 1n;
       writeContract({
         address: poolAddress as `0x${string}`,
         abi: ERC20_ABI,
         functionName: 'approve',
-        args: [FACTORY_ADDRESS, MAX_UINT256],
+        args: [approvalTarget, MAX_UINT256],
       }, {
         onError: (err) => toast.error('Approval failed: ' + err.message)
       });
@@ -163,43 +191,75 @@ export function SwapPanel({ poolAddress, targetDex, isMigrated, onSuccess }: Swa
     }
 
     setLastAction('trade');
-    // Calculate minAmountOut based on slippage
-    const slippageBps = Math.round(parseFloat(slippage) * 100); // e.g., 1.0% → 100
-    if (mode === 'buy') {
-      // For buy: minAmountOut = estimated tokens * (1 - slippage)
-      let minOut = 0n;
-      if (estimatedReceiveRaw) {
-        const estimated = parseUnits(String(estimatedReceiveRaw), 18);
-        minOut = estimated - (estimated * BigInt(slippageBps) / 10000n);
+    const slippageBps = Math.round(parseFloat(slippage) * 100);
+    const deadline = BigInt(Math.floor(Date.now() / 1000) + 300); // 5 min
+
+    if (isMigrated) {
+      // ── DEX Mode: PancakeSwap V2 Router ──
+      if (mode === 'buy') {
+        let minOut = 0n;
+        if (rawQuoteValue) {
+          minOut = (rawQuoteValue as bigint) - ((rawQuoteValue as bigint) * BigInt(slippageBps) / 10000n);
+        }
+        writeContract({
+          address: PCS_ROUTER,
+          abi: PCS_ROUTER_ABI,
+          functionName: 'swapExactETHForTokensSupportingFeeOnTransferTokens',
+          args: [minOut, [WBNB, poolAddress as `0x${string}`], userAddress!, deadline],
+          value: amountInParsed,
+        }, {
+          onError: (err) => toast.error('Buy failed: ' + err.message)
+        });
+      } else {
+        let minOut = 0n;
+        if (rawQuoteValue) {
+          minOut = (rawQuoteValue as bigint) - ((rawQuoteValue as bigint) * BigInt(slippageBps) / 10000n);
+        }
+        writeContract({
+          address: PCS_ROUTER,
+          abi: PCS_ROUTER_ABI,
+          functionName: 'swapExactTokensForETHSupportingFeeOnTransferTokens',
+          args: [amountInParsed, minOut, [poolAddress as `0x${string}`, WBNB], userAddress!, deadline],
+        }, {
+          onError: (err) => toast.error('Sell failed: ' + err.message)
+        });
       }
-      writeContract({
-        address: FACTORY_ADDRESS,
-        abi: FACTORY_ABI,
-        functionName: 'buyToken',
-        args: [poolAddress as `0x${string}`, referrer, minOut],
-        value: amountInParsed,
-      }, {
-        onError: (err) => toast.error('Buy failed: ' + err.message)
-      });
     } else {
-      // For sell: minAmountOut = estimated BNB * (1 - slippage)
-      let minOut = 0n;
-      if (estimatedReceiveRaw) {
-        const estimated = parseEther(String(estimatedReceiveRaw));
-        minOut = estimated - (estimated * BigInt(slippageBps) / 10000n);
+      // ── Bonding Curve Mode ──
+      if (mode === 'buy') {
+        let minOut = 0n;
+        if (estimatedReceiveRaw) {
+          const estimated = parseUnits(String(estimatedReceiveRaw), 18);
+          minOut = estimated - (estimated * BigInt(slippageBps) / 10000n);
+        }
+        writeContract({
+          address: FACTORY_ADDRESS,
+          abi: FACTORY_ABI,
+          functionName: 'buyToken',
+          args: [poolAddress as `0x${string}`, referrer, minOut],
+          value: amountInParsed,
+        }, {
+          onError: (err) => toast.error('Buy failed: ' + err.message)
+        });
+      } else {
+        let minOut = 0n;
+        if (estimatedReceiveRaw) {
+          const estimated = parseEther(String(estimatedReceiveRaw));
+          minOut = estimated - (estimated * BigInt(slippageBps) / 10000n);
+        }
+        writeContract({
+          address: FACTORY_ADDRESS,
+          abi: FACTORY_ABI,
+          functionName: 'sellToken',
+          args: [poolAddress as `0x${string}`, amountInParsed, referrer, minOut],
+        }, {
+          onError: (err) => toast.error('Sell failed: ' + err.message)
+        });
       }
-      writeContract({
-        address: FACTORY_ADDRESS,
-        abi: FACTORY_ABI,
-        functionName: 'sellToken',
-        args: [poolAddress as `0x${string}`, amountInParsed, referrer, minOut],
-      }, {
-        onError: (err) => toast.error('Sell failed: ' + err.message)
-      });
     }
   };
 
-  const isButtonDisabled = isMigrated || isWritePending || isTxConfirming || amountInParsed === 0n;
+  const isButtonDisabled = isWritePending || isTxConfirming || amountInParsed === 0n;
 
   return (
     <div className="w-full">
@@ -342,11 +402,7 @@ export function SwapPanel({ poolAddress, targetDex, isMigrated, onSuccess }: Swa
       </div>
 
       {/* Action Button */}
-      {isMigrated ? (
-        <button disabled className="w-full py-3.5 rounded-xl font-bold text-sm bg-black/40 text-gray-500 border border-white/10 cursor-not-allowed">
-          Trading Migrated to {targetDex || 'DEX'}
-        </button>
-      ) : !userAddress ? (
+      {!userAddress ? (
         <button disabled className="w-full py-3.5 rounded-xl font-bold text-sm bg-[#39AEC4]/10 text-[#39AEC4]/50 border border-[#39AEC4]/20 cursor-not-allowed">
           Connect Wallet to Trade
         </button>
@@ -375,10 +431,13 @@ export function SwapPanel({ poolAddress, targetDex, isMigrated, onSuccess }: Swa
       )}
 
       {/* Info */}
-      <div className="mt-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
-        <p className="text-xs text-amber-200/80 flex items-start gap-2 leading-relaxed">
-          <Info className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-400" />
-          <span>Bonding curve pricing increases with every buy. Early buyers get more tokens per BNB.</span>
+      <div className={`mt-4 p-3 ${isMigrated ? 'bg-green-500/10 border-green-500/20' : 'bg-amber-500/10 border-amber-500/20'} border rounded-xl`}>
+        <p className={`text-xs ${isMigrated ? 'text-green-200/80' : 'text-amber-200/80'} flex items-start gap-2 leading-relaxed`}>
+          <Info className={`w-4 h-4 flex-shrink-0 mt-0.5 ${isMigrated ? 'text-green-400' : 'text-amber-400'}`} />
+          <span>{isMigrated 
+            ? 'This token has graduated! Trading on PancakeSwap V2 LP. Liquidity is permanently locked.' 
+            : 'Bonding curve pricing increases with every buy. Early buyers get more tokens per BNB.'
+          }</span>
         </p>
       </div>
     </div>

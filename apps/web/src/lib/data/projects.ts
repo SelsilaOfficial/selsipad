@@ -583,6 +583,26 @@ export async function getBondingCurvePools(): Promise<Project[]> {
       return [];
     }
 
+    // Fetch contributor counts per pool from bonding_swaps
+    const poolIds = (data || []).map((p: any) => p.id);
+    const contributorMap: Record<string, number> = {};
+    if (poolIds.length > 0) {
+      const { data: swaps } = await supabase
+        .from('bonding_swaps')
+        .select('pool_id, wallet_address')
+        .in('pool_id', poolIds);
+      if (swaps) {
+        const uniquePerPool: Record<string, Set<string>> = {};
+        for (const s of swaps) {
+          if (!uniquePerPool[s.pool_id]) uniquePerPool[s.pool_id] = new Set();
+          uniquePerPool[s.pool_id].add(s.wallet_address);
+        }
+        for (const [pid, wallets] of Object.entries(uniquePerPool)) {
+          contributorMap[pid] = wallets.size;
+        }
+      }
+    }
+
     return (data || []).map((pool: any) => {
       const bnbRaised = Number(pool.actual_native_reserves || 0) / 1e18;
       const threshold = Number(pool.graduation_threshold_native || 0) / 1e18;
@@ -602,7 +622,7 @@ export async function getBondingCurvePools(): Promise<Project[]> {
         status: isGraduated ? 'ended' : 'live',
         raised: bnbRaised,
         target: threshold || 1,
-        participants: 0,
+        participants: contributorMap[pool.id] || 0,
         kyc_verified: false,
         audit_status: null,
         lp_lock: false,
