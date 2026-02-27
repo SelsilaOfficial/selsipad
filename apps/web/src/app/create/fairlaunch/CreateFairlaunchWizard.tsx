@@ -180,9 +180,13 @@ export function CreateFairlaunchWizard({ walletAddress }: CreateFairlaunchWizard
         if (!wizardData.softcap || parseFloat(wizardData.softcap) <= 0) {
           newErrors.softcap = 'Softcap must be greater than 0';
         }
-        if (!wizardData.startTime) newErrors.startTime = 'Start time is required';
+        if (!wizardData.startTime) {
+          newErrors.startTime = 'Start time is required';
+        } else if (new Date(wizardData.startTime) <= new Date(Date.now() + 2 * 60000)) {
+          newErrors.startTime = 'Start time must be at least 2 minutes in the future';
+        }
         if (!wizardData.endTime) newErrors.endTime = 'End time is required';
-        if (new Date(wizardData.startTime) >= new Date(wizardData.endTime)) {
+        if (wizardData.startTime && wizardData.endTime && new Date(wizardData.startTime) >= new Date(wizardData.endTime)) {
           newErrors.endTime = 'End time must be after start time';
         }
         if (!wizardData.dexPlatform) newErrors.dexPlatform = 'DEX platform is required';

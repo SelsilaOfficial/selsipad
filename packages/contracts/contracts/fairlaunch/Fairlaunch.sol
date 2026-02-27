@@ -176,6 +176,9 @@ contract Fairlaunch is AccessControl, ReentrancyGuard {
         lpLockMonths = _lpLockMonths;
         dexId = _dexId;
 
+        require(_startTime >= block.timestamp, "Fairlaunch: Start time must be in the future");
+        require(_endTime > _startTime, "Fairlaunch: End time must be after start time");
+
         status = Status.UPCOMING;
 
         // Set DEX router based on chain (using ternary for immutable)

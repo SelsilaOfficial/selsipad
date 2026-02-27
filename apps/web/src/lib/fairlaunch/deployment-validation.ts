@@ -73,19 +73,14 @@ export const FairlaunchDeploySchema = z
           return new Date(val * 1000);
         }
         if (typeof val === 'string') {
-          // datetime-local format: "2026-02-07T05:05"
-          // Parse as Date - will use SERVER timezone (UTC)
-          const parsed = new Date(val);
-
-          // TEMPORARY FIX: Assume WIB (UTC+7) for user timezone
-          // Subtract 7 hours to get correct UTC timestamp
-          // User input: 05:05 WIB → Should store as: 22:05 UTC (previous day)
-          const userTimezoneOffsetHours = 7;
-          return new Date(parsed.getTime() - userTimezoneOffsetHours * 3600 * 1000);
+          return new Date(val); // UI sends ISO string, parses securely without hardcoded offsets
         }
         return val; // Already a Date
       })
-      .refine((date: Date) => date > new Date(), 'Start time must be in the future'),
+      .refine(
+        (date: Date) => date > new Date(Date.now() - 5 * 60000),
+        'Start time must be in the future (or within 5 min deployment grace period)'
+      ),
 
     endTime: z
       .string()
@@ -96,9 +91,7 @@ export const FairlaunchDeploySchema = z
           return new Date(val * 1000);
         }
         if (typeof val === 'string') {
-          const parsed = new Date(val);
-          const userTimezoneOffsetHours = 7; // WIB = UTC+7
-          return new Date(parsed.getTime() - userTimezoneOffsetHours * 3600 * 1000);
+          return new Date(val);
         }
         return val;
       }),
