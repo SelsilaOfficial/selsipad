@@ -189,6 +189,20 @@ export function CreateFairlaunchWizard({ walletAddress }: CreateFairlaunchWizard
         if (wizardData.startTime && wizardData.endTime && new Date(wizardData.startTime) >= new Date(wizardData.endTime)) {
           newErrors.endTime = 'End time must be after start time';
         }
+
+        const minCont = parseFloat(wizardData.minContribution);
+        const maxCont = parseFloat(wizardData.maxContribution);
+
+        if (!wizardData.minContribution || isNaN(minCont) || minCont <= 0) {
+          newErrors.minContribution = 'Min contribution must be greater than 0';
+        }
+        if (!wizardData.maxContribution || isNaN(maxCont) || maxCont <= 0) {
+          newErrors.maxContribution = 'Max contribution must be greater than 0';
+        }
+        if (minCont > 0 && maxCont > 0 && maxCont < minCont) {
+          newErrors.maxContribution = 'Max contribution must be >= min contribution';
+        }
+
         if (!wizardData.dexPlatform) newErrors.dexPlatform = 'DEX platform is required';
         break;
 

@@ -300,7 +300,7 @@ export function SubmitStep({ formData, onBack }: SubmitStepProps) {
         teamVestingAddress: formData.vestingBeneficiary,
         vestingSchedule: formData.vestingSchedule,
         creatorWallet: address,
-        chainId: formData.network === 'bsc_testnet' ? 97 : 56,
+        chainId: ({'bsc_testnet': 97, 'bnb': 56, 'sepolia': 11155111, 'ethereum': 11155111, 'base_sepolia': 84532, 'base': 84532} as Record<string, number>)[formData.network] || 97,
         metadata: {
           name: formData.projectName,
           symbol: formData.tokenSymbol,
@@ -331,7 +331,10 @@ export function SubmitStep({ formData, onBack }: SubmitStepProps) {
         if (response.status === 401) {
           throw new Error('Please sign in with Supabase before submitting your project.');
         }
-        throw new Error(data.error || data.details?.join(', ') || 'Submission failed');
+        const errorMsg = data.details && data.details.length > 0 
+          ? data.details.join(', ') 
+          : data.error;
+        throw new Error(errorMsg || 'Submission failed');
       }
 
       setProjectId(data.projectId);

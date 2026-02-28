@@ -123,7 +123,7 @@ export class DeployerWallet {
       // BSC Mainnet
       56: process.env.BSC_MAINNET_RPC_URL || 'https://bsc-dataseed1.binance.org',
       // Sepolia
-      11155111: process.env.SEPOLIA_RPC_URL || 'https://rpc.sepolia.org',
+      11155111: process.env.ETH_SEPOLIA_RPC_URL || process.env.SEPOLIA_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com',
       // Ethereum Mainnet
       1: process.env.ETHEREUM_RPC_URL || 'https://eth.llamarpc.com',
       // Base Sepolia

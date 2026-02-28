@@ -26,14 +26,29 @@ const FACTORY_ADDRESSES = {
   bnb: process.env.NEXT_PUBLIC_FAIRLAUNCH_FACTORY_BSC_MAINNET,
   sepolia:
     process.env.NEXT_PUBLIC_FAIRLAUNCH_FACTORY_SEPOLIA ||
-    '0x53850a56397379Da8572A6a47003bca88bB52A24', // V2 Router Fix (Feb 12)
+    '0xdc13D871057838C1e9b0226C3bC2cd2d9636b272', // Redeployed Feb 27
   base_sepolia:
     process.env.NEXT_PUBLIC_FAIRLAUNCH_FACTORY_BASE_SEPOLIA ||
-    '0xeEf8C1da1b94111237c419AB7C6cC30761f31572', // Full Infra Deploy (Feb 12)
+    '0xce329E6d7415999160bB6f47133b552a91C915a0', // Redeployed Feb 27
 };
 
-const ESCROW_VAULT_ADDRESS =
-  process.env.NEXT_PUBLIC_TOKEN_ESCROW_BSC_TESTNET || '0x6849A09c27F26fF0e58a2E36Dd5CAB2F9d0c617F'; // Must match submit API!
+// Escrow vault addresses per chain (must match submit API!)
+const ESCROW_VAULT_ADDRESSES: Record<number, string> = {
+  97: process.env.NEXT_PUBLIC_TOKEN_ESCROW_BSC_TESTNET || '0x6849A09c27F26fF0e58a2E36Dd5CAB2F9d0c617F',
+  56: process.env.NEXT_PUBLIC_TOKEN_ESCROW_BSC_MAINNET || '0x0000000000000000000000000000000000000000',
+  11155111: process.env.NEXT_PUBLIC_ESCROW_VAULT_SEPOLIA || '0x6849A09c27F26fF0e58a2E36Dd5CAB2F9d0c617F',
+  84532: process.env.NEXT_PUBLIC_ESCROW_VAULT_BASE_SEPOLIA || '0x6849A09c27F26fF0e58a2E36Dd5CAB2F9d0c617F',
+};
+
+// RPC URLs per chain
+const RPC_URLS: Record<number, string> = {
+  97: process.env.BSC_TESTNET_RPC_URL || 'https://data-seed-prebsc-1-s1.bnbchain.org:8545',
+  56: process.env.BSC_MAINNET_RPC_URL || 'https://bsc-dataseed1.binance.org',
+  11155111: process.env.ETH_SEPOLIA_RPC_URL || process.env.SEPOLIA_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com',
+  84532: process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org',
+  1: process.env.ETH_MAINNET_RPC_URL || 'https://eth.llamarpc.com',
+  8453: process.env.BASE_MAINNET_RPC_URL || 'https://mainnet.base.org',
+};
 
 /** Parse ISO date to Unix seconds. If string has no timezone (no Z or ±HH:MM), treat as UTC so server TZ does not change chain endTime. */
 function isoToUnixSeconds(iso: string | null | undefined): number {
@@ -138,17 +153,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 6. Setup ethers provider and signer
+    // 6. Setup ethers provider and signer (per-chain)
     const chainId = parseInt(launchRound.chain_id || launchRound.chain || '97');
-    const rpcUrl =
-      chainId === 97
-        ? process.env.BSC_TESTNET_RPC_URL || 'https://data-seed-prebsc-1-s1.bnbchain.org:8545'
-        : process.env.BSC_MAINNET_RPC_URL;
+    const rpcUrl = RPC_URLS[chainId];
 
     if (!rpcUrl) {
-      throw new Error('RPC URL not configured');
+      throw new Error(`RPC URL not configured for chain ${chainId}`);
     }
 
+    console.log(`[Admin Deploy] Using chain ${chainId}, RPC: ${rpcUrl}`);
     const provider = new ethers.JsonRpcProvider(rpcUrl);
     // CRITICAL: Use per-network deployer key which is factory's adminExecutor
     // Factory grants ADMIN_ROLE to adminExecutor, required for setLPLocker() and finalize()
@@ -159,7 +172,8 @@ export async function POST(request: NextRequest) {
 
     // 7a. FIRST: Get projectId from escrow transaction (decode from logs)
     // Wizard generates random UUID and hashes it, we need to extract that bytes32
-    const escrowVault = new ethers.Contract(ESCROW_VAULT_ADDRESS, EscrowVaultABI.abi, signer);
+    const escrowVaultAddr: string = ESCROW_VAULT_ADDRESSES[chainId] ?? ESCROW_VAULT_ADDRESSES[97] ?? '0x6849A09c27F26fF0e58a2E36Dd5CAB2F9d0c617F';
+    const escrowVault = new ethers.Contract(escrowVaultAddr, EscrowVaultABI.abi, signer);
 
     console.log('[Admin Deploy] Decoding projectId from escrow TX:', launchRound.escrow_tx_hash);
 
@@ -173,7 +187,7 @@ export async function POST(request: NextRequest) {
     const depositLog = escrowReceipt.logs.find(
       (log) =>
         log.topics[0] === depositedEventTopic &&
-        log.address.toLowerCase() === ESCROW_VAULT_ADDRESS.toLowerCase()
+        log.address.toLowerCase() === escrowVaultAddr.toLowerCase()
     );
 
     if (!depositLog) {
@@ -261,7 +275,10 @@ export async function POST(request: NextRequest) {
     // (tokensForSale + liquidityTokens + teamVestingTokens)
     console.log('[Admin Deploy] Approving factory for max uint256...');
     const MAX_UINT256 = ethers.MaxUint256;
-    const approveTx = await (tokenContract as any).approve(factoryAddress, MAX_UINT256);
+    // Explicitly fetch latest nonce to avoid NONCE_EXPIRED after escrow release
+    const approveNonce = await signer.getNonce('pending');
+    console.log('[Admin Deploy] Using nonce for approve:', approveNonce);
+    const approveTx = await (tokenContract as any).approve(factoryAddress, MAX_UINT256, { nonce: approveNonce });
     await approveTx.wait();
     console.log('[Admin Deploy] ✅ Factory approved for unlimited spend');
 
@@ -363,8 +380,11 @@ export async function POST(request: NextRequest) {
 
     // 9. Deploy via factory (sending deployment fee)
     console.log('[Admin Deploy] Calling factory.createFairlaunch()...');
+    const deployNonce = await signer.getNonce('pending');
+    console.log('[Admin Deploy] Using nonce for createFairlaunch:', deployNonce);
     const tx = await (factory as any).createFairlaunch(createParams, vestingParams, lpPlan, {
       value: deploymentFee,
+      nonce: deployNonce,
     });
     console.log('[Admin Deploy] TX sent:', tx.hash);
 
@@ -507,7 +527,7 @@ export async function POST(request: NextRequest) {
           contractType: 'fairlaunch',
           launchRoundId,
           constructorArgs: fairlaunchArgs,
-          chainId: 97, // BSC Testnet
+          chainId, // Use actual chain ID
         }),
       }
     ).catch((err) => {
@@ -533,7 +553,7 @@ export async function POST(request: NextRequest) {
           contractType: 'vesting',
           launchRoundId,
           constructorArgs: vestingArgs,
-          chainId: 97,
+          chainId, // Use actual chain ID
         }),
       }
     ).catch((err) => {

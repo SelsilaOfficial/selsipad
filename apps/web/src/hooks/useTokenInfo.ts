@@ -24,7 +24,7 @@ interface TokenInfo {
 
 const CHAIN_RPC: Record<number, string> = {
   97: 'https://data-seed-prebsc-1-s1.bnbchain.org:8545',
-  11155111: 'https://rpc.sepolia.org',
+  11155111: 'https://ethereum-sepolia-rpc.publicnode.com',
   84532: 'https://sepolia.base.org',
   56: 'https://bsc-dataseed.binance.org',
   1: 'https://eth.llamarpc.com',

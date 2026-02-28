@@ -15,18 +15,30 @@ import { useToast } from '@/components/ui'; // Assuming this exists or similar
 interface FairlaunchClaimerProps {
   contractAddress: string;
   projectSymbol: string;
-  projectStatus: string; // 'FINALIZED', 'FAILED', 'CANCELLED'
+  projectStatus: string; // 'SUCCESS', 'FINALIZED', 'FAILED', 'CANCELLED'
   currency: string;
+  chain?: string; // chain ID e.g. '97', '11155111', '84532'
 }
+
+const EXPLORER_TX_URL: Record<string, string> = {
+  '97': 'https://testnet.bscscan.com/tx/',
+  '56': 'https://bscscan.com/tx/',
+  '11155111': 'https://sepolia.etherscan.io/tx/',
+  '84532': 'https://sepolia.basescan.org/tx/',
+  '1': 'https://etherscan.io/tx/',
+  '8453': 'https://basescan.org/tx/',
+};
 
 export default function FairlaunchClaimer({
   contractAddress,
   projectSymbol,
   projectStatus,
   currency,
+  chain = '97',
 }: FairlaunchClaimerProps) {
   const { address } = useAccount();
   const { showToast } = useToast();
+  const explorerTxUrl = EXPLORER_TX_URL[chain] || EXPLORER_TX_URL['97'];
 
   const { data: userContribution } = useUserContribution(contractAddress as Address, address);
   const { data: hasClaimed } = useHasClaimed(contractAddress as Address, address);
@@ -79,6 +91,7 @@ export default function FairlaunchClaimer({
 
   // Success Case
   if (
+    projectStatus === 'SUCCESS' ||
     projectStatus === 'FINALIZED' ||
     projectStatus === 'ENDED' ||
     projectStatus === 'FINALIZED_SUCCESS'
@@ -89,7 +102,7 @@ export default function FairlaunchClaimer({
           <p className="text-green-400 font-bold mb-2">You have claimed your tokens!</p>
           {claimHash && (
             <a
-              href={`https://testnet.bscscan.com/tx/${claimHash}`}
+              href={`${explorerTxUrl}${claimHash}`}
               target="_blank"
               className="text-xs underline text-green-500/70"
             >

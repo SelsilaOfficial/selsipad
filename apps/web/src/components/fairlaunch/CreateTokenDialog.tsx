@@ -1,7 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useWriteContract, useWaitForTransactionReceipt, usePublicClient } from 'wagmi';
+import {
+  useAccount,
+  useChainId,
+  useSwitchChain,
+  useSendTransaction,
+  useWaitForTransactionReceipt,
+} from 'wagmi';
 import { X } from 'lucide-react';
 import {
   getTokenCreationFee,
@@ -9,7 +15,17 @@ import {
   SimpleTokenFactoryABI,
 } from '@/lib/web3/token-factory';
 import type { Address } from 'viem';
-import { decodeEventLog } from 'viem';
+import { decodeEventLog, encodeFunctionData } from 'viem';
+
+// Chain ID mapping
+const CHAIN_IDS: Record<string, number> = {
+  bsc_testnet: 97,
+  bnb: 56,
+  sepolia: 11155111,
+  ethereum: 1,
+  base_sepolia: 84532,
+  base: 8453,
+};
 
 type CreateTokenDialogProps = {
   network: string;
@@ -38,19 +54,24 @@ export function CreateTokenDialog({
     decimals: 18,
   });
 
-  const { writeContract, data: hash, isPending, reset } = useWriteContract();
+  const { address, isConnected } = useAccount();
+  const chainId = useChainId();
+  const { switchChain } = useSwitchChain();
+
+  // Use sendTransaction instead of writeContract to BYPASS wagmi's simulation
+  // which sends simulation to the wrong chain for Base Sepolia
+  const { sendTransaction, data: hash, isPending, error: txError, reset } = useSendTransaction();
+
   const {
     isLoading: isConfirming,
     isSuccess,
     data: receipt,
   } = useWaitForTransactionReceipt({ hash });
-  const publicClient = usePublicClient();
 
   // Extract token address when transaction succeeds
   useEffect(() => {
     if (isSuccess && receipt && receipt.logs) {
       try {
-        // Find TokenCreated event in logs
         for (const log of receipt.logs) {
           try {
             const decoded = decodeEventLog({
@@ -65,12 +86,12 @@ export function CreateTokenDialog({
               console.log('Token created:', tokenAddress);
 
               // Auto-verify token on BSCScan
-              const chainId = network.includes('bsc_testnet')
+              const verifyChainId = network.includes('bsc_testnet')
                 ? 97
                 : network.includes('bnb')
                   ? 56
                   : undefined;
-              if (chainId) {
+              if (verifyChainId) {
                 const totalSupplyWei = (
                   BigInt(formData.totalSupply) *
                   10n ** BigInt(formData.decimals)
@@ -86,7 +107,7 @@ export function CreateTokenDialog({
                     totalSupply: totalSupplyWei,
                     decimals: formData.decimals,
                     ownerAddress: creatorAddress,
-                    chainId,
+                    chainId: verifyChainId,
                   }),
                 })
                   .then((res) => res.json())
@@ -108,7 +129,6 @@ export function CreateTokenDialog({
                 totalSupply: formData.totalSupply,
               });
 
-              // Reset form and close dialog after short delay
               setTimeout(() => {
                 reset();
                 setFormData({
@@ -123,7 +143,6 @@ export function CreateTokenDialog({
               break;
             }
           } catch (e) {
-            // Skip logs that don't match our ABI
             continue;
           }
         }
@@ -139,20 +158,66 @@ export function CreateTokenDialog({
       return;
     }
 
-    try {
-      const factoryAddress = TOKEN_FACTORY_ADDRESSES[network] as Address;
-      const creationFee = getTokenCreationFee(network);
-      const totalSupply = BigInt(formData.totalSupply) * 10n ** BigInt(formData.decimals);
+    if (!isConnected || !address) {
+      alert('Please connect your wallet');
+      return;
+    }
 
-      await writeContract({
-        address: factoryAddress,
-        abi: SimpleTokenFactoryABI,
-        functionName: 'createToken',
-        args: [formData.name, formData.symbol, totalSupply, formData.decimals],
+    const requiredChainId = CHAIN_IDS[network];
+    if (!requiredChainId) {
+      alert('Invalid chain selected');
+      return;
+    }
+
+    console.log(`[CreateToken] Current chainId: ${chainId}, Required: ${requiredChainId}`);
+
+    if (chainId !== requiredChainId) {
+      try {
+        console.log(`[CreateToken] Switching chain to ${requiredChainId}...`);
+        await switchChain?.({ chainId: requiredChainId });
+        await new Promise((r) => setTimeout(r, 1000));
+      } catch (err: any) {
+        console.error('[CreateToken] Chain switch failed:', err);
+        alert('Please switch to the correct network in your wallet');
+        return;
+      }
+    }
+
+    const factoryAddress = TOKEN_FACTORY_ADDRESSES[network] as Address;
+    if (!factoryAddress || factoryAddress === '0x0000000000000000000000000000000000000000') {
+      alert('Token factory not available for this chain');
+      return;
+    }
+
+    const creationFee = getTokenCreationFee(network);
+    const totalSupply = BigInt(formData.totalSupply) * 10n ** BigInt(formData.decimals);
+
+    console.log(`[CreateToken] Factory: ${factoryAddress}`);
+    console.log(`[CreateToken] Fee: ${creationFee}`);
+    console.log(`[CreateToken] Args: ${formData.name}, ${formData.symbol}, ${totalSupply}, ${formData.decimals}`);
+
+    // Encode the function call data manually
+    // This bypasses wagmi's writeContract simulation which sends it to wrong chain
+    const callData = encodeFunctionData({
+      abi: SimpleTokenFactoryABI,
+      functionName: 'createToken',
+      args: [formData.name, formData.symbol, totalSupply, formData.decimals],
+    });
+
+    console.log(`[CreateToken] Encoded calldata: ${callData.slice(0, 20)}...`);
+    console.log(`[CreateToken] Sending raw transaction (no simulation)...`);
+
+    try {
+      // sendTransaction sends directly to MetaMask WITHOUT simulation
+      // MetaMask handles the chain routing correctly since it's already on Base Sepolia
+      sendTransaction({
+        to: factoryAddress,
+        data: callData,
         value: creationFee,
+        chainId: requiredChainId,
       });
-    } catch (error: any) {
-      alert('Token creation gagal: ' + error.message);
+    } catch (err) {
+      console.error('[CreateToken] Token creation failed:', err);
     }
   };
 
@@ -177,7 +242,7 @@ export function CreateTokenDialog({
 
         {/* Content */}
         <div className="p-6 space-y-4">
-          {/* Type Selection - Only Standard Token */}
+          {/* Type Selection */}
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">Type</label>
             <div className="space-y-2">
@@ -254,11 +319,18 @@ export function CreateTokenDialog({
             </p>
           </div>
 
-          {/* Selsila Anti-Bot System (Disabled for Standard) */}
+          {/* Anti-Bot (disabled) */}
           <div className="flex items-center gap-2 opacity-50">
             <input type="checkbox" disabled className="w-4 h-4" />
             <label className="text-sm text-gray-500">Implement Selsila Anti-Bot System</label>
           </div>
+
+          {/* Error Display */}
+          {txError && (
+            <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+              <div className="text-red-400 text-sm">❌ {(txError as any).shortMessage || txError.message}</div>
+            </div>
+          )}
 
           {/* Creation Fee */}
           <div className="pt-4 border-t border-gray-700">
@@ -267,7 +339,6 @@ export function CreateTokenDialog({
               <span className="text-green-400 font-semibold">{feeDisplay}</span>
             </div>
 
-            {/* Create Button */}
             <button
               type="button"
               onClick={handleCreate}

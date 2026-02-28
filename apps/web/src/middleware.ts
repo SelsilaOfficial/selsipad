@@ -53,7 +53,8 @@ export async function middleware(request: NextRequest) {
       .from('wallets')
       .select('user_id')
       .eq('address', adminWallet.toLowerCase())
-      .single();
+      .limit(1)
+      .maybeSingle();
 
     if (!wallet) {
       const redirectUrl = new URL('/admin', request.url);

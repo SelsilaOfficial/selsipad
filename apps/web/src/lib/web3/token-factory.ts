@@ -13,9 +13,9 @@ export const TOKEN_FACTORY_ADDRESSES: Record<string, Address> = {
   ethereum: '0x0000000000000000000000000000000000000000', // TBD
   bnb: '0x0000000000000000000000000000000000000000', // TBD
   base: '0x0000000000000000000000000000000000000000', // TBD
-  sepolia: '0x2aDF8E4a91dC34d992e12FA51d78a4F7E06a5D6b', // ✅ Deployed 2026-01-29
+  sepolia: '0x8b81a2fd4Db786ab1f3A298804FFB6C845797842', // ✅ Redeployed 2026-02-28 (0.1 ETH fee)
   bsc_testnet: '0x28DBa6468e7e5AD805374244B5D528375fC4610A', // ✅ Deployed 2026-02-07 Hybrid
-  base_sepolia: '0x2aDF8E4a91dC34d992e12FA51d78a4F7E06a5D6b', // ✅ Deployed 2026-01-29
+  base_sepolia: '0x0bd090FFA318F0A00066eAA9C074cB59CB7D5010', // ✅ Redeployed 2026-02-28 (0.1 ETH fee)
   solana: '0x0000000000000000000000000000000000000000', // N/A
 } as const;
 
@@ -26,9 +26,9 @@ export const TOKEN_CREATION_FEES: Record<string, bigint> = {
   ethereum: parseEther('0.1'),
   bnb: parseEther('0.2'),
   base: parseEther('0.05'),
-  sepolia: parseEther('0.01'), // Testnet
+  sepolia: parseEther('0.1'), // Testnet — matches mainnet
   bsc_testnet: parseEther('0.2'), // Matches BSC mainnet for testing
-  base_sepolia: parseEther('0.01'), // Testnet
+  base_sepolia: parseEther('0.1'), // Testnet — matches mainnet
   solana: BigInt(0), // N/A
 };
 

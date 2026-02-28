@@ -22,7 +22,7 @@ export interface VerificationResult {
 export interface VerificationRequest {
   contractAddress: string;
   constructorArgs: any[];
-  network: 'bscTestnet' | 'bsc' | 'sepolia' | 'ethereum' | 'baseSepolia' | 'base';
+  network: 'bscTestnet' | 'bsc' | 'sepolia' | 'ethereum' | 'base_sepolia' | 'base';
   contractPath?: string; // Optional, default: auto-detect
 }
 
@@ -159,7 +159,7 @@ export function getNetworkFromChainId(chainId: number): VerificationRequest['net
     case 1:
       return 'ethereum';
     case 84532:
-      return 'baseSepolia';
+      return 'base_sepolia';
     case 8453:
       return 'base';
     default:

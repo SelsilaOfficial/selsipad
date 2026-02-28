@@ -27,7 +27,8 @@ export async function POST(request: NextRequest) {
       .select('user_id, chain')
       .eq('address', walletAddress.toLowerCase())
       .or('chain.ilike.evm_%,chain.like.evm-%')
-      .single();
+      .limit(1)
+      .maybeSingle();
 
     if (walletError || !wallet) {
       console.log('[Admin Auth] EVM wallet not found:', walletAddress);

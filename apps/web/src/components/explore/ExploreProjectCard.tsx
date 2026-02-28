@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Project } from '@/lib/data/projects';
 import { ProgressBar } from '@/components/ui';
-import { Clock, Users, Zap, ShieldCheck } from 'lucide-react';
+import { Clock, Users, ShieldCheck } from 'lucide-react';
 
 /**
  * Format a time difference in ms into a human-readable countdown string.
@@ -165,30 +165,58 @@ export function ExploreProjectCard({ project, index }: ExploreProjectCardProps) 
           {/* Network Badge (Right) */}
           <div className="absolute top-4 right-4 z-10 flex flex-col gap-2 items-end">
             <div className="px-3 py-1.5 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-xs font-bold text-white flex items-center gap-1.5">
-              {project.network === 'EVM' ? (
-                <Zap size={12} className="text-[#39AEC4]" fill="currentColor" />
-              ) : (
-                <div className="w-3 h-3 rounded-full bg-gradient-to-tr from-purple-500 to-blue-500" />
-              )}
-              {/* Display specific network name if available, otherwise generic */}
-              {project.chain === '56' || project.chain === '97'
-                ? 'BNB Chain'
-                : project.chain === '1' || project.chain === '11155111'
-                  ? 'Ethereum'
-                  : project.chain === '8453' || project.chain === '84532'
+              {(() => {
+                const chain = project.chain;
+                const isBNB = chain === '56' || chain === '97';
+                const isBase = chain === '8453' || chain === '84532';
+                const isEth = chain === '1' || chain === '11155111';
+                const logoSrc = isBNB
+                  ? '/assets/chains/bnb.png'
+                  : isBase
+                    ? '/assets/chains/base.png'
+                    : isEth
+                      ? '/assets/chains/eth.png'
+                      : null;
+                const networkName = isBNB
+                  ? 'BNB Chain'
+                  : isBase
                     ? 'Base'
-                    : project.network === 'SOL'
-                      ? 'Solana'
-                      : project.network}
+                    : isEth
+                      ? 'Ethereum'
+                      : project.network === 'SOL'
+                        ? 'Solana'
+                        : project.network;
+                return (
+                  <>
+                    {logoSrc ? (
+                      <img src={logoSrc} alt={networkName} className="w-4 h-4 rounded-full object-cover" />
+                    ) : (
+                      <div className="w-3 h-3 rounded-full bg-gradient-to-tr from-purple-500 to-blue-500" />
+                    )}
+                    {networkName}
+                  </>
+                );
+              })()}
             </div>
-            {/* Type Badge */}
-            <div className="px-3 py-1 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-[10px] font-medium text-gray-300 uppercase tracking-wide">
-              {(project as any).type === 'fairlaunch'
+            {/* Type Badge - Animated Glow */}
+            {(() => {
+              const projectType = (project as any).type;
+              const typeLabel = projectType === 'fairlaunch'
                 ? 'Fairlaunch'
-                : (project as any).type === 'presale'
+                : projectType === 'presale'
                   ? 'Presale'
-                  : 'Bonding Curve'}
-            </div>
+                  : 'Bonding Curve';
+              const typeColors = projectType === 'fairlaunch'
+                ? 'border-[#39AEC4]/50 text-[#39AEC4] shadow-[0_0_12px_-2px_rgba(57,174,196,0.6)]'
+                : projectType === 'presale'
+                  ? 'border-[#756BBA]/50 text-[#756BBA] shadow-[0_0_12px_-2px_rgba(117,107,186,0.6)]'
+                  : 'border-orange-500/50 text-orange-400 shadow-[0_0_12px_-2px_rgba(249,115,22,0.6)]';
+              return (
+                <div className={`px-4 py-1.5 rounded-full bg-black/50 backdrop-blur-md border text-xs font-extrabold uppercase tracking-wider animate-pulse ${typeColors}`}>
+                  {typeLabel}
+                </div>
+              );
+            })()}
           </div>
         </div>
 

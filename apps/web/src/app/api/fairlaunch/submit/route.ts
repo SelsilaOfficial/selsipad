@@ -20,8 +20,35 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// EscrowVault contract address (from Phase 1 deployment)
-const ESCROW_VAULT_ADDRESS = '0x6849A09c27F26fF0e58a2E36Dd5CAB2F9d0c617F';
+// EscrowVault contract addresses per chain
+const ESCROW_VAULT_ADDRESSES: Record<number, string> = {
+  97: '0x6849A09c27F26fF0e58a2E36Dd5CAB2F9d0c617F', // BSC Testnet
+  56: '0x0000000000000000000000000000000000000000', // BSC Mainnet (TBD)
+  11155111: process.env.NEXT_PUBLIC_ESCROW_VAULT_SEPOLIA || '0x6849A09c27F26fF0e58a2E36Dd5CAB2F9d0c617F',
+  84532: process.env.NEXT_PUBLIC_ESCROW_VAULT_BASE_SEPOLIA || '0x6849A09c27F26fF0e58a2E36Dd5CAB2F9d0c617F',
+  1: '0x0000000000000000000000000000000000000000', // Ethereum Mainnet (TBD)
+  8453: '0x0000000000000000000000000000000000000000', // Base Mainnet (TBD)
+};
+
+// RPC URLs per chain
+const RPC_URLS: Record<number, string> = {
+  97: process.env.BSC_TESTNET_RPC_URL || 'https://data-seed-prebsc-1-s1.binance.org:8545',
+  56: process.env.BSC_MAINNET_RPC_URL || 'https://bsc-dataseed1.binance.org',
+  11155111: process.env.ETH_SEPOLIA_RPC_URL || process.env.SEPOLIA_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com',
+  84532: process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org',
+  1: process.env.ETH_MAINNET_RPC_URL || 'https://eth.llamarpc.com',
+  8453: process.env.BASE_MAINNET_RPC_URL || 'https://mainnet.base.org',
+};
+
+// Creation fees per chain (in native token)
+const CREATION_FEES: Record<number, string> = {
+  97: '0.2',      // 0.2 BNB
+  56: '0.2',      // 0.2 BNB
+  11155111: '0.1', // 0.1 ETH
+  84532: '0.1',    // 0.1 ETH
+  1: '0.1',        // 0.1 ETH
+  8453: '0.1',     // 0.1 ETH
+};
 
 export const dynamic = 'force-dynamic';
 
@@ -75,22 +102,32 @@ export async function POST(request: NextRequest) {
     const validatedParams = validation.data!;
 
     // 3. Verify escrow transaction on-chain
-    console.log('[Submit API] Verifying escrow TX:', escrowTxHash);
-    const provider = new ethers.JsonRpcProvider(
-      validatedParams.chainId === 97
-        ? process.env.BSC_TESTNET_RPC_URL || 'https://data-seed-prebsc-1-s1.binance.org:8545'
-        : process.env.BSC_MAINNET_RPC_URL || 'https://bsc-dataseed1.binance.org'
-    );
+    const rpcUrl = RPC_URLS[validatedParams.chainId];
+    if (!rpcUrl) {
+      return NextResponse.json(
+        { error: `Unsupported chain ID: ${validatedParams.chainId}` },
+        { status: 400 }
+      );
+    }
+    console.log(`[Submit API] Verifying escrow TX on chain ${validatedParams.chainId}:`, escrowTxHash);
+    const provider = new ethers.JsonRpcProvider(rpcUrl);
 
     const escrowTx = await provider.getTransaction(escrowTxHash);
     if (!escrowTx) {
-      return NextResponse.json({ error: 'Escrow transaction not found' }, { status: 400 });
+      return NextResponse.json({ error: `Escrow transaction not found on chain ${validatedParams.chainId}` }, { status: 400 });
     }
 
-    // Verify transaction is to EscrowVault
-    if (escrowTx.to?.toLowerCase() !== ESCROW_VAULT_ADDRESS.toLowerCase()) {
+    // Verify transaction is to EscrowVault (per-chain)
+    const escrowVaultAddress = ESCROW_VAULT_ADDRESSES[validatedParams.chainId];
+    if (!escrowVaultAddress || escrowVaultAddress === '0x0000000000000000000000000000000000000000') {
       return NextResponse.json(
-        { error: 'Invalid escrow transaction: wrong recipient' },
+        { error: `Escrow vault not configured for chain ${validatedParams.chainId}` },
+        { status: 400 }
+      );
+    }
+    if (escrowTx.to?.toLowerCase() !== escrowVaultAddress.toLowerCase()) {
+      return NextResponse.json(
+        { error: `Invalid escrow transaction: wrong recipient. Expected ${escrowVaultAddress}, got ${escrowTx.to}` },
         { status: 400 }
       );
     }
@@ -116,22 +153,36 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate fee recipient and amount
-    const TREASURY_ADDRESS =
-      process.env.TREASURY_WALLET_ADDRESS || process.env.NEXT_PUBLIC_TREASURY_WALLET;
-    if (!TREASURY_ADDRESS) {
-      return NextResponse.json({ error: 'Treasury address not configured' }, { status: 500 });
-    }
+    // Validate fee recipient — accept ANY known platform treasury address
+    // (handles cases where fee was paid during earlier attempt with different chain config)
+    const ALL_TREASURY_ADDRESSES = new Set(
+      [
+        process.env.BSC_TESTNET_TREASURY_WALLET,
+        process.env.BSC_TREASURY_WALLET,
+        process.env.ETH_SEPOLIA_TREASURY_WALLET,
+        process.env.BASE_SEPOLIA_TREASURY_WALLET,
+        process.env.ETH_TREASURY_WALLET,
+        process.env.BASE_TREASURY_WALLET,
+        process.env.TREASURY_WALLET_ADDRESS,
+        process.env.PLATFORM_WALLET_ADDRESS,
+      ]
+        .filter(Boolean)
+        .map((a) => a!.toLowerCase())
+    );
 
-    if (feeTx.to?.toLowerCase() !== TREASURY_ADDRESS.toLowerCase()) {
+    if (!ALL_TREASURY_ADDRESSES.has(feeTx.to?.toLowerCase() || '')) {
+      console.log('[Submit API] Fee TX recipient:', feeTx.to);
+      console.log('[Submit API] Known treasuries:', [...ALL_TREASURY_ADDRESSES]);
       return NextResponse.json({ error: 'Invalid fee payment: wrong recipient' }, { status: 400 });
     }
 
-    // Validate fee amount (allow some tolerance for gas price fluctuation)
-    const EXPECTED_FEE = ethers.parseEther('0.2'); // BSC Testnet fairlaunch fee
+    // Validate fee amount (per-chain)
+    const expectedFeeStr = CREATION_FEES[validatedParams.chainId] || '0.1';
+    const nativeSymbol = [97, 56].includes(validatedParams.chainId) ? 'BNB' : 'ETH';
+    const EXPECTED_FEE = ethers.parseEther(expectedFeeStr);
     if (feeTx.value < EXPECTED_FEE) {
       return NextResponse.json(
-        { error: `Insufficient creation fee: expected ${ethers.formatEther(EXPECTED_FEE)} BNB` },
+        { error: `Insufficient creation fee: expected ${ethers.formatEther(EXPECTED_FEE)} ${nativeSymbol}` },
         { status: 400 }
       );
     }

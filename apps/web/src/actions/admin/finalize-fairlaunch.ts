@@ -43,6 +43,8 @@ export async function getFairlaunchState(
     const rpcUrls: Record<string, string> = {
       '97': process.env.BSC_TESTNET_RPC_URL || 'https://bsc-testnet-rpc.publicnode.com',
       '56': process.env.BSC_MAINNET_RPC_URL || 'https://bsc-dataseed.binance.org',
+      '11155111': process.env.ETH_SEPOLIA_RPC_URL || process.env.SEPOLIA_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com',
+      '84532': process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org',
     };
     const rpcUrl = rpcUrls[round.chain];
     if (!rpcUrl) return { success: false, error: 'Unsupported chain' };
@@ -124,7 +126,7 @@ export async function finalizeFairlaunch(roundId: string, action: FairlaunchActi
     const rpcUrls: Record<string, string> = {
       '97': process.env.BSC_TESTNET_RPC_URL || 'https://bsc-testnet-rpc.publicnode.com',
       '56': process.env.BSC_MAINNET_RPC_URL || 'https://bsc-dataseed.binance.org',
-      '11155111': process.env.SEPOLIA_RPC_URL || 'https://rpc.sepolia.org',
+      '11155111': process.env.ETH_SEPOLIA_RPC_URL || process.env.SEPOLIA_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com',
       '84532': process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org',
     };
 

@@ -16,14 +16,14 @@ const FactoryABI = ['function adminExecutor() view returns (address)'];
 const FACTORY_ADDRESSES: Record<string, string> = {
   '97':
     process.env.NEXT_PUBLIC_FAIRLAUNCH_FACTORY_BSC_TESTNET ||
-    '0xa6dE6Ebd3E0ED5AcbE9c07B59C738C610821e175', // Pair Pre-Create Fix (Feb 12)
+    '0xa6dE6Ebd3E0ED5AcbE9c07B59C738C610821e175',
   '56': process.env.NEXT_PUBLIC_FAIRLAUNCH_FACTORY_BSC_MAINNET || '',
   '11155111':
     process.env.NEXT_PUBLIC_FAIRLAUNCH_FACTORY_SEPOLIA ||
-    '0x53850a56397379Da8572A6a47003bca88bB52A24', // V2 Router Fix (Feb 12)
+    '0xdc13D871057838C1e9b0226C3bC2cd2d9636b272',
   '84532':
     process.env.NEXT_PUBLIC_FAIRLAUNCH_FACTORY_BASE_SEPOLIA ||
-    '0xeEf8C1da1b94111237c419AB7C6cC30761f31572', // Full Infra Deploy (Feb 12)
+    '0xce329E6d7415999160bB6f47133b552a91C915a0',
 };
 
 /** LP Locker addresses per chain */
@@ -39,7 +39,7 @@ function getRpcUrl(chain: string): string {
   const rpcs: Record<string, string | undefined> = {
     '97': process.env.BSC_TESTNET_RPC_URL || 'https://data-seed-prebsc-1-s1.bnbchain.org:8545',
     '56': process.env.BSC_MAINNET_RPC_URL,
-    '11155111': process.env.SEPOLIA_RPC_URL || 'https://rpc.sepolia.org',
+    '11155111': process.env.ETH_SEPOLIA_RPC_URL || process.env.SEPOLIA_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com',
     '84532': process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org',
   };
   return rpcs[chain] || rpcs['97']!;

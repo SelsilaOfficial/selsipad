@@ -15,6 +15,8 @@ import {
   Package,
   Plus,
   FolderOpen,
+  Flame,
+  GraduationCap,
 } from 'lucide-react';
 import { AnimatedBackground } from '@/components/home/figma/AnimatedBackground';
 
@@ -24,17 +26,20 @@ import { AnimatedBackground } from '@/components/home/figma/AnimatedBackground';
 interface Project {
   id: string;
   name: string;
+  symbol?: string;
   description?: string;
   logo_url?: string;
-  type: 'FAIRLAUNCH' | 'PRESALE';
+  type: 'FAIRLAUNCH' | 'PRESALE' | 'BONDING_CURVE';
   status: string;
   chain_id: number;
-  token_address: string;
+  token_address?: string | null;
   contract_address?: string;
   created_at: string;
   launch_rounds?: {
     id: string;
     softcap: string;
+    status?: string;
+    result?: string;
     start_time: string;
     end_time: string;
     escrow_tx_hash?: string;
@@ -44,10 +49,20 @@ interface Project {
     pause_reason?: string;
     total_raised?: string;
     contributor_count?: number;
+    finalized_at?: string;
   }[];
+  bonding_data?: {
+    actual_native_reserves?: string;
+    graduation_threshold_native?: string;
+    target_dex?: string;
+    dex_pool_address?: string;
+    deployed_at?: string;
+    graduated_at?: string;
+    failed_at?: string;
+  };
 }
 
-type FilterType = 'ALL' | 'FAIRLAUNCH' | 'PRESALE';
+type FilterType = 'ALL' | 'FAIRLAUNCH' | 'PRESALE' | 'BONDING_CURVE';
 
 /* ------------------------------------------------------------------ */
 /* Status helpers                                                      */
@@ -120,6 +135,30 @@ const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string; d
     text: 'text-[#39AEC4]',
     dot: 'bg-[#39AEC4]',
   },
+  SUCCESS: {
+    label: 'Success',
+    bg: 'bg-emerald-500/10 border-emerald-500/20',
+    text: 'text-emerald-400',
+    dot: 'bg-emerald-400',
+  },
+  FAILED: {
+    label: 'Refund',
+    bg: 'bg-red-500/10 border-red-500/20',
+    text: 'text-red-400',
+    dot: 'bg-red-400',
+  },
+  GRADUATED: {
+    label: 'Graduated',
+    bg: 'bg-[#756BBA]/10 border-[#756BBA]/20',
+    text: 'text-[#756BBA]',
+    dot: 'bg-[#756BBA]',
+  },
+  BONDING_ACTIVE: {
+    label: 'Active',
+    bg: 'bg-orange-500/10 border-orange-500/20',
+    text: 'text-orange-400',
+    dot: 'bg-orange-400 animate-pulse',
+  },
 };
 
 const DEFAULT_STATUS = {
@@ -131,6 +170,16 @@ const DEFAULT_STATUS = {
 
 function getDynamicStatus(project: Project): string {
   const round = project.launch_rounds?.[0];
+
+  // Check finalization result first (from launch_round status & result)
+  if (round?.result === 'SUCCESS' || round?.status === 'SUCCESS') return 'SUCCESS';
+  if (round?.result === 'FAILED' || round?.status === 'FAILED') return 'FAILED';
+  if (round?.status === 'FINALIZED') {
+    if (round.result === 'SUCCESS') return 'SUCCESS';
+    if (round.result === 'FAILED') return 'FAILED';
+    return 'FINALIZED';
+  }
+
   const isDeployedOrApproved = project.status === 'DEPLOYED' || project.status === 'APPROVED';
   if (!isDeployedOrApproved || !round?.start_time || !round?.end_time) return project.status;
 
@@ -173,13 +222,19 @@ function ProjectCard({ project }: { project: Project }) {
   }, [project]);
 
   const isLive = dynamicStatus === 'LIVE' || dynamicStatus === 'ACTIVE';
+  const isSuccess = dynamicStatus === 'SUCCESS';
+  const isFailed = dynamicStatus === 'FAILED';
 
   return (
     <div
-      onClick={() => router.push(`/fairlaunch/${project.id}`)}
+      onClick={() => router.push(project.type === 'BONDING_CURVE' ? `/bonding/${project.id}` : `/fairlaunch/${project.id}`)}
       className={`group relative rounded-[20px] border backdrop-blur-xl p-5 cursor-pointer transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:shadow-[#756BBA]/10 ${
         isLive
           ? 'border-purple-500/30 bg-purple-500/5'
+          : isSuccess
+          ? 'border-emerald-500/30 bg-emerald-500/5'
+          : isFailed
+          ? 'border-red-500/30 bg-red-500/5'
           : 'border-white/10 bg-white/5 hover:border-[#39AEC4]/30'
       }`}
     >
@@ -222,12 +277,14 @@ function ProjectCard({ project }: { project: Project }) {
       {/* Info Grid */}
       <div className="space-y-2">
         {/* Token */}
+        {project.token_address && (
         <div className="flex items-center justify-between text-xs">
           <span className="text-gray-500">Token</span>
           <span className="text-[#39AEC4] font-mono text-[11px]">
             {project.token_address.slice(0, 6)}...{project.token_address.slice(-4)}
           </span>
         </div>
+        )}
 
         {/* Chain */}
         <div className="flex items-center justify-between text-xs">
@@ -256,6 +313,25 @@ function ProjectCard({ project }: { project: Project }) {
         )}
       </div>
 
+      {/* Finalization Result Badge */}
+      {(isSuccess || isFailed) && round?.finalized_at && (
+        <div className={`flex items-center gap-2 mt-3 pt-3 border-t ${
+          isSuccess ? 'border-emerald-500/10' : 'border-red-500/10'
+        }`}>
+          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] text-[11px] font-bold ${
+            isSuccess
+              ? 'bg-emerald-500/10 text-emerald-400'
+              : 'bg-red-500/10 text-red-400'
+          }`}>
+            {isSuccess ? (
+              <><CheckCircle2 className="w-3.5 h-3.5" /> Softcap Reached — Finalized</>
+            ) : (
+              <><XCircle className="w-3.5 h-3.5" /> Softcap Not Met — Refund</>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Checklist row */}
       {round && (round.escrow_tx_hash || round.creation_fee_paid) && (
         <div className="flex items-center gap-3 mt-3 pt-3 border-t border-white/5">
@@ -269,6 +345,141 @@ function ProjectCard({ project }: { project: Project }) {
               <CheckCircle2 className="w-3 h-3" /> Fee Paid
             </span>
           )}
+        </div>
+      )}
+
+      {/* Footer */}
+      <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/5">
+        <span className="text-[10px] text-gray-600">
+          {new Date(project.created_at).toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+          })}
+        </span>
+        <ExternalLink className="w-3.5 h-3.5 text-gray-600 group-hover:text-[#39AEC4] transition-colors" />
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* BondingCurveCard                                                    */
+/* ------------------------------------------------------------------ */
+function BondingCurveCard({ project }: { project: Project }) {
+  const router = useRouter();
+  const bd = project.bonding_data;
+  const isGraduated = project.status === 'GRADUATED';
+  const isBondingActive = !isGraduated && project.status !== 'FAILED';
+
+  // Calculate progress toward graduation
+  const reserves = Number(bd?.actual_native_reserves || 0);
+  const threshold = Number(bd?.graduation_threshold_native || 1);
+  const progressPct = Math.min((reserves / threshold) * 100, 100);
+
+  const displayStatus = isGraduated ? 'GRADUATED' : isBondingActive ? 'BONDING_ACTIVE' : project.status;
+
+  return (
+    <div
+      onClick={() => router.push(`/bonding/${project.id}`)}
+      className={`group relative rounded-[20px] border backdrop-blur-xl p-5 cursor-pointer transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:shadow-[#756BBA]/10 ${
+        isGraduated
+          ? 'border-[#756BBA]/30 bg-[#756BBA]/5'
+          : isBondingActive
+          ? 'border-orange-500/30 bg-orange-500/5'
+          : 'border-white/10 bg-white/5 hover:border-[#39AEC4]/30'
+      }`}
+    >
+      {/* Top: Logo + Name + Status */}
+      <div className="relative flex items-start justify-between gap-3 mb-4">
+        <div className="flex items-center gap-3 min-w-0">
+          {project.logo_url ? (
+            <img
+              src={project.logo_url}
+              alt={project.name}
+              className="w-11 h-11 rounded-[12px] object-cover border border-white/10 shrink-0"
+            />
+          ) : (
+            <div className="w-11 h-11 rounded-[12px] bg-gradient-to-br from-orange-500/20 to-[#756BBA]/20 border border-white/10 flex items-center justify-center shrink-0">
+              <Flame className="w-5 h-5 text-orange-400" />
+            </div>
+          )}
+          <div className="min-w-0">
+            <h3 className="text-sm font-bold text-white truncate">{project.name}</h3>
+            <span className="text-[11px] text-gray-500 uppercase tracking-wider">
+              Bonding Curve {project.symbol && `· $${project.symbol}`}
+            </span>
+          </div>
+        </div>
+        <StatusPill status={displayStatus} />
+      </div>
+
+      {/* Description */}
+      {project.description && (
+        <p className="text-xs text-gray-400 line-clamp-2 mb-4 leading-relaxed">
+          {project.description}
+        </p>
+      )}
+
+      {/* Info Grid */}
+      <div className="space-y-2">
+        {/* Token */}
+        {project.token_address && (
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-gray-500">Token</span>
+            <span className="text-[#39AEC4] font-mono text-[11px]">
+              {project.token_address.slice(0, 6)}...{project.token_address.slice(-4)}
+            </span>
+          </div>
+        )}
+
+        {/* Chain */}
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-gray-500">Chain</span>
+          <span className="text-gray-300">
+            BSC {project.chain_id === 97 ? 'Testnet' : 'Mainnet'}
+          </span>
+        </div>
+
+        {/* Reserves */}
+        {reserves > 0 && (
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-gray-500">Reserves</span>
+            <span className="text-emerald-400 font-bold">{reserves.toFixed(4)} BNB</span>
+          </div>
+        )}
+
+        {/* DEX */}
+        {bd?.target_dex && (
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-gray-500">Target DEX</span>
+            <span className="text-gray-300">{bd.target_dex}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Progress Bar */}
+      {!isGraduated && threshold > 0 && (
+        <div className="mt-3 pt-3 border-t border-white/5">
+          <div className="flex items-center justify-between text-[10px] mb-1.5">
+            <span className="text-gray-500">Graduation Progress</span>
+            <span className="text-orange-400 font-bold">{progressPct.toFixed(1)}%</span>
+          </div>
+          <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-orange-500 to-[#756BBA] rounded-full transition-all duration-500"
+              style={{ width: `${progressPct}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Graduated Badge */}
+      {isGraduated && (
+        <div className="flex items-center gap-2 mt-3 pt-3 border-t border-[#756BBA]/10">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] text-[11px] font-bold bg-[#756BBA]/10 text-[#756BBA]">
+            <GraduationCap className="w-3.5 h-3.5" /> Migrated to DEX
+          </div>
         </div>
       )}
 
@@ -324,17 +535,21 @@ function SummaryStats({ projects }: { projects: Project[] }) {
     const s = getDynamicStatus(p);
     return s === 'LIVE' || s === 'ACTIVE';
   }).length;
-  const ended = projects.filter((p) => getDynamicStatus(p) === 'ENDED').length;
+  const bonding = projects.filter((p) => p.type === 'BONDING_CURVE').length;
+  const success = projects.filter((p) => getDynamicStatus(p) === 'SUCCESS').length;
+  const refund = projects.filter((p) => getDynamicStatus(p) === 'FAILED').length;
 
   const stats = [
-    { label: 'Total', value: total, icon: Package, color: 'text-white', dot: 'bg-white/40' },
-    { label: 'Pending', value: pending, icon: Clock, color: 'text-amber-400', dot: 'bg-amber-400' },
-    { label: 'Live', value: live, icon: Zap, color: 'text-purple-400', dot: 'bg-purple-400' },
-    { label: 'Ended', value: ended, icon: TrendingUp, color: 'text-gray-400', dot: 'bg-gray-400' },
+    { label: 'Total', value: total, color: 'text-white' },
+    { label: 'Pending', value: pending, color: 'text-amber-400' },
+    { label: 'Live', value: live, color: 'text-purple-400' },
+    { label: 'Bonding', value: bonding, color: 'text-orange-400' },
+    { label: 'Success', value: success, color: 'text-emerald-400' },
+    { label: 'Refund', value: refund, color: 'text-red-400' },
   ];
 
   return (
-    <div className="grid grid-cols-4 gap-2 sm:gap-3">
+    <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 sm:gap-3">
       {stats.map((s) => (
         <div
           key={s.label}
@@ -382,6 +597,7 @@ export default function ProjectsPage() {
     { key: 'ALL', label: 'All' },
     { key: 'FAIRLAUNCH', label: 'Fairlaunch' },
     { key: 'PRESALE', label: 'Presale' },
+    { key: 'BONDING_CURVE', label: 'Bonding Curve' },
   ];
 
   return (
@@ -402,7 +618,7 @@ export default function ProjectsPage() {
               <div className="flex-1 min-w-0">
                 <h1 className="text-base font-bold leading-tight">My Projects</h1>
                 <p className="text-xs text-gray-500">
-                  Track your Fairlaunch &amp; Presale projects
+                  Track your Fairlaunch, Presale &amp; Bonding Curve projects
                 </p>
               </div>
               {!loading && projects.length > 0 && (
@@ -462,7 +678,9 @@ export default function ProjectsPage() {
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {filteredProjects.map((project) => (
-                    <ProjectCard key={project.id} project={project} />
+                    project.type === 'BONDING_CURVE'
+                      ? <BondingCurveCard key={project.id} project={project} />
+                      : <ProjectCard key={project.id} project={project} />
                   ))}
                 </div>
               )}

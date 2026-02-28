@@ -325,10 +325,11 @@ export async function runPostFinalizeOrchestrator(): Promise<void> {
 
   try {
     // Find finalized successful rounds without completed post-finalize
+    // finalize-fairlaunch.ts sets status to 'SUCCESS', but older rounds may use 'FINALIZED'
     const { data: rounds, error } = await supabase
       .from('launch_rounds')
       .select('id')
-      .eq('status', 'FINALIZED')
+      .in('status', ['SUCCESS', 'FINALIZED'])
       .eq('result', 'SUCCESS')
       .is('success_gated_at', null)
       .limit(10);

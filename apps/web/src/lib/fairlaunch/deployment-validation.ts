@@ -162,11 +162,11 @@ export const FairlaunchDeploySchema = z
         symbol: z.string().optional(),
         description: z.string().optional(),
         logoUrl: z.string().optional(),
-        bannerUrl: z.string().optional(),
-        projectWebsite: z.string().url().optional(),
-        telegram: z.string().optional(),
-        twitter: z.string().optional(),
-        discord: z.string().optional(),
+        bannerUrl: z.string().optional().or(z.literal('')),
+        projectWebsite: z.string().url().optional().or(z.literal('')),
+        telegram: z.string().optional().or(z.literal('')),
+        twitter: z.string().optional().or(z.literal('')),
+        discord: z.string().optional().or(z.literal('')),
       })
       .optional()
       .describe('Project metadata (name, description, social links)'),

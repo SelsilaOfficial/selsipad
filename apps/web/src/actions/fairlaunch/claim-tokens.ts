@@ -36,8 +36,9 @@ export async function claimFairlaunchTokens(roundId: string) {
       return { success: false, error: 'Fairlaunch not found' };
     }
 
-    // Validate fairlaunch is ended
-    if (round.status !== 'ENDED') {
+    // Validate fairlaunch is finalized successfully
+    const claimableStatuses = ['SUCCESS', 'FINALIZED', 'ENDED'];
+    if (!claimableStatuses.includes(round.status)) {
       return {
         success: false,
         error: `Cannot claim yet. Fairlaunch status: ${round.status}`,
