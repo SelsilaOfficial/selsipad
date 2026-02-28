@@ -1,11 +1,11 @@
 import type { PoolStatus } from '@selsipad/shared';
 
 interface StatusPillProps {
-  status: PoolStatus;
+  status: PoolStatus | string;
 }
 
 export function StatusPill({ status }: StatusPillProps) {
-  const getStatusConfig = (status: PoolStatus) => {
+  const getStatusConfig = (status: string) => {
     switch (status) {
       case 'DRAFT':
         return {

@@ -595,7 +595,7 @@ export async function getBondingCurvePools(): Promise<Project[]> {
         const uniquePerPool: Record<string, Set<string>> = {};
         for (const s of swaps) {
           if (!uniquePerPool[s.pool_id]) uniquePerPool[s.pool_id] = new Set();
-          uniquePerPool[s.pool_id].add(s.wallet_address);
+          uniquePerPool[s.pool_id]!.add(s.wallet_address);
         }
         for (const [pid, wallets] of Object.entries(uniquePerPool)) {
           contributorMap[pid] = wallets.size;

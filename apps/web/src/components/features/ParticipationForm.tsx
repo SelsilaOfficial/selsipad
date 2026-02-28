@@ -17,7 +17,7 @@ interface ParticipationFormProps {
   contractAddress?: string;
   minContribution?: number;
   maxContribution?: number;
-  projectType?: 'presale' | 'fairlaunch';
+  projectType?: 'presale' | 'fairlaunch' | 'bonding_curve';
   raised?: number;
   target?: number; // hardcap
 }
